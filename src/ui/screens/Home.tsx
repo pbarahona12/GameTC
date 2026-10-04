@@ -118,11 +118,13 @@ export function Home() {
           <InfoButton term="patrimonio_neto" />
           <span style={{ flex: 1 }} />
           {prev && <span className="small"><Money c={change} colored sign fit /> <span className="faint">este mes</span></span>}
+          <button className="btn sm ghost explain-btn" onClick={() => navStore.open({ kind: 'explain' })} aria-label="Explicar por qué cambió tu patrimonio"><Icon name="idea" size={14} /> ¿Por qué?</button>
         </div>
         <BigAmount c={m.netWorth} />
         <Learn term="patrimonio_neto" />
         {nwSeries.length >= 2 && <LineChart series={[{ name: 'Patrimonio neto', values: nwSeries, color: 'var(--accent)' }]} pointLabels={nwLabels} height={100} />}
         <div className="tiny faint">Lo que tenés {fmtMoneyFit(m.totalAssets, { decimals: false })} − lo que debés {fmtMoneyFit(m.totalLiabilities, { decimals: false })}</div>
+        {s.macro.priceIndex > 1.05 && <div className="tiny faint">A precios del inicio de tu partida: {fmtMoneyFit(Math.round(m.netWorth / s.macro.priceIndex), { decimals: false })} (los precios subieron {fmtPct(s.macro.priceIndex - 1, 0)}).</div>}
       </section>
 
       <div className="month-strip" role="group" aria-label="Tu mes">

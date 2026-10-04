@@ -750,3 +750,13 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
 }
 @media (min-width: 420px) { .choice-grid.two { grid-template-columns: 1fr 1fr; } }
 .choice .hook { color: var(--accent); font-weight: 600; font-style: italic; }
+/* Explicar este número */
+.explain-list { display: flex; flex-direction: column; gap: 10px; }
+.explain-row { display: flex; flex-direction: column; gap: 3px; }
+.explain-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.explain-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.explain-bar span { display: block; height: 100%; border-radius: 3px; }
+.explain-bar span.up { background: var(--gain); }
+.explain-bar span.down { background: var(--loss); }
+.explain-row.k-revalorizacion .explain-bar span.up { background: color-mix(in srgb, var(--gain) 55%, transparent); }
+.explain-btn { min-height: 30px; padding: 0 8px; }

@@ -19,7 +19,8 @@ export type SheetSpec =
   | { kind: 'goals' }
   | { kind: 'dilemma'; id: number }
   | { kind: 'agenda' }
-  | { kind: 'challenges' };
+  | { kind: 'challenges' }
+  | { kind: 'explain' };
 
 interface NavState {
   tab: Tab;

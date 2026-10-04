@@ -1,4 +1,41 @@
-# Estado del proyecto — versión 1.3
+# Estado del proyecto — versión 1.4
+
+## Versión 1.4: la historia del magnate (rama `v1.4-experiencia`)
+
+Primera implementación de la auditoría de diseño. Todo vive en `src/engine/saga/` (estado `state.saga`) y usa su propio generador de azar: con la misma semilla, la economía (bolsa, empleos, eventos) es idéntica a la de 1.3.
+
+| Sistema | Archivos | Qué hace |
+|---|---|---|
+| Listas de fortunas | `saga/ranking.ts`, `content/cities.ts` | 100 fortunas por ciudad (4 ciudades, una por jurisdicción) + ranking global. Siguen a la bolsa por sector, los índices inmobiliarios y las tasas de la partida. Los dueños de los grupos rivales están en la lista (su fortuna incluye el grupo). Puesto estimado fuera del top 100. Hitos, noticias (tema «Fortunas»), retadores y defensa del trono. |
+| Rivales con memoria | `world/rivals.ts`, `world/types.ts` | Rencor 0–100 (sube si les ganás compras, los superás o competís en sus sectores); multiplica sus ataques hasta ×2. Treguas pactadas en un dilema; romperlas cuesta. |
+| Metas de vida | `saga/goals.ts` | 24 metas en 6 categorías (vida, carrera, riqueza, negocios, competencia, valores), hasta 3 activas. |
+| Decisiones con plazo | `saga/dilemmas.ts` | 15 plantillas con efectos por el libro mayor, empleados, carrera, rivales e inmuebles; opción por defecto si vencen; desenlaces diferidos. Pausan el tiempo (categoría «decisiones»). |
+| Agenda | `saga/agenda.ts` | Vista de todo lo pendiente ordenado por vencimiento. |
+| Crónica y festejos | `saga/chronicle.ts` | Línea de tiempo con resumen anual; festejos pendientes (grandes y chicos). |
+| Primer mes | `saga/firstMonth.ts` | Guía de 6 pasos que se cumplen por el estado real. |
+| Desafíos con semilla | `saga/challenges.ts` | 5 escenarios fijos con código de resultado verificable. |
+| Explicar este número | `reports/explain.ts` | Por qué cambió el patrimonio, desde el estado de resultados. |
+| Etapas a precios de hoy | `progression/progression.ts` | Umbrales × índice de precios (redondeados); la etapa 12 pide top 10 global. |
+
+Partidas guardadas: versión 6. La migración 5 → 6 crea la historia a precios de hoy sin tocar la economía.
+
+### Verificación 1.4 (resultados reales)
+
+- `npm test`: 327 pruebas (27 nuevas en `tests/saga.test.ts` y `tests/saga_ui.test.tsx`), todas pasan. Typecheck, lint y build sin errores.
+- Recorrido de punta a punta (Playwright) actualizado: festejo del primer sueldo y lugar en la lista; pasa.
+- Auditoría de caos con 24 semillas × 20 años: invariantes contables intactos.
+- Bots de balance (15 años, `docs/BALANCE.md` regenerado): ningún estilo tarda más de 60 días en salir de la supervivencia; con las etapas a precios de hoy, la etapa 7 ya no llega en 15 años (antes llegaba solo el emprendedor, por inflación).
+- Costo: ~8 % más de tiempo de simulación y ~90 KB más por partida en 10 años.
+
+### Pendiente para continuar (por prioridad)
+
+1. Probar con 10–12 personas reales (la prueba cerrada de Play) y ajustar la frecuencia de decisiones y festejos.
+2. Más plantillas de decisiones (30–40) y desenlaces que involucren a los rivales por nombre.
+3. Edad, jubilación y heredero (legado); salida a bolsa y compras de rivales.
+4. Crónica exportable como imagen; eras económicas.
+5. Escritorio: dos columnas reales en Inicio e informes.
+
+# Versión 1.3
 
 ## Versión 1.3: robustez (rama `v1.3-robustez`)
 

@@ -11,6 +11,8 @@ import type { ChronicleKind } from '../../../engine/saga/types';
 import { dateOf, formatDate } from '../../../engine/time/calendar';
 import { fmtMoneyFit } from '../../../engine/format';
 import { AgendaList, dueText, iconOf } from './SagaCards';
+import { explainNetWorth, ExplainPeriod } from '../../../engine/reports/explain';
+import { Money } from '../../components/common';
 
 const CAT_NAMES: Record<GoalCategory, string> = { riqueza: 'Riqueza', negocios: 'Negocios', vida: 'Vida', competencia: 'Competencia', carrera: 'Carrera', valores: 'Valores' };
 
@@ -213,6 +215,33 @@ export function ChallengesView() {
         <input id="ch-code" className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ej.: MILLON-3650-AB12CD" autoComplete="off" />
         {code.trim() && (checked ? <span className="small gain">Código válido · {describeResult(checked.id, checked.value)}</span> : <span className="small loss">El código no es válido (¿está bien copiado?).</span>)}
       </div>
+    </Sheet>
+  );
+}
+
+/** EXPLICAR ESTE NÚMERO: por qué cambió tu patrimonio, desde el libro mayor. */
+export function ExplainView() {
+  const s = useGame();
+  const [p, setP] = useState<ExplainPeriod>('mes');
+  const e = explainNetWorth(s, p);
+  const max = Math.max(1, ...e.items.map((x) => Math.abs(x.amount)));
+  return (
+    <Sheet title="¿Por qué cambió tu patrimonio?">
+      <Seg items={[{ id: 'mes' as const, label: 'Este mes' }, { id: 'mes_pasado' as const, label: 'Mes pasado' }, { id: 'anio' as const, label: 'Este año' }]} value={p} onChange={setP} />
+      <p className="small"><strong>{e.summary}</strong></p>
+      <div className="kv"><dt>Al empezar ({formatDate(e.from)})</dt><dd><Money c={e.start} fit /></dd><dt>Ahora ({formatDate(e.to)})</dt><dd><Money c={e.end} fit /></dd><dt>Diferencia</dt><dd><Money c={e.change} colored sign fit /></dd></div>
+      <div className="explain-list">
+        {e.items.map((x) => (
+          <div key={x.key} className={`explain-row k-${x.kind}`}>
+            <div className="explain-top"><span className="small">{x.label}</span><Money c={x.amount} colored sign fit /></div>
+            <div className="explain-bar"><span style={{ width: `${(Math.abs(x.amount) / max) * 100}%` }} className={x.amount >= 0 ? 'up' : 'down'} /></div>
+            {x.detail && <span className="tiny muted">{x.detail}</span>}
+          </div>
+        ))}
+        {!e.items.length && <Empty icon="reports">No hubo movimientos en este período.</Empty>}
+      </div>
+      <p className="tiny faint">Cada línea es la suma de asientos reales de tu libro mayor. El detalle completo está en Más → Informes financieros. <InfoButton term="patrimonio_neto" /></p>
+      <button className="btn sm ghost" onClick={() => { navStore.closeAll(); navStore.go('reports', 'is'); }}>Ver el estado de resultados</button>
     </Sheet>
   );
 }

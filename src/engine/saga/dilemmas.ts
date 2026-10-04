@@ -541,6 +541,51 @@ const TEMPLATES: Template[] = [
     },
   },
   {
+    id: 'gran_oportunidad', icon: 'telescope', weight: 2, cooldown: 420,
+    eligible: (s) => s.progression.stage >= 7 && spendable(s) >= usd(400_000 * pi(s)),
+    create: (s, g) => {
+      const amount = roundCents(clamp(spendable(s) * randRange(g, 0.15, 0.3), usd(250_000 * pi(s)), usd(500_000_000 * pi(s))) / 1_000_000) * 1_000_000;
+      const what = pick(g, ['una cadena hotelera extranjera que sale de la región', 'la concesión del nuevo puerto seco', 'el 20 % de una minera en problemas', 'una red de clínicas que se reestructura', 'los derechos de una autopista de peaje']);
+      const r = s.world.rivals.length ? pick(g, s.world.rivals) : undefined;
+      return { params: { amount, what, rival: r?.name ?? '', rivalId: r?.id ?? '' }, days: 15 };
+    },
+    title: (_s, d) => `Gran oportunidad: ${str(d, 'what')}`,
+    body: (_s, d) => `Hace falta poner ${money(num(d, 'amount'))} ahora. Puede rendir mucho en dos o tres años… o salir mal.${str(d, 'rival') ? ` ${str(d, 'rival')} también está mirando.` : ''}`,
+    options: [
+      { id: 'entrar', label: 'Entrar con todo', detail: (_s, d) => `Ponés ${money(num(d, 'amount'))}. Se contabiliza como gasto hasta el desenlace. Si no entrás vos, entra el rival.`, blocked: (s, d) => cantPay(num(d, 'amount'))(s) },
+      { id: 'socio', label: 'Entrar con un socio', detail: (_s, d) => `Ponés ${money(roundCents(num(d, 'amount') / 2))} y compartís la mitad del resultado.`, blocked: (s, d) => cantPay(roundCents(num(d, 'amount') / 2))(s) },
+      { id: 'pasar', label: 'Dejarla pasar', detail: () => 'Sin riesgo. Si hay un rival interesado, se queda con ella.' },
+    ],
+    fallback: 'pasar',
+    apply: (s, d, choice, g) => {
+      const r = s.world.rivals.find((x) => x.id === str(d, 'rivalId'));
+      if (choice === 'pasar') {
+        if (r) {
+          r.capital -= roundCents(num(d, 'amount') / 4);
+          r.assetsValue = (r.assetsValue ?? 0) + roundCents(num(d, 'amount') / 4);
+          r.moves.push({ day: s.day, text: `Se quedó con ${str(d, 'what')}` });
+        }
+        return r ? `${r.name} se quedó con la oportunidad.` : 'La dejaste pasar.';
+      }
+      const amount = choice === 'entrar' ? num(d, 'amount') : roundCents(num(d, 'amount') / 2);
+      if (!spend(s, amount, `Inversión: ${str(d, 'what')}`)) return 'No alcanzó el dinero.';
+      if (r) rememberRival(s, r, 8, `Le ganaste ${str(d, 'what')}`);
+      schedule(s, d, choice, randInt(g, 540, 1080), { invested: amount });
+      return `Entraste con ${money(amount)}. El resultado se sabrá en dos o tres años.`;
+    },
+    resolve: (s, o, g) => {
+      const inv = num(o, 'invested');
+      // Valor esperado positivo (≈ +35 %), con una cola de pérdida real.
+      const roll = nextRandom(g);
+      const mult = roll < 0.18 ? randRange(g, 0, 0.4) : roll < 0.45 ? randRange(g, 0.8, 1.2) : roll < 0.85 ? randRange(g, 1.4, 2.0) : randRange(g, 2.2, 3.5);
+      const back = roundCents(inv * mult);
+      earn(s, back, `Desenlace: ${str(o, 'what')}`);
+      const text = mult >= 1 ? `${str(o, 'what')}: recuperás ${money(back)} por los ${money(inv)} que pusiste (×${mult.toFixed(1)}).` : `${str(o, 'what')} salió mal: recuperás solo ${money(back)} de ${money(inv)}.`;
+      addLog(s, mult >= 1 ? 'income' : 'warning', mult >= 1 ? '🔭' : '📉', text, back, 'logros');
+      chronicle(s, 'dilema', 'telescope', mult >= 1 ? 'La gran apuesta salió bien' : 'La gran apuesta salió mal', text);
+    },
+  },
+  {
     id: 'herencia_tio', icon: 'key', weight: 1, cooldown: 99999,
     eligible: (s) => s.day > 365 * 2,
     create: (s, g) => ({ params: { value: roundCents(usd(randRange(g, 8000, 30000) * pi(s)) / 10000) * 10000, what: pick(g, ['su viejo taller mecánico', 'un local en el pueblo', 'una colección de herramientas y un galpón']) }, days: 20 }),

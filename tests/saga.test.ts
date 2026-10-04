@@ -338,3 +338,19 @@ describe('1.4 · Partidas guardadas', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 });
+
+describe('1.4 · Explicar este número', () => {
+  it('las líneas explican exactamente el cambio del patrimonio', async () => {
+    const { explainNetWorth } = await import('../src/engine/reports/explain');
+    const s = makeGame('tecnico', 'explain-1');
+    forceHire(s, 'ventas_asistente');
+    simulateDays(s, 75);
+    for (const p of ['mes', 'mes_pasado', 'anio'] as const) {
+      const e = explainNetWorth(s, p);
+      const sum = e.items.reduce((a, x) => a + x.amount, 0);
+      expect(Math.abs(e.start + sum - e.end)).toBeLessThan(100);
+      expect(e.summary.length).toBeGreaterThan(10);
+    }
+    expect(explainNetWorth(s, 'mes_pasado').items.some((x) => x.key === 'salary')).toBe(true);
+  });
+});

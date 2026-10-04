@@ -6,22 +6,22 @@ Días de juego (mediana) hasta alcanzar cada etapa. "—" = no la alcanzó en el
 
 | Estilo | Origen | E2 | E3 | E4 | E5 | E6 | E7 | Patrimonio final (mediana) | Quiebras | Atrasos |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ejecutivo | egresado | 30 | 850 | 973 | 1672 | 2799 | — | $727,727 | 0 | 0 |
-| ejecutivo | tecnico | 30 | 211 | 545 | 1368 | 2311 | — | $622,200 | 0 | 0 |
-| ejecutivo | autodidacta | 30 | 58 | 607 | 1368 | 2464 | — | $632,521 | 0 | 0 |
-| ejecutivo | herencia | 30 | 58 | 58 | 1580 | 3376 | — | $424,203 | 0 | 6 |
-| inversionista | egresado | 30 | 576 | 973 | 1641 | 2434 | — | $639,481 | 0 | 0 |
-| inversionista | tecnico | 30 | 58 | 395 | 1641 | 3225 | — | $469,088 | 0 | 7 |
-| inversionista | autodidacta | 30 | 58 | 515 | 1095 | 1856 | — | $1,005,799 | 0 | 0 |
-| inversionista | herencia | 30 | 58 | 58 | 1519 | 2676 | — | $574,299 | 0 | 0 |
-| inmobiliario | egresado | 30 | 515 | 1185 | 1733 | 2799 | — | $459,006 | 0 | 3 |
-| inmobiliario | tecnico | 30 | 58 | 637 | 1519 | 2556 | — | $537,881 | 0 | 1 |
-| inmobiliario | autodidacta | 30 | 58 | 637 | 1276 | 2221 | — | $649,547 | 0 | 0 |
-| inmobiliario | herencia | 30 | 58 | 58 | 2159 | 3742 | — | $313,294 | 0 | 0 |
-| emprendedor | egresado | 30 | 180 | 1672 | 1733 | 2190 | 5386 | $1,049,766 | 0 | 0 |
-| emprendedor | tecnico | 30 | 119 | 1276 | 1399 | 1884 | 4747 | $1,315,508 | 0 | 0 |
-| emprendedor | autodidacta | 30 | 58 | 1154 | 1276 | 1794 | 4716 | $1,259,735 | 1 | 1 |
-| emprendedor | herencia | 30 | 58 | 2311 | 2311 | 3102 | 5356 | $1,052,935 | 0 | 0 |
+| ejecutivo | egresado | 30 | 850 | 850 | 1825 | 3225 | — | $449,007 | 0 | 3 |
+| ejecutivo | tecnico | 30 | 58 | 423 | 1215 | 2799 | — | $871,214 | 0 | 0 |
+| ejecutivo | autodidacta | 30 | 89 | 637 | 1246 | 2737 | — | $914,014 | 0 | 0 |
+| ejecutivo | herencia | 30 | 58 | 58 | 1794 | 3255 | — | $705,257 | 0 | 16 |
+| inversionista | egresado | 58 | 576 | 850 | 1460 | 2587 | — | $829,127 | 0 | 0 |
+| inversionista | tecnico | 30 | 364 | 454 | 1580 | 3041 | — | $492,062 | 0 | 9 |
+| inversionista | autodidacta | 30 | 58 | 484 | 850 | 1945 | — | $685,331 | 0 | 0 |
+| inversionista | herencia | 30 | 58 | 58 | 1154 | 2768 | — | $589,708 | 0 | 0 |
+| inmobiliario | egresado | 58 | 698 | 850 | 1672 | 3102 | — | $451,252 | 0 | 1 |
+| inmobiliario | tecnico | 30 | 58 | 454 | 1095 | 2281 | — | $698,149 | 0 | 0 |
+| inmobiliario | autodidacta | 30 | 58 | 607 | 1185 | 2403 | — | $738,354 | 0 | 1 |
+| inmobiliario | herencia | 30 | 58 | 58 | 1703 | 3803 | — | $400,119 | 0 | 0 |
+| emprendedor | egresado | 58 | 789 | 2190 | 2372 | 3072 | — | $1,084,001 | 0 | 1 |
+| emprendedor | tecnico | 30 | 58 | 820 | 1095 | 1764 | — | $1,253,477 | 0 | 0 |
+| emprendedor | autodidacta | 30 | 89 | 850 | 1034 | 1703 | — | $1,172,023 | 0 | 0 |
+| emprendedor | herencia | 30 | 58 | 1491 | 1915 | 2676 | — | $919,024 | 0 | 0 |
 
 Etapas: E2 Ingreso estable · E3 Primeros ahorros · E4 Primeras inversiones · E5 Patrimonio sólido · E6 Empresario emergente · E7 Magnate regional.
 
