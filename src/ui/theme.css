@@ -806,3 +806,4 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 /* Segmentos con muchas opciones o textos largos: pasan a la línea siguiente en vez de salirse de la pantalla. */
 .seg { flex-wrap: wrap; }
 .seg button { min-width: fit-content; padding-inline: 8px; }
+ul.reqs { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; }

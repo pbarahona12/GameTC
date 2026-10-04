@@ -94,7 +94,7 @@ export function NewsScreen() {
       <Seg items={[{ id: 'abiertas', label: 'Abiertas' }, { id: 'todas', label: 'Todas' }, { id: 'hechos', label: 'Resueltas' }]} value={filter} onChange={setFilter} />
       <div className="chips">
         {(['todos', 'economia', 'bolsa', 'empresas', 'inmuebles', 'proveedores'] as Array<NewsTopic | 'todos'>).map((t) => (
-          <button key={t} className={topic === t ? 'on' : ''} onClick={() => setTopic(t)}>{t === 'todos' ? 'Todos los temas' : TOPIC_NAMES[t]}</button>
+          <button key={t} className={topic === t ? 'on' : ''} aria-pressed={topic === t} onClick={() => setTopic(t)}>{t === 'todos' ? 'Todos los temas' : TOPIC_NAMES[t]}</button>
         ))}
       </div>
       {list.length === 0 && <Empty icon="news">{filter === 'abiertas' ? 'No hay rumores abiertos. Avanzá el tiempo: las noticias llegan solas.' : 'Todavía no hay noticias.'}</Empty>}

@@ -33,7 +33,7 @@ function Detail({ a, onClose }: { a: MogulAsset; onClose: () => void }) {
       <LineChart series={[{ name: 'Valor por participación', values: a.history.map((x) => x.v), color: 'var(--accent)' }]} height={110} />
       <div className="card flat" style={{ padding: 12, gap: 6 }}>
         <div className="card-head"><strong style={{ flex: 1 }}>Valoración</strong><InfoButton term="valoracion" /></div>
-        <span className="small">{val.method}: <strong>{fmtMoney(val.value)}</strong> total · {fmtMoney(Math.round(val.perUnit))} por participación</span>
+        <span className="small">{val.method}: <strong>{fmtMoney(val.value)}</strong> total hoy · {fmtMoney(Math.round(val.perUnit))} por participación (el precio de compra y venta se actualiza al cierre de cada mes)</span>
         <div className="kv">{val.inputs.map((i) => <Fragment key={i.label}><dt>{i.label}</dt><dd>{i.value}</dd></Fragment>)}</div>
       </div>
       <div className="card flat" style={{ padding: 12, gap: 6 }}>
@@ -49,13 +49,13 @@ function Detail({ a, onClose }: { a: MogulAsset; onClose: () => void }) {
       {a.distributions.length > 0 && (
         <p className="tiny muted">Últimos repartos: {a.distributions.slice(-4).reverse().map((d) => `${formatDate(d.d)} ${fmtMoney(Math.round(d.perUnit))}`).join(' · ')}</p>
       )}
-      {h && <p className="small">Tenés {h.qty.toFixed(2)} participaciones · valor {fmtMoney(Math.round(h.qty * a.nav))} (<Money c={Math.round(h.qty * a.nav) - h.cost} colored sign />)</p>}
+      {h && <p className="small">Tenés {fmtNumber(h.qty, 2)} participaciones · valor {fmtMoney(Math.round(h.qty * a.nav))} (<Money c={Math.round(h.qty * a.nav) - h.cost} colored sign />)</p>}
       {a.status === 'activo' ? (
         <>
           <div className="field">
             <label htmlFor="mog-u">Participaciones (acepta fracciones, mín. 0.01)</label>
             <NumInput id="mog-u" live value={units} onChange={setUnits} step={0.01} />
-            <span className="tiny muted">Compra ≈ {fmtMoney(bq.total)} · Venta ≈ {fmtMoney(sq.total)} neto · Podés comprar hasta {maxUnits.toFixed(2)} más (tope 49 %).</span>
+            <span className="tiny muted">Compra ≈ {fmtMoney(bq.total)} · Venta ≈ {fmtMoney(sq.total)} neto · Podés comprar hasta {fmtNumber(maxUnits, 2)} más (tope 49 %).</span>
           </div>
           <div className="btn-row">
             <Act label="Comprar" help="accion_mogul_comprar" className="btn primary" onClick={() => store.run((x) => buyMogul(x, a.id, units))} />
@@ -93,7 +93,7 @@ export function MogulScreen() {
               <button key={x.id} className="row clickable" style={{ border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', width: '100%' }} onClick={() => { setSel(x.id); window.scrollTo({ top: 0 }); }}>
                 <div className="grow">
                   <div className="title small"><Icon name={MOGUL_KIND_ICON[x.kind]} size={15} /> {x.name}</div>
-                  <div className="meta">{KIND[x.kind]} · riesgo {x.risk}/5{s.mogul.holdings[x.id] ? ` · tenés ${s.mogul.holdings[x.id].qty.toFixed(2)}` : ''}{x.status !== 'activo' ? ' · liquidado' : ''}</div>
+                  <div className="meta">{KIND[x.kind]} · riesgo {x.risk}/5{s.mogul.holdings[x.id] ? ` · tenés ${fmtNumber(s.mogul.holdings[x.id].qty, 2)}` : ''}{x.status !== 'activo' ? ' · liquidado' : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="amt small">{fmtMoney(Math.round(x.nav))}</div>

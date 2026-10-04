@@ -41,7 +41,7 @@ function Ticket({ id }: { id: string }) {
   return (
     <div className="card">
       <CardHead title="Nueva orden" term="accion_orden" />
-      <Seg items={[{ id: 'compra', label: 'Comprar' }, { id: 'venta', label: 'Vender' }]} value={side} onChange={setSide} />
+      <Seg items={[{ id: 'compra', label: 'Comprar' }, { id: 'venta', label: 'Vender' }]} value={side} onChange={(v) => { setSide(v); if (v === 'compra' && (type === 'take_profit' || type === 'trailing')) setType('limite'); }} />
       <div className="field">
         <label htmlFor="pro-type">Tipo de orden <InfoButton term={TYPES.find((t) => t.id === type)!.term} /></label>
         <select id="pro-type" className="input" value={type} onChange={(e) => setType(e.target.value as OrderType)}>
@@ -190,7 +190,7 @@ export function TradingPro({ selected }: { selected: string | null }) {
         <p className="tiny muted">Tocá y deslizá sobre el gráfico para ver el precio de cada día. Con dos dedos: pellizcá para acercar o alejar y arrastrá para moverte en el tiempo.</p>
         <div className="chips">
           {[['sma20', 'SMA 20', 'media_movil'], ['sma50', 'SMA 50', 'media_movil'], ['ema20', 'EMA 20', 'media_movil'], ['boll', 'Bollinger', 'bollinger']].map(([k, label]) => (
-            <button key={k} onClick={() => setOv({ ...ov, [k]: !ov[k] })} style={ov[k] ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{label}</button>
+            <button key={k} aria-pressed={ov[k]} onClick={() => setOv({ ...ov, [k]: !ov[k] })} style={ov[k] ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{label}</button>
           ))}
           <InfoButton term="media_movil" /><InfoButton term="bollinger" />
         </div>
@@ -224,7 +224,7 @@ export function TradingPro({ selected }: { selected: string | null }) {
           <table className="table">
             <thead><tr><th>Orden</th><th>Estado</th><th className="r">Precio</th></tr></thead>
             <tbody>
-              {closed.map((o) => <tr key={o.id}><td className="tiny">{orderSummary(o)}</td><td><Pill tone={o.status === 'ejecutada' ? 'gain' : o.status === 'rechazada' ? 'loss' : 'neutral'}>{o.status}</Pill></td><td className="r">{o.filledPrice ? fmtMoney(o.filledPrice) : '—'}</td></tr>)}
+              {closed.map((o) => <tr key={o.id}><td className="tiny">{orderSummary(o)}{o.status === 'rechazada' && o.note && <div className="loss">{o.note}</div>}</td><td><Pill tone={o.status === 'ejecutada' ? 'gain' : o.status === 'rechazada' ? 'loss' : 'neutral'}>{o.status}</Pill></td><td className="r">{o.filledPrice ? fmtMoney(o.filledPrice) : '—'}</td></tr>)}
             </tbody>
           </table>
         </div>

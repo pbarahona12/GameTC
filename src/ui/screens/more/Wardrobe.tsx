@@ -125,7 +125,7 @@ export function WardrobeScreen() {
         <span className="small muted">Tono de piel</span>
         <div className="swatches">{SKIN_TONES.map((c, i) => <button key={c} className={`swatch ${p.look.skin === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Tono ${i + 1}`} onClick={() => store.run((st) => setLook(st, { skin: i }), { toast: false })} />)}</div>
         <span className="small muted">Peinado</span>
-        <div className="chips">{HAIR_STYLES.map((h) => <button key={h} className={p.look.hair === h ? 'on' : ''} onClick={() => store.run((st) => setLook(st, { hair: h }), { toast: false })}>{HAIR_STYLE_NAMES[h]}</button>)}</div>
+        <div className="chips">{HAIR_STYLES.map((h) => <button key={h} className={p.look.hair === h ? 'on' : ''} aria-pressed={p.look.hair === h} onClick={() => store.run((st) => setLook(st, { hair: h }), { toast: false })}>{HAIR_STYLE_NAMES[h]}</button>)}</div>
         <span className="small muted">Color de pelo</span>
         <div className="swatches">{HAIR_COLORS.map((c, i) => <button key={c} className={`swatch ${p.look.hairColor === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Color ${i + 1}`} onClick={() => store.run((st) => setLook(st, { hairColor: i }), { toast: false })} />)}</div>
         <span className="tiny muted">La apariencia es solo visual: la imagen depende de la ropa, no de tu físico.</span>

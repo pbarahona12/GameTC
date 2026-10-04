@@ -121,15 +121,23 @@ export function rebuildLivingCosts(state: GameState, previousCol: number): void 
 
 /** Costo de mudanza: medio mes del nuevo alquiler (depósito no recuperable simplificado). */
 export function movingCost(state: GameState, id: LifestyleId): Cents {
+  // Si vivís en tu propia casa no hay depósito de alquiler: solo cambiás el nivel de gastos.
+  if (livesInOwnHome(state)) return 0;
   const rent = LIFESTYLE_BY_ID[id].items.find((i) => i.key === 'rent')!.amount;
   return applyRate(usd(rent * livingIndex(state)), 0.5);
+}
+
+/** Costo mensual real de un estilo de vida (con el costo de vida de tu residencia y sin alquiler si vivís en lo tuyo). */
+export function lifestyleMonthly(state: GameState, id: LifestyleId): Cents {
+  const own = livesInOwnHome(state);
+  return LIFESTYLE_BY_ID[id].items.reduce((a, i) => a + (own && i.key === 'rent' ? 0 : usd(i.amount * livingIndex(state))), 0);
 }
 
 export function changeLifestyle(state: GameState, id: LifestyleId): ActionResult {
   if (id === state.budget.lifestyle) return FAIL('Ya tenés ese estilo de vida.');
   const cost = movingCost(state, id);
   if (!canPayFromChecking(state, cost)) return FAIL(`La mudanza cuesta ${fmtMoney(cost)} y no tenés fondos suficientes en la cuenta corriente.`);
-  post(state.ledger, {
+  if (cost > 0) post(state.ledger, {
     day: state.day,
     memo: `Mudanza a estilo ${LIFESTYLE_BY_ID[id].name}`,
     cf: 'operating',
@@ -140,7 +148,7 @@ export function changeLifestyle(state: GameState, id: LifestyleId): ActionResult
     ],
   });
   applyLifestyle(state, id);
-  addLog(state, 'info', '🏠', `Te mudaste: estilo de vida ${LIFESTYLE_BY_ID[id].name}. Los nuevos importes rigen desde el próximo cobro.`, cost);
+  addLog(state, 'info', '🏠', `${cost > 0 ? 'Te mudaste' : 'Cambiaste tu nivel de gastos'}: estilo de vida ${LIFESTYLE_BY_ID[id].name}. Los nuevos importes rigen desde el próximo cobro.`, cost || undefined);
   return OK('Estilo de vida actualizado.');
 }
 

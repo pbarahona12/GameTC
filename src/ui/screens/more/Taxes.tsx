@@ -23,9 +23,12 @@ function JurisdictionCard({ id }: { id: JurisdictionId }) {
       <summary className="small"><strong>{j.flag} {j.name}</strong> {current && <Pill tone="accent">Residencia actual</Pill>} {pending && <Pill tone="info">Desde el 1/1</Pill>}</summary>
       <p className="small">{j.summary}</p>
       <div className="kv">
-        <dt>Impuesto a la renta <InfoButton term="impuesto_progresivo" /></dt><dd>{j.incomeBrackets.map((b) => fmtPct(b.rate, 0)).join(' → ')} (máx. {fmtPct(top, 0)})</dd>
+        <dt>Impuesto a la renta <InfoButton term="impuesto_progresivo" /></dt><dd>{j.incomeBrackets.map((b, i) => `${fmtPct(b.rate, 0)}${b.upTo !== null ? ` hasta ${fmtMoney(usd(b.upTo), { decimals: false })}` : i > 0 ? ' en adelante' : ''}`).join(' → ')} (máx. {fmtPct(top, 0)})</dd>
         <dt>Seguridad social</dt><dd>{fmtPct(j.socialSecurityRate, 1)}</dd>
-        <dt>Ganancias de capital <InfoButton term="ganancia_corto_largo" /></dt><dd>{fmtPct(j.capitalGains.shortRate, 0)} corto / {fmtPct(j.capitalGains.longRate, 0)} largo (tras {Math.round(j.capitalGains.longAfterDays / 30)} meses) · pérdidas arrastrables {j.capitalGains.lossCarryYears} años</dd>
+        <dt>Ganancias de capital <InfoButton term="ganancia_corto_largo" /></dt><dd>{j.capitalGains.shortRate === 0 && j.capitalGains.longRate === 0 ? 'Sin impuesto'
+          : j.capitalGains.shortRate === j.capitalGains.longRate ? `${fmtPct(j.capitalGains.shortRate, 0)} (igual a corto y largo plazo)`
+          : `${fmtPct(j.capitalGains.shortRate, 0)} corto / ${fmtPct(j.capitalGains.longRate, 0)} largo (tras ${Math.round(j.capitalGains.longAfterDays / 30)} meses)`}
+          {j.capitalGains.shortRate + j.capitalGains.longRate > 0 && ` · pérdidas arrastrables ${j.capitalGains.lossCarryYears >= 99 ? 'sin límite' : `${j.capitalGains.lossCarryYears} años`}`}</dd>
         <dt>Dividendos <InfoButton term="retencion" /></dt><dd>{fmtPct(j.dividendRate, 0)}</dd>
         <dt>Sociedades <InfoButton term="impuesto_empresarial" /></dt><dd>{fmtPct(j.corporateRate, 0)}</dd>
         <dt>Alquileres</dt><dd>{j.rental.depreciationYears ? `Deprecia el edificio en ${j.rental.depreciationYears} años` : 'Sin depreciación'}{j.rental.mortgageInterestDeductible ? ' · deduce intereses' : ''}{j.rental.lossOffsetsOrdinary ? ' · pérdidas compensan sueldo' : ''}</dd>
@@ -40,7 +43,7 @@ function JurisdictionCard({ id }: { id: JurisdictionId }) {
           detail={`Pagás ${fmtMoney(usd(j.moveCost * s.macro.priceIndex))} hoy y la residencia rige desde el 1 de enero. Tu costo de vida pasa a ×${j.costOfLiving.toFixed(2)}; tus empresas y inmuebles siguen tributando donde están registrados.`}
           onConfirm={() => store.run((x) => requestResidence(x, id))} />
       )}
-      {pending && <button className="btn sm ghost" onClick={() => store.run((x) => requestResidence(x, s.tax.jurisdiction))}>Cancelar mudanza</button>}
+      {pending && <ConfirmButton label="Cancelar mudanza" className="btn sm ghost" confirmLabel="Cancelar la mudanza" detail="Seguís residiendo donde estás. El trámite que ya pagaste no se devuelve." onConfirm={() => store.run((x) => requestResidence(x, s.tax.jurisdiction))} />}
     </details>
   );
 }
@@ -68,9 +71,9 @@ export function TaxesScreen() {
       </section>
       <div className="grid2">
         <Stat label="Impuesto estimado del año" term="declaracion_fiscal" value={<Money c={proj.projected.taxAfterCredits} />} sub={`Retenido hasta hoy ${fmtMoney(s.tax.ytd.withheld, { decimals: false })}`} />
-        <Stat label="Saldo estimado al declarar" term="declaracion_fiscal" value={<Money c={proj.projected.balance} colored />} sub={proj.projected.balance > 0 ? 'A pagar' : 'A devolver'} />
+        <Stat label="Saldo estimado al declarar" term="declaracion_fiscal" value={<Money c={proj.projected.balance} colored />} sub={proj.projected.balance > 0 ? 'A pagar' : proj.projected.balance < 0 ? 'A devolver' : 'Sin saldo'} />
         <Stat label="Ganancias de capital (año)" term="ganancia_capital" value={<Money c={(s.tax.ytd.gainsShort ?? 0) + (s.tax.ytd.gainsLong ?? 0)} colored sign />} sub={`Impuesto est. ${fmtMoney(proj.projected.capitalGainsTax ?? 0, { decimals: false })}`} />
-        <Stat label="Deducciones aprovechadas" term="deduccion_documental" value={fmtPct(capture, 0)} sub={capture < 1 ? 'Un contador o más conocimientos contables reclaman más' : 'Completo'} />
+        {s.realEstate.properties.some((p) => p.owner.kind === 'personal' && (p.lease || p.listedForRent)) && <Stat label="Deducciones de alquileres" term="deduccion_documental" value={fmtPct(capture, 0)} sub={capture < 1 ? 'Solo afecta la depreciación e intereses de inmuebles alquilados: un contador reclama más' : 'Completo'} />}
       </div>
       <div className="card">
         <CardHead title="Próximas obligaciones (12 meses)" term="declaracion_fiscal" />

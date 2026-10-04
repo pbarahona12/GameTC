@@ -38,7 +38,7 @@ function ProRow({ p }: { p: Professional }) {
       ) : (
         <>
           {scopes.length > 1 && (
-            <div className="chips">{scopes.map((o) => <button key={o.id} onClick={() => setScope(o.id)} style={scope === o.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{o.label}</button>)}</div>
+            <div className="chips">{scopes.map((o) => <button key={o.id} aria-pressed={scope === o.id} onClick={() => setScope(o.id)} style={scope === o.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{o.label}</button>)}</div>
           )}
           {p.kind === 'auditor' ? (
             <ConfirmButton label="Encargar auditoría" help="accion_auditoria" className="btn sm" detail={`La empresa paga ${fmtMoney(p.fee)}. Una auditoría limpia mejora la valoración y el crédito durante 12 meses; si hay irregularidades, el auditor debe informarlas.`} onConfirm={() => store.run((x) => commissionAudit(x, Number(scope), p.id))} />
@@ -103,7 +103,7 @@ export function ProsScreen() {
       )}
       <div className="card">
         <CardHead title="Mercado de profesionales" term={TERM[kind]} right={<span className="tiny muted">Se renueva el {formatDate(nextRefresh(s))}</span>} />
-        <div className="chips">{KINDS.map((k) => <button key={k} onClick={() => setKind(k)} style={kind === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{PRO_INFO[k].name.split(' ')[0]}</button>)}</div>
+        <div className="chips">{KINDS.map((k) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)} style={kind === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{PRO_INFO[k].name.split(' ')[0]}</button>)}</div>
         <p className="small">{PRO_INFO[kind].what} <InfoButton term={TERM[kind]} /></p>
         {market.length === 0 && <p className="small muted">No quedan candidatos de este tipo hasta la próxima renovación.</p>}
         {market.map((p) => <ProRow key={p.id} p={p} />)}

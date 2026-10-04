@@ -185,6 +185,8 @@ export function fundReturn(f: FundState, days: number): number | null {
   const h = f.history;
   if (h.length < 2) return null;
   const target = h[h.length - 1].d - days;
+  // Sin historia suficiente para el período pedido, no hay dato (no se muestra «desde el inicio» como si fuera 12 meses).
+  if (h[0].d > target) return null;
   const base = [...h].reverse().find((x) => x.d <= target) ?? h[0];
   return base.v > 0 ? f.nav / base.v - 1 : null;
 }

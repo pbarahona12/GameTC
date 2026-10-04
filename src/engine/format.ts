@@ -151,6 +151,8 @@ export function fmtMoneyFit(c: Cents, opts: { decimals?: boolean; sign?: boolean
 export function fmtPct(rate: number, digits = 1): string {
   const v = rate * 100;
   // Porcentajes enormes (una inversión que se multiplicó 100 veces) con separador de miles y sin decimales.
-  if (Math.abs(v) >= 1000) return `${grouper(0).format(Math.round(v))} %`;
-  return `${v.toFixed(digits).replace(/\.0+$/, '')} %`;
+  if (Math.abs(v) >= 1000) return `${grouper(0).format(Math.round(v)).replace('-', '−')} %`;
+  // Sin ceros de más ("4.50 %" → "4.5 %", "3.0 %" → "3 %") y con el mismo signo menos que el dinero.
+  const txt = v.toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  return `${txt === '-0' ? '0' : txt.replace('-', '−')} %`;
 }

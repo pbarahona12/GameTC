@@ -47,8 +47,8 @@ function CaseCard({ c }: { c: LegalCase }) {
           <p className="tiny muted">La condena depende de las pruebas, la defensa y el azar: incluso con el mejor abogado la probabilidad nunca baja del 5 % si hay pruebas, y nunca supera el 95 %.</p>
           {lawyers.length > 0 && (
             <div className="chips">
-              {lawyers.map((h) => <button key={h.id} onClick={() => store.run((x) => assignLawyer(x, c.id, h.id))} style={c.lawyerHireId === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.pro.name}</button>)}
-              <button onClick={() => store.run((x) => assignLawyer(x, c.id, null))} style={c.lawyerHireId === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Defensor público</button>
+              {lawyers.map((h) => <button key={h.id} aria-pressed={c.lawyerHireId === h.id} onClick={() => store.run((x) => assignLawyer(x, c.id, h.id))} style={c.lawyerHireId === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.pro.name}</button>)}
+              <button aria-pressed={c.lawyerHireId === null} onClick={() => store.run((x) => assignLawyer(x, c.id, null))} style={c.lawyerHireId === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Defensor público</button>
             </div>
           )}
           {lawyers.length === 0 && <button className="btn sm ghost" onClick={() => navStore.go('more', 'pros')}>Contratar un abogado</button>}
@@ -110,7 +110,7 @@ function GreyZone() {
       <span className="tiny muted">Se aplica en la próxima declaración anual sobre ingresos no salariales (el sueldo ya tiene retención).</span>
 
       <strong className="small">Operación clandestina <InfoButton term="accion_clandestino" /></strong>
-      <div className="chips">{Object.entries(VENTURES).map(([k, v]) => <button key={k} onClick={() => setVenture(k)} style={venture === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{v.name.replace(' (ficticia)', '').replace(' (ficticio)', '')}</button>)}</div>
+      <div className="chips">{Object.entries(VENTURES).map(([k, v]) => <button key={k} aria-pressed={venture === k} onClick={() => setVenture(k)} style={venture === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{v.name.replace(' (ficticia)', '').replace(' (ficticio)', '')}</button>)}</div>
       <span className="tiny muted">{VENTURES[venture].description} Rendimiento esperado {fmtPct(VENTURES[venture].expected, 0)} en {VENTURES[venture].days} días · riesgo de allanamiento {fmtPct(VENTURES[venture].risk, 0)}.</span>
       <AmountInput id="illegal-amt" value={amount} onChange={setAmount} />
       <div className="btn-row">
@@ -121,7 +121,7 @@ function GreyZone() {
       {cos.length > 0 && (
         <>
           <strong className="small">Con tus empresas</strong>
-          <div className="chips">{cos.map((c) => <button key={c.id} onClick={() => setCoId(c.id)} style={coId === c.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{c.name}</button>)}</div>
+          <div className="chips">{cos.map((c) => <button key={c.id} aria-pressed={coId === c.id} onClick={() => setCoId(c.id)} style={coId === c.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{c.name}</button>)}</div>
           {co && (
             <>
               <span className="tiny muted">Ventas no declaradas <InfoButton term="accion_irregular_empresa" /></span>

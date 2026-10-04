@@ -6,7 +6,7 @@ import { Money, InfoButton, CardHead, Pill, Seg, LineChart, NumInput, Act, Learn
 import { Sparkline } from '../../components/charts';
 import { stockById, analystView, quoteMarket, placeStockOrder, studyStock, returnOver, isTradingDay } from '../../../engine/invest/stocks';
 import { SECTOR_NAMES } from '../../../content/stocks';
-import { fmtMoney, fmtPct } from '../../../engine/format';
+import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import type { Stock } from '../../../engine/invest/types';
 import { Icon } from '../../icons';
@@ -56,7 +56,7 @@ function StockDetail({ st }: { st: Stock }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span className="num" style={{ fontSize: 26, fontWeight: 700 }}>{fmtMoney(st.price)}</span>
         <DayChange st={st} />
-        {ret !== null && <span className="tiny muted">{range}: <span className={ret >= 0 ? 'gain' : 'loss'}>{fmtPct(ret, 1)}</span></span>}
+        {ret !== null && <span className="tiny muted">{range === '3m' ? '3 meses' : range === '1a' ? '1 año' : 'Desde el inicio'}: <span className={ret >= 0 ? 'gain' : 'loss'}>{ret >= 0 ? '+' : ''}{fmtPct(ret, 1)}</span></span>}
       </div>
       <Seg items={[{ id: '3m', label: '3 meses' }, { id: '1a', label: '1 año' }, { id: 'max', label: 'Todo' }]} value={range} onChange={setRange} />
       <LineChart series={[{ name: st.id, values: series, color: 'var(--accent)' }]} height={130} />
@@ -65,7 +65,7 @@ function StockDetail({ st }: { st: Stock }) {
         <dt>P/E <InfoButton term="pe_ratio" /></dt><dd>{view.pe !== null ? view.pe.toFixed(1) : 'con pérdidas'}</dd>
         <dt>Rendimiento por dividendo <InfoButton term="dividend_yield" /></dt><dd>{fmtPct(view.dividendYield, 1)}</dd>
         <dt>Beneficio por acción (12 m) <InfoButton term="bpa" /></dt><dd>{fmtMoney(st.eps)}</dd>
-        <dt>Próximos resultados</dt><dd>{formatDate(st.nextEarnings)}</dd>
+        {st.status === 'quebrada' ? <><dt>Situación</dt><dd className="loss">En quiebra: deja de cotizar el {formatDate(st.nextEarnings)}</dd></> : <><dt>Próximos resultados</dt><dd>{formatDate(st.nextEarnings)}</dd></>}
       </div>
       <div className="card flat" style={{ padding: 12, gap: 6 }}>
         <div className="card-head"><strong style={{ flex: 1 }}>Tu análisis</strong><InfoButton term="prediccion_bursatil" /></div>
@@ -113,16 +113,16 @@ export function StocksLite({ selected }: { selected: string | null }) {
         <CardHead title="Bolsa de Valoria · modo Lite" term="accion_modo_trading" />
         <Learn term="accion" />
         <div className="kv">
-          <dt>Índice <InfoButton term="indice_bursatil" /></dt><dd>{s.stocks.index.level.toFixed(1)}</dd>
+          <dt>Índice <InfoButton term="indice_bursatil" /></dt><dd>{fmtNumber(s.stocks.index.level, 1)}</dd>
           <dt>Mercado</dt><dd>{isTradingDay(s.day) ? 'Abierto (día hábil)' : 'Cerrado (fin de semana)'}</dd>
-          <dt>Comisión <InfoButton term="comision_corretaje" /></dt><dd>0.2 % (mín. $1)</dd>
+          <dt>Comisión <InfoButton term="comision_corretaje" /></dt><dd>0.2 % (mín. {fmtMoney(Math.round(100 * s.macro.priceIndex))})</dd>
         </div>
       </div>
       {st && <StockDetail key={st.id} st={st} />}
       <input className="input" placeholder="Buscar por nombre o código" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar acción" />
       <div className="chips">
         {['todos', 'mias', ...Object.keys(SECTOR_NAMES)].map((k) => (
-          <button key={k} onClick={() => setSector(k)} style={sector === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{k === 'todos' ? 'Todas' : k === 'mias' ? `Las mías (${Object.keys(s.stocks.holdings).length})` : SECTOR_NAMES[k as keyof typeof SECTOR_NAMES]}</button>
+          <button key={k} aria-pressed={sector === k} onClick={() => setSector(k)} style={sector === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{k === 'todos' ? 'Todas' : k === 'mias' ? `Las mías (${Object.keys(s.stocks.holdings).length})` : SECTOR_NAMES[k as keyof typeof SECTOR_NAMES]}</button>
         ))}
       </div>
       <div className="card" style={{ paddingBlock: 4 }}>

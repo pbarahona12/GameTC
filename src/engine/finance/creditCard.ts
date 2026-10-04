@@ -336,6 +336,14 @@ export function setAutopay(state: GameState, mode: 'none' | 'min' | 'full'): Act
   return OK(mode === 'none' ? 'Débito automático desactivado.' : `Débito automático: ${mode === 'full' ? 'pago total del resumen' : 'pago mínimo'}.`);
 }
 
+/** Límite máximo que aprobaría el banco hoy (null si no calificás: puntaje o ingresos). */
+export function limitIncreaseTarget(state: GameState): Cents | null {
+  const income = monthlyGrossIncome(state);
+  if (state.credit.score < 680 || income <= 0) return null;
+  const t = cardTier(state);
+  return Math.min(Math.min(roundCents(income * Math.max(1.5, t.limitMult)), usd(t.limitCap)), state.bank.card.limit * 2);
+}
+
 /** Solicitud de aumento de límite: consulta de crédito (afecta el puntaje) y evaluación. */
 export function requestLimitIncrease(state: GameState): ActionResult {
   const c = state.bank.card;

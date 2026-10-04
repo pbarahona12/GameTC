@@ -426,11 +426,12 @@ function monthlyProperty(state: GameState, p: Property): void {
   if (p.monthly.length > 60) p.monthly.shift();
 }
 
+/** Próximo 1 de marzo, junio, septiembre o diciembre estrictamente posterior a `day` (el de hoy ya se cobró). */
 function nextTaxDay(day: number): number {
   const g = dateOf(day);
-  const m = Math.ceil((g.m + (g.d > 1 ? 0.01 : 0)) / 3) * 3;
-  const y = m > 12 ? g.y + 1 : g.y;
-  return dateOfFirst(y, m > 12 ? 3 : m);
+  let m = g.m + 1;
+  while (m % 3 !== 0) m++;
+  return m > 12 ? dateOfFirst(g.y + 1, m - 12) : dateOfFirst(g.y, m);
 }
 
 function dateOfFirst(y: number, m: number): number {
@@ -735,6 +736,8 @@ export function buyProperty(state: GameState, listingId: number, o: BuyOptions):
     const p = clamp((o.offer / l.askPrice - 0.85) / 0.15 + state.skills.negotiation.level * 0.004 + state.skills.realEstate.level * 0.002, 0, 0.95);
     practice(state, 'property_negotiation', 'negotiation', 80);
     if (!chance(state, p)) return FAIL(`El vendedor rechazó ${fmtMoney(o.offer)} (probabilidad estimada ${Math.round(p * 100)} %).`);
+    // Aceptada: el precio acordado queda firme aunque la compra falle después (por ejemplo, la hipoteca).
+    l.askPrice = o.offer;
     price = o.offer;
   }
   const p = l.property;
@@ -743,7 +746,7 @@ export function buyProperty(state: GameState, listingId: number, o: BuyOptions):
   const loan = f ? f.amount : 0;
   let quote: MortgageQuote | null = null;
   if (f && loan > 0) {
-    quote = quoteMortgage(state, f.bankId, o.owner, price, loan, f.years, f.rateType, p.type, p.lease?.rent ?? marketRent(state, p));
+    quote = quoteMortgage(state, f.bankId, o.owner, price, loan, f.years, f.rateType, p.type, listingRent(state, l));
     if (!quote.approved) return FAIL(`Hipoteca rechazada: ${quote.reasons.join(' ')}`);
   }
   const fee = quote?.fee ?? 0;

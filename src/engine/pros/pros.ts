@@ -1,3 +1,4 @@
+import { FUND_BY_ID } from '../../content/funds';
 import type { GameState } from '../state';
 import type { Professional, ProKind, ProHire, AuditReport } from './types';
 import { Cents, clamp, roundCents, usd } from '../money';
@@ -259,7 +260,15 @@ export function projectPortfolio(state: GameState, months = 12): PortfolioProjec
     mu += w * (0.03 + stocksW * 0.045);
     varSum += (w * (0.03 + stocksW * 0.15)) ** 2;
   }
-  const byClass: Array<['bonds' | 'funds' | 'mogul', number, number]> = [['bonds', 0.045, 0.06], ['funds', 0.06, 0.14], ['mogul', 0.07, 0.18]];
+  // Cada fondo con su propio riesgo: un monetario casi no se mueve; uno sectorial, mucho.
+  const FUND_RISK: Record<string, [number, number]> = { monetario: [0.03, 0.005], bonos: [0.045, 0.06], dividendos: [0.06, 0.12], inmobiliario: [0.06, 0.12], indice: [0.07, 0.16], sector: [0.08, 0.22] };
+  for (const p of positions(state, 'funds')) {
+    const w = p.value / total;
+    const [m, v] = FUND_RISK[FUND_BY_ID[String(p.id)]?.kind ?? 'indice'] ?? [0.06, 0.14];
+    mu += w * m;
+    varSum += (w * v) ** 2;
+  }
+  const byClass: Array<['bonds' | 'mogul', number, number]> = [['bonds', 0.045, 0.06], ['mogul', 0.07, 0.18]];
   for (const [cls, m, v] of byClass) for (const p of positions(state, cls)) {
     const w = p.value / total;
     mu += w * m;

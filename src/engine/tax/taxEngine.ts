@@ -1,7 +1,7 @@
 import { post } from '../ledger/ledger';
 import { Cents, clamp, roundCents, usd } from '../money';
 import type { Filing, GameState } from '../state';
-import { dayOf, dateOf, formatDate } from '../time/calendar';
+import { dayOf, dateOf, formatDate, daysInMonth } from '../time/calendar';
 import { addLog } from '../log';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney } from '../format';
@@ -195,7 +195,9 @@ export function projectCurrentYear(state: GameState): { toDate: TaxComputation; 
   const ctx = taxContext(state, j, ytd.year, 0);
   const toDate = computeAnnualTax(j, ytd, ctx);
   const g = dateOf(state.day);
-  const monthsLeft = 12 - g.m + (g.d < 28 ? 1 : 0);
+  // El sueldo del mes se cobra el último día: el mes en curso cuenta mientras no se haya pagado.
+  const paidThisMonth = !!state.career.job && state.career.job.paidThroughDay >= dayOf(g.y, g.m, daysInMonth(g.y, g.m));
+  const monthsLeft = 12 - g.m + (paidThisMonth ? 0 : 1);
   const p: YearToDate = { ...ytd };
   const job = state.career.job;
   if (job && monthsLeft > 0) {
@@ -227,6 +229,11 @@ export function requestResidence(state: GameState, id: JurisdictionId): ActionRe
   const j = JURISDICTION_BY_ID[id];
   if (!j) return FAIL('Jurisdicción inexistente.');
   if (id === state.tax.jurisdiction && !state.tax.pendingJurisdiction) return FAIL('Ya residís allí.');
+  // Cancelar una mudanza pendiente: no cuesta nada (el trámite ya pagado no se devuelve).
+  if (id === state.tax.jurisdiction && state.tax.pendingJurisdiction) {
+    state.tax.pendingJurisdiction = null;
+    return OK('Cancelaste el cambio de residencia. El trámite que ya pagaste no se devuelve.');
+  }
   if (state.legal?.prison) return FAIL('No podés mudarte mientras cumplís una condena.');
   if (state.legal?.cases.some((c) => c.stage !== 'cerrado')) return FAIL('Con un proceso judicial abierto no se autoriza el cambio de residencia.');
   const nw = balanceSheet(state).netWorth;
@@ -234,9 +241,9 @@ export function requestResidence(state: GameState, id: JurisdictionId): ActionRe
   const cost = usd(j.moveCost * state.macro.priceIndex);
   if (!canPayFromChecking(state, cost)) return FAIL(`El trámite y la mudanza cuestan ${fmtMoney(cost)}.`);
   post(state.ledger, { day: state.day, memo: `Trámite de residencia en ${j.name}`, cf: 'operating', tag: 'moving', lines: [{ account: 'other_expense', debit: cost }, { account: 'checking', credit: cost }] });
-  state.tax.pendingJurisdiction = id === state.tax.jurisdiction ? null : id;
+  state.tax.pendingJurisdiction = id;
   const y = dateOf(state.day).y + 1;
-  return OK(state.tax.pendingJurisdiction ? `Residencia en ${j.name} aprobada: rige desde el 1 de enero de ${y}.` : 'Cancelaste el cambio de residencia.');
+  return OK(`Residencia en ${j.name} aprobada: rige desde el 1 de enero de ${y}.`);
 }
 
 /** Próximas obligaciones fiscales (personales y de empresas) en los próximos `days` días. */

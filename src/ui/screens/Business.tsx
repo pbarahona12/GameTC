@@ -237,8 +237,8 @@ function Market({ buyerId }: { buyerId: number | null }) {
           <div className="field">
             <label>Comprador</label>
             <div className="chips">
-              <button onClick={() => setBuyer(null)} style={buyer === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Vos (personal)</button>
-              {holdings.map((h) => <button key={h.id} onClick={() => setBuyer(h.id)} style={buyer === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.name} (caja {fmtMoney(h.ledger.balances.cash, { decimals: false })})</button>)}
+              <button aria-pressed={buyer === null} onClick={() => setBuyer(null)} style={buyer === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Vos (personal)</button>
+              {holdings.map((h) => <button key={h.id} aria-pressed={buyer === h.id} onClick={() => setBuyer(h.id)} style={buyer === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.name} (caja {fmtMoney(h.ledger.balances.cash, { decimals: false })})</button>)}
             </div>
           </div>
         )}

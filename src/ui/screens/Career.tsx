@@ -6,13 +6,15 @@ import { JOBS, JOB_BY_ID, SECTOR_NAMES, Sector, EDUCATION_NAMES, FIELD_NAMES } f
 import { COURSES, COURSE_BY_ID, COURSE_KIND_NAMES, CourseKind } from '../../content/courses';
 import { SKILLS, xpToNext, SKILL_MAX_LEVEL } from '../../content/skills';
 import {
-  apply, acceptOffer, declineOffer, negotiateOffer, negotiationChance, quitJob, checkRequirements, applicationChance, jobSalary, performanceTarget, reviewRaisePct,
+  apply, acceptOffer, declineOffer, negotiateOffer, negotiationChance, quitJob, applyBlocker, checkRequirements, applicationChance, jobSalary, performanceTarget, projectedRaisePct,
 } from '../../engine/career/career';
 import { enroll, dropCourse, courseRequirements, courseTotalCost, studyHoursPerWeek, timesCompleted, tuition, coursePrice } from '../../engine/skills/education';
+import { studyMultiplier } from '../../engine/skills/skills';
 import { payroll } from '../../engine/tax/incomeTax';
 import { residence } from '../../engine/tax/taxEngine';
 import { formatDate } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct, fmtNumber } from '../../engine/format';
+import { usd } from '../../engine/money';
 import { Money, InfoButton, Tabs, Bar, Pill, Empty, ConfirmButton, Learn, ScreenIntro } from '../components/common';
 import { professionalLevel } from '../../engine/progression/progression';
 import { SKILL_ICON } from '../contentIcons';
@@ -50,7 +52,7 @@ function CurrentJob() {
       <div className="rows">
         <div className="row"><div className="grow">Salario bruto <InfoButton term="salario_bruto" /></div><Money c={pr.gross} className="amt" /></div>
         <div className="row sub"><div className="grow small muted">Aporte a jubilación ({fmtPct(s.bank.pensionRate, 0)})</div><span className="amt small">−{fmtMoney(pr.pensionEmployee)}</span></div>
-        <div className="row sub"><div className="grow small muted">Seguridad social (7 %) <InfoButton term="seguridad_social" /></div><span className="amt small">−{fmtMoney(pr.socialSecurity)}</span></div>
+        <div className="row sub"><div className="grow small muted">Seguridad social ({fmtPct(residence(s).socialSecurityRate, 1)}) <InfoButton term="seguridad_social" /></div><span className="amt small">−{fmtMoney(pr.socialSecurity)}</span></div>
         <div className="row sub"><div className="grow small muted">Retención de impuesto <InfoButton term="retencion" /></div><span className="amt small">−{fmtMoney(pr.incomeTaxWithheld)}</span></div>
         <div className="row total"><div className="grow">Salario neto <InfoButton term="salario_neto" /></div><Money c={pr.net} className="amt" /></div>
       </div>
@@ -58,7 +60,7 @@ function CurrentJob() {
       <div className="kv">
         <dt>Comisión variable</dt><dd>{job.commission ? `${fmtPct(job.commission)} del sueldo × desempeño` : '—'}</dd>
         <dt>Bono anual objetivo</dt><dd>{job.bonusTarget ? fmtPct(job.bonusTarget) + ' del sueldo anual' : '—'}</dd>
-        <dt>Aporte del empleador</dt><dd>{job.pensionMatch ? `hasta ${fmtPct(job.pensionMatch)}` : 'No'}</dd>
+        <dt>Aporte del empleador</dt><dd>{job.pensionMatch ? `iguala tu aporte hasta ${fmtPct(job.pensionMatch)}: recibís ${fmtPct(Math.min(s.bank.pensionRate, job.pensionMatch))}${s.bank.pensionRate < job.pensionMatch ? ` (aportá ${fmtPct(job.pensionMatch)} para el máximo)` : ''}` : 'No'}</dd>
         <dt>Seguro médico</dt><dd>{job.healthInsurance ? 'Incluido' : 'No incluido'}</dd>
         <dt>Jornada</dt><dd>{job.hoursPerWeek} h/semana</dd>
       </div>
@@ -69,9 +71,15 @@ function CurrentJob() {
         </div>
         <Bar value={e.performance / 100} tone={e.performance < 30 ? 'loss' : e.performance < 50 ? 'warn' : 'gain'} />
         <p className="tiny muted">
-          Evaluación anual el {formatDate(e.nextReviewDay)}: con el desempeño actual el aumento sería {fmtPct(reviewRaisePct(e.performance))}.
-          {next && ` Con 70+ y los requisitos cumplidos, ascenso a ${next.title}.`}
+          Evaluación anual el {formatDate(e.nextReviewDay)}: con el desempeño actual el aumento sería {fmtPct(projectedRaisePct(s, e.performance))} (incluye el ajuste por inflación y por el ciclo económico).
+          {next && ` Con desempeño 70+ y los requisitos cumplidos, ascenso a ${next.title}:`}
         </p>
+        {next && (
+          <ul className="reqs tiny">
+            <li className={e.performance >= 70 ? 'gain' : 'muted'}>{e.performance >= 70 ? '✓' : '✗'} Desempeño 70 o más (hoy {e.performance})</li>
+            {checkRequirements(s, next).items.map((r) => <li key={r.label} className={r.met ? 'gain' : 'muted'}>{r.met ? '✓' : '✗'} {r.label}</li>)}
+          </ul>
+        )}
       </div>
       <ConfirmButton
         label="Renunciar"
@@ -109,19 +117,38 @@ function Offers() {
               <dt>Neto estimado</dt><dd>{fmtMoney(pr.net)}</dd>
               {s.career.job && <><dt>Tu neto actual</dt><dd>{fmtMoney(payroll(residence(s), s.career.job.salary, s.bank.pensionRate).net)}</dd></>}
             </div>
+            <div className="chips tiny">
+              <Pill tone="neutral">{job.hoursPerWeek} h/sem</Pill>
+              {job.healthInsurance ? <Pill tone="gain">Seguro médico</Pill> : <Pill tone="neutral">Sin seguro médico</Pill>}
+              {job.pensionMatch > 0 && <Pill tone="gain">Aporte jubilación {fmtPct(job.pensionMatch)}</Pill>}
+              {job.commission && <Pill tone="accent">Comisión {fmtPct(job.commission)}</Pill>}
+              {job.bonusTarget > 0 && <Pill tone="accent">Bono {fmtPct(job.bonusTarget)}</Pill>}
+            </div>
             {!a.negotiated && (
               <div className="stack" style={{ gap: 6 }}>
                 <span className="tiny muted">Negociar (una sola vez). Probabilidad estimada de éxito:</span>
                 <div className="chips">
-                  {[0.05, 0.1, 0.15, 0.2].map((p) => (
-                    <button key={p} onClick={() => store.run((st) => negotiateOffer(st, a.id, p))}>+{p * 100} % · {Math.round(negotiationChance(s, p) * 100)} %</button>
-                  ))}
+                  {[0.05, 0.1, 0.15, 0.2].map((p) => {
+                    const ok = negotiationChance(s, p);
+                    return (
+                      <button key={p} onClick={() => store.run((st) => negotiateOffer(st, a.id, p))}>
+                        +{p * 100} % · {Math.round(ok * 100)} %{p >= 0.15 ? ` · riesgo de perder la oferta ${Math.round((1 - ok) * 30)} %` : ''}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
             <div className="btn-row">
               <span className="act"><button className="btn ghost" onClick={() => store.run((st) => declineOffer(st, a.id))}>Rechazar</button><InfoButton term="accion_oferta" /></span>
-              <span className="act"><button className="btn primary" onClick={() => store.run((st) => acceptOffer(st, a.id))}>{s.career.job ? 'Aceptar y cambiar' : 'Aceptar'}</button><InfoButton term="accion_oferta" /></span>
+              <span className="act">
+                {s.career.job ? (() => {
+                  const cur = JOB_BY_ID[s.career.job.jobId];
+                  const lostInsurance = cur.healthInsurance && !job.healthInsurance && !s.budget.privateInsurance;
+                  return <ConfirmButton label="Aceptar y cambiar" className="btn primary" confirmLabel="Cambiar de empleo" detail={<>Dejás {cur.title}: perdés la evaluación del {formatDate(s.career.job.nextReviewDay)}{cur.bonusTarget > 0 ? ' y su bono anual' : ''}, tu desempeño vuelve a 50 y la próxima evaluación será en 12 meses.{lostInsurance ? ' El nuevo empleo no incluye seguro médico: quedás sin cobertura.' : ''}</>} onConfirm={() => store.run((st) => acceptOffer(st, a.id))} />;
+                })() : <button className="btn primary" onClick={() => store.run((st) => acceptOffer(st, a.id))}>Aceptar</button>}
+                <InfoButton term="accion_oferta" />
+              </span>
             </div>
           </div>
         );
@@ -209,9 +236,14 @@ function JobBoard() {
                 return <span className="small muted" style={{ flex: 1 }}>Probabilidad de oferta ≈ {Math.round(applicationChance(s, j) * 100)} % <InfoButton term="probabilidad_oferta" />{ib !== 0 && <span className={`tiny ${ib > 0 ? 'gain' : 'loss'}`} style={{ display: 'block' }}>Tu imagen: {ib > 0 ? '+' : ''}{ib} pts{ib < 0 ? ' · vestite mejor en Tiendas' : ''}</span>}</span>;
               })()}
               <InfoButton term="accion_postular" />
-              <button className="btn sm primary" disabled={!req.ok || active || current} onClick={() => store.run((st) => apply(st, j.id))}>
-                {current ? 'Tu puesto actual' : active ? 'Postulado' : 'Postularme'}
-              </button>
+              {(() => {
+                const blocked = !current && !active ? applyBlocker(s, j) : null;
+                return (
+                  <button className="btn sm primary" disabled={!req.ok || active || current || !!blocked} onClick={() => store.run((st) => apply(st, j.id))}>
+                    {current ? 'Tu puesto actual' : active ? 'Postulado' : blocked ?? 'Postularme'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         );
@@ -235,7 +267,7 @@ function Study() {
           <dt>Certificados</dt><dd>{s.education.certificates.join(', ') || '—'}</dd>
           <dt>Carga semanal</dt><dd className={jobHours + hours > 60 ? 'loss' : ''}>{jobHours} h trabajo + {hours} h estudio</dd>
         </div>
-        {jobHours + hours > 55 && <p className="tiny warn">Más de 50 h semanales suman estrés cada mes; más de 60 h bajan tu desempeño.</p>}
+        {jobHours + hours > 50 && <p className="tiny warn">Más de 50 h semanales suman estrés cada mes; más de 60 h bajan tu desempeño.</p>}
         {s.education.active.map((a) => {
           const c = COURSE_BY_ID[a.courseId];
           const prog = Math.min(1, (s.day - a.startDay) / c.durationDays);
@@ -246,15 +278,15 @@ function Study() {
                 <span className="tiny muted">termina {formatDate(a.endDay)}</span>
               </div>
               <Bar value={prog} />
-              <ConfirmButton label="Abandonar" className="btn sm ghost" help="accion_abandonar_curso" confirmLabel="Abandonar" detail="Conservás la XP obtenida; lo pagado no se devuelve." onConfirm={() => store.run((st) => dropCourse(st, a.courseId))} />
+              <ConfirmButton label="Abandonar" className="btn sm ghost" help="accion_abandonar_curso" confirmLabel="Abandonar" detail={c.kind === 'titulo' ? 'Conservás la XP obtenida, pero se pierde todo el avance hacia el título: si volvés a inscribirte empezás de cero y pagás la matrícula completa. Lo pagado no se devuelve.' : 'Conservás la XP obtenida; lo pagado no se devuelve.'} onConfirm={() => store.run((st) => dropCourse(st, a.courseId))} />
             </div>
           );
         })}
       </div>
-      <p className="small muted">La educación es opcional: también podés progresar trabajando y practicando. Los gastos educativos generan un crédito fiscal del 15 % (máx. $600/año). <InfoButton term="credito_fiscal" /></p>
+      <p className="small muted">La educación es opcional: también podés progresar trabajando y practicando. {residence(s).educationCreditRate > 0 ? `Los gastos educativos generan un crédito fiscal del ${fmtPct(residence(s).educationCreditRate, 0)} (máx. ${fmtMoney(usd(residence(s).educationCreditMax), { decimals: false })}/año) en ${residence(s).name}.` : `En ${residence(s).name} los gastos educativos no generan crédito fiscal.`} <InfoButton term="credito_fiscal" /></p>
       <div className="seg" style={{ overflowX: 'auto' }}>
         {(Object.keys(COURSE_KIND_NAMES) as CourseKind[]).map((k) => (
-          <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{COURSE_KIND_NAMES[k].split(' ')[0]}</button>
+          <button key={k} className={kind === k ? 'on' : ''} aria-pressed={kind === k} onClick={() => setKind(k)}>{COURSE_KIND_NAMES[k].split(' ')[0]}</button>
         ))}
       </div>
       {COURSES.filter((c) => c.kind === kind).map((c) => {
@@ -276,7 +308,7 @@ function Study() {
             <div className="chips tiny">
               <Pill tone="neutral">{c.durationDays >= 365 ? `${Math.round(c.durationDays / 365)} años` : `${c.durationDays} días`}</Pill>
               <Pill tone="neutral">{c.hoursPerWeek} h/sem</Pill>
-              {Object.entries(c.xp).map(([sk, xp]) => <Pill key={sk} tone="accent">{SKILLS.find((x) => x.id === sk)!.name} +{fmtNumber(xp as number)} XP</Pill>)}
+              {Object.entries(c.xp).map(([sk, xp]) => <Pill key={sk} tone="accent">{SKILLS.find((x) => x.id === sk)!.name} +{fmtNumber(Math.floor((xp as number) * studyMultiplier(s) * (done > 0 ? 0.2 : 1)))} XP</Pill>)}
               {c.grants?.education && <Pill tone="gain">Título {EDUCATION_NAMES[c.grants.education]}</Pill>}
               {c.grants?.certificate && <Pill tone="gain">Certificado</Pill>}
               {done > 0 && <Pill tone="info">Completado{c.kind !== 'titulo' ? ' · repetir rinde 20 %' : ''}</Pill>}
@@ -307,7 +339,7 @@ function Skills() {
         <p className="tiny muted">Sube con meses trabajados, ponderados por el nivel del puesto y tu desempeño.</p>
         <div className="kv">
           {Object.entries(s.career.experience).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => (
-            <Fragment key={k}><dt>Experiencia en {SECTOR_NAMES[k as Sector]}</dt><dd>{v} meses</dd></Fragment>
+            <Fragment key={k}><dt>Experiencia en {SECTOR_NAMES[k as Sector]}</dt><dd>{v} {v === 1 ? 'mes' : 'meses'}</dd></Fragment>
           ))}
         </div>
       </div>

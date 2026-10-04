@@ -97,7 +97,7 @@ export function ForecastPanel({ target, onResult, title = 'Proyección a 12 mese
           </div>
           <div className="seg" role="tablist">
             {([['net', 'Ganancia'], ['cash', 'Caja'], ['revenue', 'Ventas']] as const).map(([id, l]) => (
-              <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{l}</button>
+              <button key={id} className={view === id ? 'on' : ''} aria-pressed={view === id} onClick={() => setView(id)}>{l}</button>
             ))}
           </div>
           <BandChart bands={result[view]} label={`Proyección de ${view}`} color={view === 'net' ? 'var(--accent)' : view === 'cash' ? 'var(--info)' : 'var(--gain)'} />

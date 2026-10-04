@@ -120,12 +120,23 @@ export function quoteAll(state: GameState, amount: Cents, termMonths: number): L
   return BANKS.map((b) => quoteLoan(state, b, amount, termMonths));
 }
 
+/** Probabilidad de que un banco acepte rebajar la tasa, la rebaja y desde cuándo se puede volver a pedir. */
+export function rateNegotiationInfo(state: GameState, bankId: string): { chance: number; discount: number; nextDay: number | null } {
+  const neg = state.skills.negotiation.level;
+  const prev = state.bank.rateNegotiations[bankId];
+  return {
+    chance: clamp(0.2 + neg * 0.006 + state.skills.social.level * 0.002, 0.2, 0.85),
+    discount: Math.min(0.015, 0.005 + neg / 10000),
+    nextDay: prev && state.day - prev.day <= 30 ? prev.day + 31 : null,
+  };
+}
+
 /** Negociar la tasa con un banco (una vez cada 30 días por banco). */
 export function negotiateRate(state: GameState, bankId: string): ActionResult {
   const prev = state.bank.rateNegotiations[bankId];
   if (prev && state.day - prev.day <= 30) return FAIL('Ya negociaste con este banco en los últimos 30 días.');
   const neg = state.skills.negotiation.level;
-  const p = clamp(0.2 + neg * 0.006 + state.skills.social.level * 0.002, 0.2, 0.85);
+  const p = rateNegotiationInfo(state, bankId).chance;
   practice(state, 'negotiate_loan', 'negotiation', 150);
   if (chance(state, p)) {
     const discount = Math.min(0.015, 0.005 + neg / 10000);
