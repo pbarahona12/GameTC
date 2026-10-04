@@ -1,6 +1,6 @@
 import type { GameState } from '../state';
 import type { Company } from './types';
-import { sectorOf, hasManager, managerSkill, capacity, countRole, coLog, monthlyPayroll } from './common';
+import { sectorOf, hasManager, effectiveManagerSkill, capacity, countRole, coLog, monthlyPayroll } from './common';
 import { itemPlan, supplierAccessible, supplierUnitCost } from './inventory';
 import { refPrice } from './operations';
 import { generateCandidates, hire, fire } from './staff';
@@ -22,7 +22,7 @@ import { fmtMoney } from '../format';
  */
 export function weeklyManager(state: GameState, co: Company): void {
   if (!hasManager(co) || sectorOf(co).model === 'holding') return;
-  const skill = managerSkill(co);
+  const skill = effectiveManagerSkill(state, co);
   const err = () => 1 + randRange(state, -1, 1) * Math.max(0, (70 - skill) / 200);
   const sec = sectorOf(co);
   const d = co.delegation;
@@ -35,7 +35,7 @@ export function weeklyManager(state: GameState, co: Company): void {
       const plan = itemPlan(state, co, r.item);
       if (plan.usage <= 0) continue;
       // Mejor relación calidad / costo REAL de hoy (inflación, costos del sector y exclusividades de rivales).
-      const value = (x: (typeof sec.suppliers)[number]) => x.quality / Math.max(1, supplierUnitCost(state, x));
+      const value = (x: (typeof sec.suppliers)[number]) => x.quality / Math.max(1, supplierUnitCost(state, x, co));
       const options = sec.suppliers.filter((s) => s.itemId === r.item && supplierAccessible(state, s));
       const best = [...options].sort((a, b) => value(b) - value(a))[0];
       const item = sec.items.find((i) => i.id === r.item)!;
@@ -79,7 +79,7 @@ export function weeklyManager(state: GameState, co: Company): void {
       let unitCost = 0;
       for (const r of p.recipe) {
         const sup = sec.suppliers.find((s) => s.id === co.rules.find((x) => x.item === r.item)?.supplierId) ?? sec.suppliers.find((s) => s.itemId === r.item);
-        if (sup) unitCost += supplierUnitCost(state, sup) * r.qty;
+        if (sup) unitCost += supplierUnitCost(state, sup, co) * r.qty;
       }
       const ref = refPrice(state, p);
       const costPrice = unitCost > 0 ? unitCost * d.targetMarkup : ref;

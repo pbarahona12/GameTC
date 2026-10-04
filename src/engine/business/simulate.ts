@@ -19,6 +19,7 @@ import { dateOf, startOfMonth } from '../time/calendar';
 import { randInt, randRange, nextRandom } from '../rng';
 import { roundCents } from '../money';
 import { jurisdictionById } from '../../content/jurisdictions';
+import { dealDiscount } from '../saga/integration';
 
 /** Día de todas las empresas del jugador. */
 export function companiesDay(state: GameState): void {
@@ -28,7 +29,7 @@ export function companiesDay(state: GameState): void {
 
 /** Administración mensual: forma legal + agente residente si la empresa está registrada fuera de tu residencia. */
 export function adminFee(state: GameState, co: Company): number {
-  const base = px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin);
+  const base = roundCents(px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin) * (1 - dealDiscount(state, co, 'gestion')));
   const foreign = !co.npc && co.jurisdiction !== state.tax.jurisdiction ? px(state, jurisdictionById(co.jurisdiction).foreignCompanyAdmin) : 0;
   return base + foreign;
 }

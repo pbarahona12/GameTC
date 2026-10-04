@@ -17,6 +17,7 @@ import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, Pill, AmountInput, ConfirmButton, CardHead, Act, Seg, NumInput, Learn } from '../../components/common';
 import { runCo } from './CompanyView';
 import { navStore } from '../../nav';
+import { IpoCard, DealsCard, BondsCard, MergeCard } from './Corporate';
 
 export function MarketingTab({ co }: { co: Company }) {
   const s = useGame();
@@ -258,7 +259,7 @@ export function FinanceTab({ co }: { co: Company }) {
         <CardHead title="Préstamos de la empresa" term="accion_prestamo_empresa" />
         {co.loans.filter((l) => l.balance > 0).map((l) => (
           <div key={l.id} className="row" style={{ flexWrap: 'wrap' }}>
-            <div className="grow"><div className="title small">{BIZ_BANKS.find((b) => b.id === l.bankId)?.name}{l.guaranteed && <Pill tone="warn">con tu garantía</Pill>}</div><div className="meta">Saldo {fmtMoney(l.balance)} · cuota {fmtMoney(l.payment)} · {fmtPct(l.apr, 2)} · próxima {formatDate(l.nextDueDay)}</div></div>
+            <div className="grow"><div className="title small">{BIZ_BANKS.find((b) => b.id === l.bankId)?.name ?? (l.bullet ? 'Bonos corporativos' : l.bankId)}{l.guaranteed && <Pill tone="warn">con tu garantía</Pill>}</div><div className="meta">Saldo {fmtMoney(l.balance)} · {l.bullet ? 'cupón' : 'cuota'} {fmtMoney(l.payment)} · {fmtPct(l.apr, 2)} · próxima {formatDate(l.nextDueDay)}</div></div>
             <button className="btn sm ghost" onClick={() => runCo(co.id, (st, c) => prepayCoLoan(st, c, l.id, Math.min(l.balance, c.ledger.balances.cash)))}>Amortizar con caja</button>
           </div>
         ))}
@@ -351,6 +352,10 @@ export function ManageTab({ co }: { co: Company }) {
           <Act label="Pedir ofertas a compradores" help="accion_vender_empresa" className="btn" onClick={() => runCo(co.id, (st, c) => requestSaleOffer(st, c))} />
         )}
       </div>
+      {lf.canRaiseEquity && !co.parentId && <IpoCard co={co} />}
+      {lf.canRaiseEquity && <BondsCard co={co} />}
+      <DealsCard co={co} />
+      {!co.parentId && <MergeCard co={co} />}
       {lf.canRaiseEquity && (
         <div className="card">
           <CardHead title="Vender acciones a inversionistas" term="accion_emitir" />

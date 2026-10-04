@@ -5,6 +5,7 @@ import { Cents, clamp, roundCents, usd, applyRate } from '../money';
 import { coPost, CoAccountId, CO_ACCOUNT_IDS, CO_CHART } from './companyLedger';
 import type { CashFlowClass } from '../ledger/core';
 import { addLog } from '../log';
+import { dealDiscount } from '../saga/integration';
 
 export const ARREARS_FEE = 0.03;
 
@@ -116,6 +117,28 @@ export function managerSkill(co: Company): number {
   return m.length ? Math.max(...m.map((x) => x.skill)) : 0;
 }
 
+/** Empresas a partir de las cuales hace falta un equipo directivo (1.4). */
+export const EXEC_FREE_COMPANIES = 4;
+
+/**
+ * COSTO DE LA COMPLEJIDAD (1.4): con más de 4 empresas operando, delegar sin
+ * supervisión cuesta: cada empresa extra resta 8 puntos a la habilidad efectiva
+ * de los gerentes (hasta 30). Un equipo directivo lo evita y suma 5 puntos.
+ */
+export function execAdjustment(state: GameState): number {
+  if (!state.saga) return 0;
+  if (state.saga.exec?.hired) return 5;
+  const n = state.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc && c.sector !== 'holding').length;
+  const over = Math.max(0, n - EXEC_FREE_COMPANIES);
+  return -Math.min(30, over * 8);
+}
+
+/** Habilidad del gerente con el efecto del equipo directivo (o de su falta). */
+export function effectiveManagerSkill(state: GameState, co: Company): number {
+  const base = managerSkill(co);
+  return base ? clamp(base + execAdjustment(state), 1, 100) : 0;
+}
+
 export function workingAssets(state: GameState, co: Company) {
   return co.assets.filter((a) => a.brokenUntil <= state.day);
 }
@@ -136,7 +159,7 @@ export function capacity(state: GameState, co: Company): Capacity {
   const sec = sectorOf(co);
   let bonus = 0;
   for (const a of workingAssets(state, co)) bonus += equipDef(co, a.equipId).capacityBonus * (0.5 + a.condition / 200);
-  const mgr = hasManager(co) ? 1 + (managerSkill(co) - 50) / 500 : 1;
+  const mgr = hasManager(co) ? 1 + (effectiveManagerSkill(state, co) - 50) / 500 : 1;
   const cap: Capacity = { production: 0, service: 0, hours: 0, users: 0, equipmentBonus: bonus };
   for (const e of co.employees) {
     const r = roleDef(sec, e.role);
@@ -161,7 +184,7 @@ export function computeQuality(state: GameState, co: Company): number {
   const matWeight = sec.items.length ? 0.4 : 0;
   const staffWeight = sec.items.length ? 0.3 : 0.55;
   let q = 45 + (co.materialQuality - 60) * matWeight + (staffSkill - 50) * staffWeight + equip + co.rdBonus;
-  if (hasManager(co)) q += (managerSkill(co) - 50) * 0.05;
+  if (hasManager(co)) q += (effectiveManagerSkill(state, co) - 50) * 0.05;
   if (sec.model === 'subscription') {
     const cap = capacity(state, co).users;
     if (co.subscribers > cap && cap >= 0) q -= Math.min(40, ((co.subscribers - cap) / Math.max(1, cap)) * 60);
@@ -196,5 +219,6 @@ export function monthlyFixed(state: GameState, co: Company): Cents {
 
 export function maintenanceCost(state: GameState, co: Company): Cents {
   const mult = co.maintenance === 'none' ? 0 : co.maintenance === 'basic' ? 0.6 : 1;
-  return co.assets.reduce((s, a) => s + px(state, equipDef(co, a.equipId).maintenance * mult), 0);
+  const own = 1 - dealDiscount(state, co, 'equipamiento');
+  return roundCents(co.assets.reduce((s, a) => s + px(state, equipDef(co, a.equipId).maintenance * mult), 0) * own);
 }

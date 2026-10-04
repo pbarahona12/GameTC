@@ -15,7 +15,7 @@ import { computeMetrics } from '../../src/engine/reports/metrics';
 import { buyItem } from '../../src/engine/lifestyle/shops';
 import { SECTOR_BY_ID, BizSectorId } from '../../src/content/sectors';
 import { usd, Cents } from '../../src/engine/money';
-import { isLastDayOfMonth } from '../../src/engine/time/calendar';
+import { isLastDayOfMonth, dateOf } from '../../src/engine/time/calendar';
 import type { BackgroundId, PlayStyle } from '../../src/content/backgrounds';
 import { MORTGAGE_BANKS } from '../../src/content/realestate';
 
@@ -38,6 +38,14 @@ export interface BotResult {
   companies: number;
   properties: number;
   maxLiquidDip: Cents;
+  /** Sueldo mensual promedio en los 3 primeros años (0 en los meses sin empleo). */
+  salary3y: Cents;
+  joblessMonths3y: number;
+  /** Años-empresa con pérdida (riesgo empresarial). */
+  lossYears: number;
+  educationSpent: number;
+  /** Cursos en curso a la vez, en promedio. */
+  avgCourses: number;
 }
 
 const liquid = (s: GameState) => s.ledger.balances.checking + s.ledger.balances.savings + s.ledger.balances.cash_wallet;
@@ -144,12 +152,27 @@ function businessStep(s: GameState, free: Cents): void {
   }
 }
 
-export function runBot(style: BotStyle, background: BackgroundId, seed: string, years: number): BotResult {
+export interface BotOptions {
+  /** Jugador nuevo que explora antes de postularse (1.4): no busca empleo hasta este día. */
+  waitDays?: number;
+  /** Días de juego para medir atrasos tempranos. */
+  earlyWindow?: number;
+  /** Se llama en cada cierre de mes (para medir). */
+  onMonth?: (s: GameState) => void;
+}
+
+export function runBot(style: BotStyle, background: BackgroundId, seed: string, years: number, opts: BotOptions = {}): BotResult & { earlyArrears: number } {
   const s = newGame({ name: 'Bot', background, style: style as PlayStyle, seed, nowReal: 1 });
   setAutopay(s, 'full');
   const stageDays: Record<number, number> = {};
   let minLiquid = liquid(s);
   let dressed = false;
+  let earlyArrears = 0;
+  let salary3y = 0;
+  let joblessMonths3y = 0;
+  let lossYears = 0;
+  let courseMonths = 0;
+  let months = 0;
   const end = years * 365;
   while (s.day < end) {
     advanceDay(s);
@@ -157,8 +180,17 @@ export function runBot(style: BotStyle, background: BackgroundId, seed: string, 
       for (let k = 2; k <= s.progression.stage; k++) if (stageDays[k] === undefined) stageDays[k] = s.day;
     }
     minLiquid = Math.min(minLiquid, liquid(s));
-    if (s.day % 7 === 0) careerStep(s);
+    if (s.day % 7 === 0 && s.day >= (opts.waitDays ?? 0)) careerStep(s);
+    if (s.day === (opts.earlyWindow ?? 90)) earlyArrears = s.credit.arrearsEvents;
     if (!isLastDayOfMonth(s.day)) continue;
+    opts.onMonth?.(s);
+    months++;
+    courseMonths += s.education.active.length;
+    if (s.day < 365 * 3) {
+      salary3y += s.career.job?.salary ?? 0;
+      if (!s.career.job) joblessMonths3y++;
+    }
+    if (dateOf(s.day).m === 12) for (const co of s.companies) if (co.history.length >= 12 && co.history.slice(-12).reduce((a, h) => a + h.netIncome, 0) < 0) lossYears++;
     if (!dressed && liquid(s) > usd(1500)) {
       dressed = buyItem(s, 'camisa_oxford', 'debito').ok && buyItem(s, 'chino', 'debito').ok;
     }
@@ -186,7 +218,9 @@ export function runBot(style: BotStyle, background: BackgroundId, seed: string, 
     style, background, seed, stageDays, finalNetWorth: m.netWorth, finalStage: s.progression.stage,
     arrearsEvents: s.credit.arrearsEvents, bankruptcies: s.formerCompanies.filter((f) => f.outcome === 'quiebra').length,
     companies: s.companies.length + s.formerCompanies.length, properties: s.realEstate.properties.filter((p) => p.owner.kind === 'personal').length,
-    maxLiquidDip: minLiquid,
+    maxLiquidDip: minLiquid, earlyArrears, salary3y: Math.round(salary3y / 36), joblessMonths3y, lossYears,
+    educationSpent: s.education.completed?.length ?? 0,
+    avgCourses: months ? courseMonths / months : 0,
   };
 }
 

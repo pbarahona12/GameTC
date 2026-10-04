@@ -9,7 +9,6 @@ import { Icon, IconName } from '../icons';
 import { imageScore, imageLabel } from '../../engine/lifestyle/effects';
 import { unreadNews, TOPIC_NAMES } from '../../engine/world/news';
 import { cardTier } from '../../engine/finance/cardRewards';
-import { PoachCard } from './more/Rivals';
 import { Money, BigAmount, InfoButton, Learn, LineChart, Bar } from '../components/common';
 import { JOB_BY_ID } from '../../content/jobs';
 import { fmtMoney, fmtMoneyFit } from '../../engine/format';
@@ -18,6 +17,8 @@ import { phaseInfo } from '../../engine/economy/economy';
 import { fmtPct } from '../../engine/format';
 import { logIcon, PHASE_ICON, NEWS_TOPIC_ICON } from '../contentIcons';
 import { ExportReminder } from '../components/Slots';
+import { FirstMonthCard, FirstMonthSummary, AgendaCard, StandingCard, GoalsCard, EmpireScene, SurplusAction } from './saga/SagaCards';
+import { firstMonthActive } from '../../engine/saga/firstMonth';
 
 export function LogRow({ l }: { l: LogItem }) {
   return (
@@ -47,14 +48,14 @@ export function Home() {
   const stage = STAGES[s.progression.stage - 1];
   const prof = professionalLevel(s);
   const job = s.career.job ? JOB_BY_ID[s.career.job.jobId] : null;
-  const tutorialOpen = !s.tutorial.dismissed;
+  // Mientras dura la guía del primer mes, la tarjeta de misiones espera (una sola guía a la vez).
+  const guiding = firstMonthActive(s);
+  const tutorialOpen = !s.tutorial.dismissed && !guiding;
   const { done: tutDone, total: tutTotal } = missionProgress(s);
   const nextStep = nextMission(s);
   const img = imageScore(s);
   const unread = unreadNews(s);
   const openNews = s.world.news.filter((n) => n.status === 'abierta').slice(-2).reverse();
-  const poach = s.world.poach.filter((p) => p.status === 'abierta');
-  const rivalOffers = s.companies.filter((c) => c.saleOffer && c.saleOffer.expires >= s.day && c.saleOffer.from);
 
   const ph = phaseInfo(s);
   const nwLabels = [...hist.map((h) => formatMonth(h.day)), 'Hoy'];
@@ -86,6 +87,8 @@ export function Home() {
         </div>
       )}
       <ExportReminder />
+      <FirstMonthCard />
+      <FirstMonthSummary />
       {tutorialOpen && nextStep && (
         <div className="card next-step">
           <div className="card-head">
@@ -109,17 +112,21 @@ export function Home() {
         {s.macro.events.some((e) => e.startDay <= s.day && e.endDay >= s.day) && <> · {s.macro.events.filter((e) => e.startDay <= s.day && e.endDay >= s.day).map((e) => e.name.toLowerCase()).join(', ')}</>}
       </button>
 
+      <div className="home-grid">
+      <div className="home-col">
       <section className="hero" aria-label="Patrimonio neto">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="eyebrow">Patrimonio neto</span>
           <InfoButton term="patrimonio_neto" />
           <span style={{ flex: 1 }} />
           {prev && <span className="small"><Money c={change} colored sign fit /> <span className="faint">este mes</span></span>}
+          <button className="btn sm ghost explain-btn" onClick={() => navStore.open({ kind: 'explain' })} aria-label="Explicar por qué cambió tu patrimonio"><Icon name="idea" size={14} /> ¿Por qué?</button>
         </div>
         <BigAmount c={m.netWorth} />
         <Learn term="patrimonio_neto" />
         {nwSeries.length >= 2 && <LineChart series={[{ name: 'Patrimonio neto', values: nwSeries, color: 'var(--accent)' }]} pointLabels={nwLabels} height={100} />}
         <div className="tiny faint">Lo que tenés {fmtMoneyFit(m.totalAssets, { decimals: false })} − lo que debés {fmtMoneyFit(m.totalLiabilities, { decimals: false })}</div>
+        {s.macro.priceIndex > 1.05 && <div className="tiny faint">A precios del inicio de tu partida: {fmtMoneyFit(Math.round(m.netWorth / s.macro.priceIndex), { decimals: false })} (los precios subieron {fmtPct(s.macro.priceIndex - 1, 0)}).</div>}
       </section>
 
       <div className="month-strip" role="group" aria-label="Tu mes">
@@ -140,17 +147,18 @@ export function Home() {
         </button>
       </div>
 
-      {(poach.length > 0 || rivalOffers.length > 0) && (
-        <div className="stack" style={{ gap: 8 }}>
-          {poach.slice(0, 2).map((p) => <PoachCard key={p.id} p={p} />)}
-          {rivalOffers.map((c) => (
-            <button key={c.id} className="alert opportunity" style={{ textAlign: 'left' }} onClick={() => navStore.go('business', `co:${c.id}:manage`)}>
-              <span className="stripe" />
-              <div className="small" style={{ flex: 1 }}><strong>{c.saleOffer!.from} ofrece {fmtMoney(c.saleOffer!.price, { decimals: false })} por {c.name}.</strong> Vence el {formatDate(c.saleOffer!.expires)}.</div>
-            </button>
-          ))}
-        </div>
-      )}
+      <SurplusAction />
+
+      <AgendaCard />
+
+      <div className="saga-pair">
+        <StandingCard />
+        <GoalsCard />
+      </div>
+
+      <EmpireScene />
+      </div>
+      <div className="home-col">
 
       {insights.length > 0 && (
         <div className="stack" style={{ gap: 8 }}>
@@ -206,6 +214,8 @@ export function Home() {
           {s.log.length === 0 && <p className="small muted" style={{ padding: '12px 0' }}>Todavía no pasó nada. Usá los controles de tiempo de arriba para avanzar el calendario.</p>}
           {s.log.slice(-6).reverse().map((l) => <LogRow key={l.id} l={l} />)}
         </div>
+      </div>
+      </div>
       </div>
     </>
   );

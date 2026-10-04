@@ -25,6 +25,13 @@ import { ITEMS } from '../src/content/shops';
 import { requestTier, payCard } from '../src/engine/finance/creditCard';
 import { analyzeNews } from '../src/engine/world/news';
 import { answerPoach } from '../src/engine/world/rivals';
+import { dilemmaView, decide } from '../src/engine/saga/dilemmas';
+import { mergeCompanies, issueBonds, bondCapacity, goPublic, acquireRival, buyBackShares } from '../src/engine/saga/corporate';
+import { hireExecTeam, dismissExecTeam } from '../src/engine/saga/executive';
+import { possibleDeals, signDeal } from '../src/engine/saga/integration';
+import { createFoundation, donateToFoundation, succession, heirs, life } from '../src/engine/saga/life';
+import { startPriceWar } from '../src/engine/saga/rivalry';
+import { investSurplus } from '../src/engine/saga/quick';
 
 /**
  * AUDITORÍA INTEGRAL: bots que toman decisiones aleatorias en TODOS los
@@ -199,6 +206,50 @@ function worldAction(s: GameState, bot: RngHolder): void {
   } else if (r < 0.92) {
     const l = pickOne(bot, s.realEstate.listings.filter((x) => x.property.type === 'cochera'));
     if (l) buyProperty(s, l.id, { owner: { kind: 'personal' } });
+  } else if (r < 0.97) {
+    sagaAction(s, bot);
+  }
+}
+
+/** 1.4: decisiones con plazo, fusiones, bonos, equipo directivo, proveedores propios, legado y rivalidad. */
+function sagaAction(s: GameState, bot: RngHolder): void {
+  const k = nextRandom(bot);
+  const mine = s.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc);
+  if (k < 0.3) {
+    const d = pickOne(bot, s.saga.dilemmas.open);
+    const v = d ? dilemmaView(s, d) : null;
+    const o = v ? pickOne(bot, v.options.filter((x) => !x.blocked)) : undefined;
+    if (d && o) decide(s, d.id, o.id);
+  } else if (k < 0.4) {
+    const a = pickOne(bot, mine);
+    const b = a ? pickOne(bot, mine.filter((c) => c.id !== a.id && c.sector === a.sector)) : undefined;
+    if (a && b) mergeCompanies(s, a.id, b.id);
+  } else if (k < 0.5) {
+    const co = pickOne(bot, mine);
+    if (co) issueBonds(s, co.id, Math.max(usd(500_000), Math.round(bondCapacity(s, co) / 2)), [3, 5, 10][randInt(bot, 0, 2)]);
+    if (co) goPublic(s, co.id, 0.2);
+    if (co?.listed) buyBackShares(s, co, 0.05);
+  } else if (k < 0.6) {
+    if (s.saga.exec?.hired) dismissExecTeam(s);
+    else hireExecTeam(s);
+  } else if (k < 0.7) {
+    const p = pickOne(bot, possibleDeals(s));
+    if (p) signDeal(s, p.kind, p.supplier.id, p.buyer.id);
+  } else if (k < 0.8) {
+    if (!life(s).foundation) createFoundation(s, 'Fundación Bot');
+    else donateToFoundation(s, usd(randInt(bot, 100, 5000)));
+    investSurplus(s);
+  } else if (k < 0.9) {
+    const r = pickOne(bot, s.world.rivals.filter((x) => !x.acquired));
+    const co = pickOne(bot, mine.filter((c) => r && r.sectors.includes(c.sector)));
+    if (r && co) startPriceWar(s, r, co.sector, randInt(bot, 60, 200));
+    if (r && s.progression.stage >= 8) acquireRival(s, r.id);
+  } else {
+    // Sucesión de vez en cuando (envejecemos al personaje para probarla).
+    if (nextRandom(bot) < 0.2) {
+      life(s).birthDay = s.day - Math.round(61 * 365.25);
+      succession(s, heirs(s)[0].id, 'retiro');
+    }
   }
 }
 
@@ -240,6 +291,7 @@ describe('Auditoría integral de todos los sistemas (bots aleatorios)', () => {
           nw0 = nw1;
         }
       }
+      if (process.env.URT_CHAOS_STATS) console.log(seed, JSON.stringify({ fusiones: s.formerCompanies.filter((f) => f.outcome === 'fusionada').length, bonos: s.companies.reduce((a, c) => a + c.loans.filter((l) => l.bullet).length, 0), cotizadas: s.companies.filter((c) => c.listed).length, guerras: s.saga.rivalry?.warsSurvived ?? 0, generacion: s.saga.life?.generation, decisiones: s.saga.stats.decisions, equipo: !!s.saga.exec?.hired, acuerdos: s.saga.deals?.length ?? 0, empresas: s.companies.length, etapa: s.progression.stage }));
       expect(actions).toBeGreaterThan(100 * CHAOS_YEARS);
       expect(s.stocks.trades.length).toBeGreaterThan(10);
       expect(s.possessions.spent).toBeGreaterThan(0);

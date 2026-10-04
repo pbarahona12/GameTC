@@ -1,4 +1,46 @@
-# Estado del proyecto — versión 1.3
+# Estado del proyecto — versión 1.4
+
+## Versión 1.4: la historia del magnate (rama `v1.4-experiencia`)
+
+Implementación completa de la auditoría de diseño. Todo vive en `src/engine/saga/` (estado `state.saga`) y usa su propio generador de azar: con la misma semilla, la economía (bolsa, empleos, eventos) es idéntica a la de 1.3, salvo donde la auditoría pidió cambiar reglas (etapas a precios de hoy, equipo directivo con más de 4 empresas, perdón del primer atraso en Fácil).
+
+| Sistema | Archivos | Qué hace |
+|---|---|---|
+| Listas de fortunas | `saga/ranking.ts`, `content/cities.ts` | 100 fortunas por ciudad (4 ciudades) + ranking global; siguen a la bolsa por sector, los índices inmobiliarios y las tasas. Hitos, noticias, retadores y defensa del trono. |
+| Rivales con memoria y rivalidad | `world/rivals.ts`, `saga/rivalry.ts` | Rencor 0–100, treguas, némesis (rencor ≥ 75), guerras de precios (rencor ≥ 55, 4–8 meses, el rival quema capital), coalición de dos grupos contra un jugador dominante (3 años) y alianzas ofrecidas al jugador. |
+| Metas de vida | `saga/goals.ts` | 27 metas en 6 categorías, hasta 3 activas. |
+| Decisiones con plazo | `saga/dilemmas.ts` | 35 plantillas (34 por sorteo + la guerra de precios). Incluyen desafíos que crecen con la fortuna: posición dominante, auditoría fiscal, OPA hostil, escándalo de un gerente, franquicia extranjera, socio con capital, ciberataque. |
+| Agenda, crónica, festejos | `saga/agenda.ts`, `saga/chronicle.ts` | Pendientes por vencimiento; línea de tiempo con resumen anual (exportable como imagen); festejos; al subir de etapa, lo que queda abierto para la próxima vez. |
+| Primer mes | `saga/firstMonth.ts` | Guía de 6 pasos; trabajo temporal urgente si te quedás sin dinero ni empleo. |
+| Desafíos con semilla | `saga/challenges.ts` | 8 escenarios (3 para clase), medallas de oro/plata/bronce y código verificable. |
+| Explicar este número | `reports/explain.ts` | Patrimonio (mes, mes pasado, año) y cada empresa (30 días). |
+| Vida, legado y fundación | `saga/life.ts` | Edad, familia, jubilación, herederos con aptitudes visibles, impuesto a la herencia por residencia (en 24 cuotas si no alcanza), fallecimiento opcional, fundación. |
+| Salida a bolsa, bonos, fusiones y adquisiciones | `saga/corporate.ts` | IPO de 10–30 % con precio según el ciclo; recompra; bonos corporativos (cupón mensual y capital al vencer); fusión de dos empresas propias; compra de un grupo rival con prima de control. |
+| Proveedores propios | `saga/integration.ts` | Acuerdos intragrupo (insumos, gestión, equipamiento) con descuentos reales y pagos registrados. |
+| Equipo directivo | `saga/executive.ts`, `business/common.ts` | Desde la 5.ª empresa, sin equipo directivo los gerentes pierden 8 puntos por empresa extra (hasta 30); con equipo ganan 5 y cuesta cada mes. |
+| Eras económicas | `saga/eras.ts` | Cada 10–15 años, desde el año 6: auge digital, fiebre inmobiliaria, transición energética, clase media, austeridad, salud. |
+| Etapas a precios de hoy | `progression/progression.ts` | Umbrales × índice de precios; la etapa 12 pide top 10 global. Logros de eficiencia (millón en menos de 10 años, 10 años sin atrasos, 100 empleados, $1 M de impuestos sin evasión). |
+| Modo tranquilo | `finance/payments.ts` | En Fácil, el primer atraso no tiene recargo ni marca en el historial. |
+| Interfaz | `ui/screens/saga/*`, `ui/screens/business/Corporate.tsx` | Escena de tu imperio, semáforo de empresas, invertir lo que sobra, diagnóstico arriba de cada informe, dos columnas en escritorio, vista previa del futuro en la partida nueva, enviar comentario por correo. |
+
+Partidas guardadas: versión 6. La migración 5 → 6 crea la historia; al cargar cualquier partida se agregan las cuentas y secciones nuevas (por ejemplo, impuesto a la herencia y vida del personaje).
+
+Guía para docentes: `docs/DOCENTES.md`.
+
+### Verificación 1.4 (resultados reales)
+
+- `npm test`: 362 pruebas, todas pasan (nuevas en `tests/saga.test.ts`, `saga_ui.test.tsx`, `saga_legacy.test.ts` y `saga_rivals.test.ts`). Typecheck, lint y build sin errores.
+- Recorrido de punta a punta (Playwright): pasa.
+- Auditoría de caos (8 semillas × 10 años, ahora también con decisiones, fusiones, bonos, salida a bolsa, equipo directivo, proveedores propios, sucesiones y guerras de precios): invariantes contables intactos todos los meses.
+- Bots: jugador nuevo que tarda 3 semanas en postularse sin atrasos en 4 meses; dominancia entre estilos y años con pérdida en `docs/BALANCE.md`; bots de 60 años opcionales (`URT_LONG=1`, `docs/BALANCE_LARGO.md`).
+- Origen herencia: medido con los bots, no tiene una penalización estructural (los meses de bajo desempeño son iguales a los del egresado). Donde termina peor es porque con más efectivo se pagan más estudios a la vez y aparecen atrasos; el juego lo advierte al elegir el origen. `docs/BALANCE.md` lo mide y una comprobación impide que su patrimonio mediano baje del 60 % del egresado.
+
+### Pendiente
+
+1. Probar con 10–12 personas reales (la prueba cerrada de Play) y ajustar frecuencia de decisiones, festejos y guerras de precios.
+2. Notificación opcional cuando una decisión está por vencer (la auditoría la dejaba como «como mucho, una»): requiere un complemento nativo.
+
+# Versión 1.3
 
 ## Versión 1.3: robustez (rama `v1.3-robustez`)
 

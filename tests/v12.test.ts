@@ -46,11 +46,14 @@ describe('1.2 · Migración de partidas', () => {
     raw.version = 4;
     delete raw.possessions;
     delete raw.world;
+    delete raw.saga;
     for (const a of ['personal_assets', 'card_installments', 'card_rewards', 'shopping', 'goods_depreciation']) delete raw.ledger.balances[a];
     for (const k of ['tier', 'feeDay', 'rewardsPending', 'rewardsTotal', 'installments', 'lastTierRequest']) delete raw.bank.card[k];
     const { state, migratedFrom } = migrate(raw);
     expect(migratedFrom).toBe(4);
-    expect(state.version).toBe(5);
+    // Pasa por todas las migraciones siguientes (1.4: v6 con la historia del magnate).
+    expect(state.version).toBe(6);
+    expect(state.saga.ranking.magnates.length).toBe(400);
     expect(state.bank.card.tier).toBe('clasica');
     expect(state.possessions.items.length).toBe(3);
     expect(state.world.rivals.length).toBe(4);

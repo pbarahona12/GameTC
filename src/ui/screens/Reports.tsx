@@ -75,6 +75,9 @@ function IS({ period }: { period: Period }) {
     <div className="card">
       <div className="card-head"><h2>Estado de resultados</h2><InfoButton term="estado_resultados" /></div>
       <p className="tiny muted">{formatDate(from)} – {formatDate(to)}{prev && ' · la columna gris es el período anterior'}</p>
+      <p className="small is-summary">
+        {is.grossIncome || is.totalExpensesBeforeTax ? <>Ganaste <strong className="gain">{fmtMoney(is.grossIncome, { decimals: false })}</strong>, gastaste <strong className="loss">{fmtMoney(is.totalExpensesBeforeTax + is.totalTaxes, { decimals: false })}</strong> (con impuestos) y {is.netResult >= 0 ? <>te sobró <strong className="gain">{fmtMoney(is.netResult, { decimals: false })}</strong></> : <>te faltó <strong className="loss">{fmtMoney(-is.netResult, { decimals: false })}</strong></>}.{is.unrealized ? <> De lo ganado, {fmtMoney(is.unrealized, { decimals: false })} es revalorización (no es dinero cobrado).</> : null}</> : 'Sin movimientos en este período.'}
+      </p>
       <Learn term="ingresos_vs_beneficio" />
       <div className="rows">
         <Lines lines={is.income} prev={prev?.income} />
@@ -82,6 +85,8 @@ function IS({ period }: { period: Period }) {
         <Lines lines={is.living} prev={prev?.living} sign={-1} />
         <Lines lines={is.financial} prev={prev?.financial} sign={-1} />
         <Lines lines={is.education} prev={prev?.education} sign={-1} />
+        <Lines lines={is.property} prev={prev?.property} sign={-1} />
+        <Lines lines={is.legal} prev={prev?.legal} sign={-1} />
         <Lines lines={is.other} prev={prev?.other} sign={-1} />
         <TotalRow label="Resultado antes de impuestos" value={is.resultBeforeTax} prev={prev?.resultBeforeTax} />
         <Lines lines={is.taxes} prev={prev?.taxes} sign={-1} />

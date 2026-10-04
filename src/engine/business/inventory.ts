@@ -10,6 +10,7 @@ import { fmtMoney } from '../format';
 import { chance, randInt } from '../rng';
 import type { SupplierDef } from '../../content/sectors';
 import { practice } from '../skills/skills';
+import { dealDiscount } from '../saga/integration';
 
 const EPS = 1e-9;
 
@@ -66,8 +67,9 @@ export function supplierFor(co: Company, supplierId: string): SupplierDef | unde
   return sectorOf(co).suppliers.find((s) => s.id === supplierId);
 }
 
-export function supplierUnitCost(state: GameState, s: SupplierDef): Cents {
-  return usd(s.unitCost * state.macro.priceIndex * supplierCostIndex(state) * supplierShockMult(state, s.id));
+export function supplierUnitCost(state: GameState, s: SupplierDef, co?: Company): Cents {
+  // 1.4: con un minimercado propio como proveedor, la cafetería paga menos sus insumos.
+  return usd(s.unitCost * state.macro.priceIndex * supplierCostIndex(state) * supplierShockMult(state, s.id) * (1 - dealDiscount(state, co, 'insumos')));
 }
 
 export function leadDays(co: Company, s: SupplierDef): number {
@@ -89,7 +91,7 @@ export function placeOrder(state: GameState, co: Company, supplierId: string, qt
   if (!supplierAccessible(state, s)) return FAIL(`Necesitás red de contactos ${s.networkRequired} para trabajar con ${s.name}.`);
   if (!(qty > 0) || !Number.isFinite(qty)) return FAIL('Cantidad inválida.');
   if (qty < s.minOrder) return FAIL(`Pedido mínimo de ${s.name}: ${s.minOrder}.`);
-  const unit = supplierUnitCost(state, s);
+  const unit = supplierUnitCost(state, s, co);
   const total = roundCents(unit * qty);
   const fee = deliveryFee(state, co, s);
   const credit = s.paymentDays > 0 && !co.blockedSuppliers.includes(s.id);

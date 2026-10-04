@@ -13,7 +13,15 @@ export type SheetSpec =
   | { kind: 'update' }
   | { kind: 'whatsnew' }
   | { kind: 'legal'; tab?: 'privacy' | 'terms' | 'licenses' }
-  | { kind: 'rewards' };
+  | { kind: 'rewards' }
+  // 1.4 · la historia del magnate
+  | { kind: 'chronicle' }
+  | { kind: 'goals' }
+  | { kind: 'dilemma'; id: number }
+  | { kind: 'agenda' }
+  | { kind: 'challenges' }
+  | { kind: 'explain' }
+  | { kind: 'life' };
 
 interface NavState {
   tab: Tab;

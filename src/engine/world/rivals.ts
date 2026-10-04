@@ -149,7 +149,7 @@ function newIntent(state: GameState, r: RivalGroup, kind: IntentKind, days: [num
 }
 
 function rivalFor(state: GameState, sector: BizSectorId | null, styles?: RivalGroup['style'][]): RivalGroup | undefined {
-  const pool = state.world.rivals.filter((r) => (!sector || r.sectors.includes(sector)) && (!styles || styles.includes(r.style)));
+  const pool = state.world.rivals.filter((r) => !r.acquired && !isAllied(state, r) && (!sector || r.sectors.includes(sector)) && (!styles || styles.includes(r.style)) && !(sector && inTruce(state, r, sector)));
   return pool.length ? pool[Math.floor(nextRandom(wrng(state)) * pool.length)] : undefined;
 }
 
@@ -172,7 +172,7 @@ function planBusinessPurchase(state: GameState): void {
   const l = free[Math.floor(nextRandom(wrng(state)) * free.length)];
   const r = rivalFor(state, l.company.sector);
   if (!r || l.askPrice > r.capital * 0.25) return;
-  const it = newIntent(state, r, 'comprar_empresa', [10, Math.min(28, l.expiresDay - state.day - 2)], { listingId: l.id });
+  const it = newIntent(state, r, 'comprar_empresa', [10, Math.min(28, l.expiresDay - state.day - 2)], { listingId: l.id, companyId: l.company.id });
   const n = publishCandidate(state, true, () => businessDraft(r, l, it.executeDay, true));
   it.newsId = n?.id ?? null;
   // Candidato falso: otra empresa en venta (que el rival podría pagar) que nadie planea comprar.
@@ -198,7 +198,7 @@ export function planPropertyPurchase(state: GameState): void {
   const l = cheap[Math.floor(nextRandom(wrng(state)) * cheap.length)];
   const r = rivalFor(state, null, ['oportunista', 'paciente']);
   if (!r) return;
-  const it = newIntent(state, r, 'comprar_inmueble', [7, Math.min(21, l.expiresDay - state.day - 2)], { propertyListingId: l.id });
+  const it = newIntent(state, r, 'comprar_inmueble', [7, Math.min(21, l.expiresDay - state.day - 2)], { propertyListingId: l.id, propertyId: l.property.id });
   const n = publishCandidate(state, true, () => propertyDraft(r, l, it.executeDay, true));
   it.newsId = n?.id ?? null;
   // Candidato falso: otro inmueble barato que nadie planea comprar.
@@ -229,7 +229,7 @@ function planCompetitor(state: GameState, sector: BizSectorId): void {
   // así un rumor sobre "tu" sector no delata que es cierto.
   const mine = [...playerSectors(state)].filter((x) => x !== sector);
   const fs = mine.length ? mine[Math.floor(nextRandom(wrng(state)) * mine.length)] : sector;
-  const pool = state.world.rivals.filter((x) => x.sectors.includes(fs) && styles.includes(x.style) && (fs !== sector || x.id !== r.id));
+  const pool = state.world.rivals.filter((x) => !x.acquired && x.sectors.includes(fs) && styles.includes(x.style) && (fs !== sector || x.id !== r.id));
   if (!pool.length) return;
   const fr = pool[Math.floor(nextRandom(wrng(state)) * pool.length)];
   publishCandidate(state, false, () => competitorDraft(fr, fs, state.day + randInt(wrng(state), 30, 50), false));
@@ -259,6 +259,40 @@ function planExclusivity(state: GameState, sector: BizSectorId): void {
   publishCandidate(state, false, () => exclusivityDraft(r, sector, f, state.day + randInt(wrng(state), 14, 30), false));
 }
 
+// ------------------------------------------------------------------ memoria de los rivales (1.4)
+
+/** Le ganaste a un rival una compra que tenía planeada: lo festejás… y lo recuerdan. */
+function sniped(state: GameState, r: RivalGroup, what: string): void {
+  r.attitude = clamp((r.attitude ?? 0) + 12, 0, 100);
+  r.memory = [...(r.memory ?? []), { day: state.day, text: `Le ganaste la compra de ${what}` }].slice(-12);
+  addLog(state, 'success', r.icon, `Le ganaste a ${r.name} la compra de ${what}. No les gustó nada.`);
+  publish(state, { kind: 'hecho', topic: 'empresas', icon: r.icon, title: `${state.player.name} se adelanta a ${r.name} y se queda con ${what}`, body: `${r.name} negociaba la compra desde hacía semanas.`, reliability: 1, truth: true, resolveDay: null, source: 'Diario Económico de Valdoria', sourceTypical: 0.85, ref: { rivalId: r.id } });
+}
+
+/**
+ * Cuánto más probable es que un rival te ataque en un sector: según su rencor
+ * (0–100 → ×1 a ×2). Durante una tregua en ese sector, nada.
+ */
+export function hostilityFactor(state: GameState, sector: BizSectorId | null): number {
+  const pool = state.world.rivals.filter((r) => !r.acquired && !isAllied(state, r) && (!sector || r.sectors.includes(sector)));
+  if (sector && !pool.length && state.world.rivals.some((r) => !r.acquired && r.sectors.includes(sector))) return 0;
+  if (sector && pool.length && pool.every((r) => r.truce && r.truce.sector === sector && r.truce.until >= state.day)) return 0;
+  const att = pool.filter((r) => !(r.truce && r.truce.until >= state.day && (!sector || r.truce.sector === sector))).reduce((a, r) => Math.max(a, (r.attitude ?? 0) / 100 + rivalryExtra(state, r)), 0);
+  return 1 + att;
+}
+
+/** Aliado tuyo vigente (1.4): no te ataca. */
+const isAllied = (state: GameState, r: RivalGroup) => !!r.ally && r.ally.until >= state.day;
+
+/** Hostilidad extra de la rivalidad (1.4): némesis +0.25, coalición en tu contra +0.3. */
+function rivalryExtra(state: GameState, r: RivalGroup): number {
+  const rv = state.saga?.rivalry;
+  if (!rv) return 0;
+  return (rv.nemesisId === r.id ? 0.25 : 0) + (rv.coalition && rv.coalition.until >= state.day && rv.coalition.members.includes(r.id) ? 0.3 : 0);
+}
+
+const inTruce = (state: GameState, r: RivalGroup, sector: BizSectorId) => !!r.truce && r.truce.until >= state.day && r.truce.sector === sector;
+
 // ------------------------------------------------------------------ ejecución
 
 function executeIntent(state: GameState, it: RivalIntent): void {
@@ -268,9 +302,14 @@ function executeIntent(state: GameState, it: RivalIntent): void {
   if (!r) return finish(false, '');
   if (it.kind === 'comprar_empresa') {
     const l = state.listings.find((x) => x.id === it.listingId);
-    if (!l) return finish(false, 'La empresa ya no estaba en venta.');
+    if (!l) {
+      const mine = it.companyId !== undefined ? state.companies.find((c) => c.id === it.companyId && !c.npc) : undefined;
+      if (mine) sniped(state, r, mine.name);
+      return finish(false, mine ? `La compraste vos antes que ${r.name}.` : 'La empresa ya no estaba en venta.');
+    }
     state.listings = state.listings.filter((x) => x !== l);
     r.capital -= l.askPrice;
+    r.assetsValue = (r.assetsValue ?? 0) + l.askPrice;
     r.holdings.push(l.company.name);
     move(state, r, `Compró ${l.company.name}`, l.askPrice);
     const m = state.markets[l.company.sector];
@@ -284,9 +323,14 @@ function executeIntent(state: GameState, it: RivalIntent): void {
   }
   if (it.kind === 'comprar_inmueble') {
     const l = state.realEstate.listings.find((x) => x.id === it.propertyListingId);
-    if (!l) return finish(false, 'El inmueble ya no estaba en venta.');
+    if (!l) {
+      const mine = it.propertyId !== undefined ? state.realEstate.properties.find((p) => p.id === it.propertyId && p.owner.kind !== 'mogul') : undefined;
+      if (mine) sniped(state, r, mine.name);
+      return finish(false, mine ? `Lo compraste vos antes que ${r.name}.` : 'El inmueble ya no estaba en venta.');
+    }
     state.realEstate.listings = state.realEstate.listings.filter((x) => x !== l);
     r.capital -= l.askPrice;
+    r.assetsValue = (r.assetsValue ?? 0) + l.askPrice;
     r.holdings.push(l.property.name);
     move(state, r, `Compró ${l.property.name}`, l.askPrice);
     publish(state, { kind: 'hecho', topic: 'inmuebles', icon: '🏠', title: `${r.name} compró ${l.property.name}`, body: `Por ${fmtMoney(l.askPrice, { decimals: false })}.`, reliability: 1, truth: true, resolveDay: null, source: 'Registro de la propiedad', sourceTypical: 0.97, ref: { rivalId: r.id } });
@@ -301,6 +345,7 @@ function executeIntent(state: GameState, it: RivalIntent): void {
     const c: CompetitorState = { id: state.meta.nextId++, name: brand, priceMult: r.style === 'agresivo' ? 0.9 : 0.96, quality: randRange(wrng(state), 58, 75), reputation: 50, awareness: 35, active: true, enteredDay: state.day };
     m.competitors.push(c);
     r.capital -= usd(150000);
+    r.assetsValue = (r.assetsValue ?? 0) + usd(150000);
     r.holdings.push(brand);
     move(state, r, `Abrió ${brand}`);
     publish(state, { kind: 'hecho', topic: 'empresas', icon: '🆕', title: `Abrió ${brand}`, body: `${r.name} entró en ${sec.name.toLowerCase()} con precios ${r.style === 'agresivo' ? 'muy bajos' : 'competitivos'} y una fuerte campaña.`, reliability: 1, truth: true, resolveDay: null, source: 'Diario Económico de Valdoria', sourceTypical: 0.85, ref: { rivalId: r.id, sector: it.sector } });
@@ -431,12 +476,15 @@ export function worldMonth(state: GameState): void {
   if (chance(g, 0.3 * intensity)) planPropertyPurchase(state);
   const mine = [...playerSectors(state)];
   for (const sector of mine) {
-    if (chance(g, 0.025 * intensity)) planCompetitor(state, sector);
-    if (chance(g, 0.04 * intensity)) planExclusivity(state, sector);
+    // 1.4: los rivales con rencor atacan más seguido (y nada durante una tregua).
+    const h = hostilityFactor(state, sector);
+    if (chance(g, 0.025 * intensity * h)) planCompetitor(state, sector);
+    if (chance(g, 0.04 * intensity * h)) planExclusivity(state, sector);
   }
   for (const co of state.companies) {
     if (!isOpen(co) || co.npc || co.sector === 'holding') continue;
+    const h = hostilityFactor(state, co.sector);
     if (chance(g, 0.05 * intensity)) offerForCompany(state, co);
-    if (co.employees.length && chance(g, 0.08 * intensity)) poachEmployee(state, co);
+    if (co.employees.length && chance(g, 0.08 * intensity * h)) poachEmployee(state, co);
   }
 }

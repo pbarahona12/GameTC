@@ -1,3 +1,5 @@
+import { LEGAL } from '../../content/legal';
+import { APP_VERSION } from '../../version';
 import type { ReactNode } from 'react';
 import { useNav, navStore } from '../nav';
 import { useGame, useUI } from '../store';
@@ -9,6 +11,12 @@ import { ShopsScreen } from './more/Shops';
 import { WardrobeScreen } from './more/Wardrobe';
 import { NewsScreen } from './more/News';
 import { RivalsScreen } from './more/Rivals';
+import { RankingScreen } from './saga/RankingScreen';
+import { positionOf } from '../derived';
+import { useDerived } from '../store';
+import { fmtNumber } from '../../engine/format';
+import { cityName } from '../../engine/saga/ranking';
+import { ageOf } from '../../engine/saga/life';
 import { phaseInfo } from '../../engine/economy/economy';
 import { residence } from '../../engine/tax/taxEngine';
 import { legalRiskSummary, heatLabel } from '../../engine/legal/legal';
@@ -18,11 +26,11 @@ import { missionProgress } from '../../engine/progression/tutorial';
 import { Icon, IconName } from '../icons';
 import { Avatar, avatarOf } from '../components/Avatar';
 
-type Sub = 'menu' | 'economy' | 'tax' | 'pros' | 'legal' | 'shops' | 'wardrobe' | 'news' | 'rivals';
+type Sub = 'menu' | 'economy' | 'tax' | 'pros' | 'legal' | 'shops' | 'wardrobe' | 'news' | 'rivals' | 'ranking';
 
 const TITLES: Record<Exclude<Sub, 'menu'>, string> = {
   economy: 'Economía', tax: 'Impuestos y residencia', pros: 'Profesionales', legal: 'Legal y actividades ilegales',
-  shops: 'Tiendas', wardrobe: 'Tu personaje', news: 'Noticias', rivals: 'Competencia',
+  shops: 'Tiendas', wardrobe: 'Tu personaje', news: 'Noticias', rivals: 'Competencia', ranking: 'Listas de fortunas',
 };
 
 interface Tile {
@@ -40,6 +48,7 @@ export function More() {
   const nav = useNav();
   const s = useGame();
   useUI();
+  const pos = useDerived(positionOf);
   const sub = ((nav.sub.more ?? 'menu').split(':')[0] as Sub) || 'menu';
   if (sub !== 'menu') {
     return (
@@ -56,6 +65,7 @@ export function More() {
         {sub === 'wardrobe' && <WardrobeScreen />}
         {sub === 'news' && <NewsScreen />}
         {sub === 'rivals' && <RivalsScreen />}
+        {sub === 'ranking' && <RankingScreen />}
       </>
     );
   }
@@ -66,6 +76,8 @@ export function More() {
   const unread = unreadNews(s);
   const poach = s.world.poach.filter((p) => p.status === 'abierta').length;
   const mp = missionProgress(s);
+  const goals = s.saga.goals.active.length;
+  const chron = s.saga.chronicle.length;
   const missionsLeft = mp.total - mp.done;
   const groups: Array<{ title: string; tiles: Tile[] }> = [
     {
@@ -74,12 +86,16 @@ export function More() {
         { icon: 'wardrobe', title: 'Tu personaje', sub: `Imagen ${img} · ${imageLabel(img)} · vestidor y bienes`, onClick: () => navStore.setSub('more', 'wardrobe'), visual: <Avatar data={avatarOf(s)} size={34} bust /> },
         { icon: 'shop', title: 'Tiendas', sub: 'Ropa, vehículos, tecnología, hogar y lujo', onClick: () => navStore.setSub('more', 'shops') },
         { icon: 'progress', title: 'Progreso y habilidades', sub: `Etapa ${s.progression.stage}/12 · logros y habilidades`, onClick: () => navStore.open({ kind: 'progress' }) },
-        { icon: 'missions', title: 'Misiones', sub: missionsLeft ? `${missionsLeft} por hacer · te enseñan cada sistema` : 'Todas cumplidas', onClick: () => navStore.open({ kind: 'tutorial' }) },
+        { icon: 'crown', title: 'Tu vida y legado', sub: `${Math.floor(ageOf(s))} años · generación ${s.saga.life?.generation ?? 1}${s.saga.life?.partner ? ' · en pareja' : ''}`, onClick: () => navStore.open({ kind: 'life' }) },
+        { icon: 'missions', title: 'Metas de vida', sub: goals ? `${goals} en curso · ${Object.keys(s.saga.goals.completed).length} cumplidas` : 'Elegí qué querés lograr en esta partida', onClick: () => navStore.open({ kind: 'goals' }) },
+        { icon: 'history', title: 'Tu crónica', sub: `${chron} momento${chron === 1 ? '' : 's'} de tu historia como magnate`, onClick: () => navStore.open({ kind: 'chronicle' }) },
+        { icon: 'list', title: 'Misiones', sub: missionsLeft ? `${missionsLeft} por hacer · te enseñan cada sistema` : 'Todas cumplidas', onClick: () => navStore.open({ kind: 'tutorial' }) },
       ],
     },
     {
       title: 'El mundo',
       tiles: [
+        { icon: 'crown', title: 'Listas de fortunas', sub: `${pos.exact ? `Puesto ${pos.rank}` : `Puesto ~${fmtNumber(pos.rank)}`} en ${cityName(pos.city)}${pos.globalRank ? ` · ${pos.globalRank}° del mundo` : ''}`, onClick: () => navStore.setSub('more', 'ranking') },
         { icon: 'news', title: 'Noticias', sub: unread ? `${unread} nueva${unread > 1 ? 's' : ''} · rumores y anticipos` : 'Rumores y anticipos: analizalos', onClick: () => navStore.setSub('more', 'news'), badge: unread },
         { icon: 'rivals', title: 'Competencia', sub: poach ? `${poach} oferta${poach > 1 ? 's' : ''} por tus empleados` : 'Grupos rivales y sus movimientos', onClick: () => navStore.setSub('more', 'rivals'), alert: poach > 0 },
         { icon: 'economy', title: 'Economía', sub: `${ph.name} · inflación ${(s.macro.inflation * 100).toFixed(1)} % · tasa ${(s.macro.policyRate * 100).toFixed(2)} %`, onClick: () => navStore.setSub('more', 'economy') },
@@ -97,9 +113,11 @@ export function More() {
     {
       title: 'Juego',
       tiles: [
+        { icon: 'rocket', title: 'Desafíos con semilla', sub: s.saga.challenge ? `Jugando: ${s.saga.challenge.id}` : 'Mundos fijos para comparar resultados', onClick: () => navStore.open({ kind: 'challenges' }) },
         { icon: 'log', title: 'Registro de actividad', sub: 'Todo lo que pasó en tu partida', onClick: () => navStore.open({ kind: 'log' }) },
         { icon: 'glossary', title: 'Glosario', sub: 'Cada concepto explicado con ejemplos', onClick: () => navStore.open({ kind: 'glossary' }) },
         { icon: 'settings', title: 'Ajustes', sub: 'Partida, apariencia, guardado y actualizaciones', onClick: () => navStore.open({ kind: 'settings' }) },
+        { icon: 'mail', title: 'Enviar un comentario', sub: 'Abrí tu correo para contarnos qué te gustó o dónde te trabaste (no se envía ningún dato de tu partida)', onClick: openFeedback },
         { icon: 'shield', title: 'Privacidad y términos', sub: 'Qué datos guarda el juego, términos de uso y licencias', onClick: () => navStore.open({ kind: 'legal' }) },
       ],
     },
@@ -126,4 +144,15 @@ export function More() {
       ))}
     </>
   );
+}
+
+function openFeedback(): void {
+  window.location.assign(feedbackLink());
+}
+
+/** Comentario por correo: lo escribe la persona; el juego no adjunta datos. */
+function feedbackLink(): string {
+  const subject = encodeURIComponent(`Comentario sobre Ultimate Realistic Tycoon ${APP_VERSION}`);
+  const body = encodeURIComponent('Contanos qué te gustó, qué te confundió o dónde te trabaste:\n\n');
+  return `mailto:${LEGAL.contact}?subject=${subject}&body=${body}`;
 }

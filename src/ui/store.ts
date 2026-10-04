@@ -50,6 +50,12 @@ export interface Settings {
   playSpeed: PlaySpeed;
   /** Hasta cuándo no recordar exportar la partida (ms reales). */
   exportReminderSnoozedUntil: number;
+  /** Sonidos cortos al cobrar, cumplir metas y festejar (1.4). */
+  sound: boolean;
+  /** Vibración breve en los festejos (1.4, solo teléfonos). */
+  haptics: boolean;
+  /** Ajustes de 1.4 ya aplicados a una instalación anterior. */
+  seen14?: boolean;
 }
 
 const SETTINGS_KEY = 'urt.settings';
@@ -57,8 +63,8 @@ const HOST_THEME = typeof document !== 'undefined' ? document.documentElement.ge
 const DEFAULT_SETTINGS: Settings = {
   theme: 'system', learningMode: true, autoPause: true, offlineMaxDays: 30,
   alertCategories: ['liquidez', 'deuda', 'credito', 'ahorro', 'impuestos', 'carrera', 'bienestar', 'empresa', 'inversiones', 'inmuebles', 'legal', 'economia'],
-  msPerDay: 2000, pauseOn: ['peligro', 'ofertas', 'logros', 'legal'], successToasts: true,
-  fontScale: 1, highContrast: false, reduceMotion: false, colorblind: false, density: 'comoda', showAllSections: false, autoUpdate: true, playSpeed: 1, exportReminderSnoozedUntil: 0,
+  msPerDay: 2000, pauseOn: ['peligro', 'ofertas', 'logros', 'legal', 'decisiones'], successToasts: true,
+  fontScale: 1, highContrast: false, reduceMotion: false, colorblind: false, density: 'comoda', showAllSections: false, autoUpdate: true, playSpeed: 1, exportReminderSnoozedUntil: 0, sound: false, haptics: true, seen14: true,
 };
 
 /** Milisegundos reales por día de juego a velocidad 1× (valor por defecto). */
@@ -260,6 +266,11 @@ export class GameStore {
         this.ui.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
         // Categorías nuevas se activan por defecto al actualizar.
         for (const c of ['empresa', 'inversiones', 'inmuebles', 'legal', 'economia']) if (!this.ui.settings.alertCategories.includes(c)) this.ui.settings.alertCategories.push(c);
+        // 1.4: las decisiones con plazo pausan el tiempo por defecto (una sola vez, al actualizar).
+        if (!this.ui.settings.seen14) {
+          if (!this.ui.settings.pauseOn.includes('decisiones')) this.ui.settings.pauseOn = [...this.ui.settings.pauseOn, 'decisiones'];
+          this.ui.settings.seen14 = true;
+        }
       }
     } catch {
       /* ajustes por defecto */

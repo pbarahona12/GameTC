@@ -29,8 +29,11 @@ import type { WorldLifeState } from './world/types';
 import type { CardTier } from '../content/cards';
 import { STARTER_OUTFIT } from '../content/shops';
 import { initWorldLife } from './world/rivals';
+import type { SagaState } from './saga/types';
+import { initSaga } from './saga/index';
+import { CHALLENGE_BY_ID } from './saga/challenges';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export type PaymentMethod = 'checking' | 'card' | 'cash';
 
@@ -245,6 +248,8 @@ export interface GameOptions {
   difficulty: Difficulty;
   /** Actividades ilegales ficticias habilitadas. */
   illegalEnabled: boolean;
+  /** Modo tranquilo (Fácil): ya se usó el perdón del primer atraso. */
+  graceUsed?: boolean;
 }
 
 export interface CreditState {
@@ -278,7 +283,7 @@ export type LogKind = 'income' | 'expense' | 'info' | 'warning' | 'success' | 'd
  * Categoría explícita de un evento para la pausa automática (no se deduce del
  * ícono). Sin categoría, un evento de tipo 'danger' cuenta como 'peligro'.
  */
-export type LogCategory = 'peligro' | 'ofertas' | 'logros' | 'legal' | 'inversiones';
+export type LogCategory = 'peligro' | 'ofertas' | 'logros' | 'legal' | 'inversiones' | 'decisiones';
 
 export interface LogItem {
   id: number;
@@ -371,6 +376,8 @@ export interface GameState {
   possessions: PossessionsState;
   /** Noticias, rivales y competencia (1.2). */
   world: WorldLifeState;
+  /** La historia del magnate: clasificaciones, metas, dilemas, crónica y desafíos (1.4). */
+  saga: SagaState;
 }
 
 export interface NewGameOptions {
@@ -384,12 +391,16 @@ export interface NewGameOptions {
   nowReal?: number;
   /** Apariencia elegida al crear el personaje (1.2). */
   look?: Partial<import('./lifestyle/types').Look>;
+  /** Desafío con semilla (1.4): fija origen, estilo y semilla. */
+  challenge?: string;
 }
 
 export const INITIAL_POLICY_RATE = 0.05;
 export const INITIAL_INFLATION = 0.03;
 
-export function newGame(opts: NewGameOptions): GameState {
+export function newGame(input: NewGameOptions): GameState {
+  const ch = input.challenge ? CHALLENGE_BY_ID[input.challenge] : undefined;
+  const opts: NewGameOptions = ch ? { ...input, background: ch.background, style: ch.style, seed: ch.seed } : input;
   const bg = BACKGROUND_BY_ID[opts.background];
   const seed = seedFromString(opts.seed ?? `${opts.name}-${opts.nowReal ?? 0}`);
   const skills = {} as Record<SkillId, SkillProgress>;
@@ -466,6 +477,7 @@ export function newGame(opts: NewGameOptions): GameState {
     legal: { heat: 0, acts: [], cases: [], fines: [], prison: null, criminalRecord: 0, ventures: [], log: [], lastTaxAudit: 0, contracts: [], inspections: [] },
     possessions: newPossessions(seed, opts.look),
     world: { news: [], rivals: [], intents: [], supplierShocks: [], poach: [], lastRead: 0 },
+    saga: undefined as unknown as SagaState,
   };
   state.markets = initMarkets(state);
   initWorldV3(state);
@@ -492,6 +504,7 @@ export function newGame(opts: NewGameOptions): GameState {
   // El día 0 también cuenta para los saldos promedio del mes.
   state.bank.checkingBalanceDays = state.ledger.balances.checking;
   state.bank.savingsBalanceDays = state.ledger.balances.savings;
+  initSaga(state, ch?.id);
   return state;
 }
 

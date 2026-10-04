@@ -2,7 +2,7 @@ import type { Cents } from '../money';
 import type { BizSectorId } from '../../content/sectors';
 
 export type NewsKind = 'rumor' | 'anticipo' | 'oficial' | 'hecho';
-export type NewsTopic = 'economia' | 'bolsa' | 'empresas' | 'inmuebles' | 'proveedores' | 'empleo';
+export type NewsTopic = 'economia' | 'bolsa' | 'empresas' | 'inmuebles' | 'proveedores' | 'empleo' | 'fortunas';
 export type NewsStatus = 'abierta' | 'cumplida' | 'desmentida' | 'hecho';
 
 /**
@@ -49,6 +49,24 @@ export interface RivalGroup {
   moves: RivalMove[];
   /** Empresas y competidores que controla. */
   holdings: string[];
+  /** Valor estimado de lo que compró o abrió (1.4; se mueve con el mercado). */
+  assetsValue?: Cents;
+  /**
+   * Memoria del grupo hacia vos (1.4): 0 = indiferente, 100 = te declaró la guerra.
+   * Sube si le ganás compras, lo superás en la clasificación o competís en sus
+   * sectores; baja sola con el tiempo. Cuanto más alta, más movimientos en tu contra.
+   */
+  attitude?: number;
+  /** Ciudad de la familia o los dueños (1.4). */
+  city?: import('../../content/jurisdictions').JurisdictionId;
+  /** Lo último que pasó entre ustedes (para la ficha del rival). */
+  memory?: Array<{ day: number; text: string }>;
+  /** Tregua pactada en un dilema: no te ataca y vos no entrás en ese sector (1.4). */
+  truce?: { sector: BizSectorId; from: number; until: number } | null;
+  /** Lo compraste vos (1.4): ya no compite ni ataca. */
+  acquired?: { day: number; price: Cents } | null;
+  /** Aliado tuyo (1.4, dilema): no te ataca mientras dure. */
+  ally?: { from: number; until: number; against: string | null } | null;
 }
 
 export type IntentKind = 'comprar_empresa' | 'comprar_inmueble' | 'abrir_competidor' | 'exclusividad';
@@ -63,6 +81,9 @@ export interface RivalIntent {
   propertyListingId?: number;
   sector?: BizSectorId;
   supplierId?: string;
+  /** Empresa o inmueble que querían comprar (1.4: para saber si se lo ganaste vos). */
+  companyId?: number;
+  propertyId?: number;
 }
 
 export interface SupplierShock {

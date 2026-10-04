@@ -20,8 +20,54 @@ export function Money({ c, compact, sign, colored, fit, className = '' }: { c: C
  * su largo para que nunca se salga de la pantalla (la tipografía es monoespaciada).
  */
 export function BigAmount({ c, className = '' }: { c: Cents; className?: string }) {
-  const text = fmtMoney(c);
-  return <div className={`big big-fit ${className}`} style={{ ['--chars' as string]: text.length }}>{text}</div>;
+  const { value, flash } = useCountUp(c);
+  const final = fmtMoney(c);
+  const text = fmtMoney(value);
+  // El largo se fija con el valor final: la letra no "salta" mientras la cifra cuenta.
+  return <div className={`big big-fit ${flash ? `flash-${flash}` : ''} ${className}`} style={{ ['--chars' as string]: final.length }} aria-label={text !== final ? final : undefined}>{text}</div>;
+}
+
+export function prefersReducedMotion(): boolean {
+  if (typeof document === 'undefined') return true;
+  if (document.documentElement.getAttribute('data-motion') === 'reduce') return true;
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Cifra que cuenta hasta su nuevo valor (1.4): el progreso se SIENTE. En el primer
+ * dibujo muestra el valor final; respeta "Reducir animaciones".
+ */
+export function useCountUp(target: number, ms = 650): { value: number; flash: 'up' | 'down' | null } {
+  const [value, setValue] = useState(target);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const prev = useRef(target);
+  useEffect(() => {
+    const from = prev.current;
+    prev.current = target;
+    if (from === target) return;
+    const big = Math.abs(target - from) >= Math.max(100, Math.abs(from) * 0.01);
+    if (big) setFlash(target > from ? 'up' : 'down');
+    const done = setTimeout(() => setFlash(null), 900);
+    if (prefersReducedMotion() || typeof requestAnimationFrame === 'undefined') {
+      setValue(target);
+      return () => clearTimeout(done);
+    }
+    let raf = 0;
+    const start = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / ms);
+      const e = 1 - Math.pow(1 - k, 3);
+      setValue(Math.round(from + (target - from) * e));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(done);
+      setValue(target);
+    };
+  }, [target, ms]);
+  return { value, flash };
 }
 
 /**

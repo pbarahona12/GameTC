@@ -15,6 +15,15 @@ async function openMenuItem(page: Page, item: string) {
   await page.getByRole('menuitem', { name: new RegExp(`^${item}`) }).click();
 }
 
+/** Cierra los festejos que aparezcan (1.4: primer sueldo, etapas, logros…). */
+async function dismissCelebrations(page: Page) {
+  for (let i = 0; i < 6; i++) {
+    const b = page.getByRole('button', { name: '¡Seguimos!' });
+    if (!(await b.isVisible().catch(() => false))) return;
+    await b.click();
+  }
+}
+
 async function bottomTab(page: Page, name: string) {
   await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name }).click();
 }
@@ -57,16 +66,24 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   }
   await expect(accept).toBeVisible();
   await accept.click();
+  // 1.4: el primer sueldo se festeja con una pantalla breve.
+  await expect(page.getByRole('dialog', { name: /Primer sueldo|Etapa 2/ })).toBeVisible();
+  await dismissCelebrations(page);
   await page.getByRole('tab', { name: 'Vacantes' }).click();
   await expect(page.getByRole('button', { name: 'Tu puesto actual' })).toBeVisible();
 
   // 4 · Avanzar el tiempo hasta cerrar el primer mes.
   await openMenuItem(page, 'Avanzar 1 mes');
+  await dismissCelebrations(page);
   await bottomTab(page, 'Inicio');
+  await dismissCelebrations(page);
   await expect(topDate(page)).not.toHaveText(/ ene 2026/);
   // El gráfico de patrimonio aparece recién con el primer cierre de mes.
   await expect(page.getByRole('img', { name: /^Patrimonio neto/ })).toBeVisible();
   const dateBefore = (await topDate(page).textContent())!.trim();
+
+  // 1.4: la crónica ya tiene la primera página y el lugar en la lista de fortunas se ve en Inicio.
+  await expect(page.getByText(/Tu lugar en Valdoria/)).toBeVisible();
 
   // 5 · Guardar desde Ajustes.
   await openMenuItem(page, 'Ajustes y guardado');
@@ -81,6 +98,7 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   await expect(page.getByRole('button', { name: 'Tu puesto actual' })).toBeVisible();
 
   // 7 · Continuar jugando después de recargar.
+  await dismissCelebrations(page);
   await openMenuItem(page, 'Avanzar 1 día');
   await expect(topDate(page)).not.toHaveText(dateBefore);
 

@@ -24,6 +24,7 @@ import { spendable } from '../engine/finance/payments';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BootErrorScreen, SimErrorSheet } from './screens/Recovery';
 import { logIcon } from './contentIcons';
+import { Celebrations } from './screens/saga/Celebrations';
 
 const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
   { id: 'home', label: 'Inicio', icon: 'home' },
@@ -187,7 +188,7 @@ export function App() {
   if (!ui.state && ui.bootError) return <><BootErrorScreen /><Toasts /></>;
   if (!ui.state) return <><DotBudget><Onboarding /></DotBudget><Suspense fallback={null}><SheetHost /></Suspense><Toasts /></>;
   return (
-    <div className="app">
+    <div className={`app ${nav.tab === 'home' ? 'home-wide' : ''}`}>
       <TopBar />
       <UpdateBanner />
       {ui.loadNotice && (
@@ -223,6 +224,7 @@ export function App() {
       <Suspense fallback={null}><SheetHost /></Suspense>
       <AbsenceReport />
       <SimErrorSheet />
+      <Celebrations />
       <Toasts />
     </div>
   );

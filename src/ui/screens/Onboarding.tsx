@@ -8,12 +8,23 @@ import { fmtMoney } from '../../engine/format';
 import { usd } from '../../engine/money';
 import { DIFFICULTIES, type Difficulty } from '../../engine/economy/difficulty';
 import { SKIN_TONES, HAIR_COLORS, HAIR_STYLES, HAIR_STYLE_NAMES } from '../../content/shops';
-import type { Look } from '../../engine/lifestyle/types';
+import type { Look, OwnedItem } from '../../engine/lifestyle/types';
 import { Avatar } from '../components/Avatar';
 import { Switch } from '../components/common';
-import { Icon } from '../icons';
+import { Icon, type IconName } from '../icons';
+import { CHALLENGES, CHALLENGE_BY_ID } from '../../engine/saga/challenges';
+import { BACKGROUND_BY_ID } from '../../content/backgrounds';
+import { iconOf } from './saga/SagaCards';
 
 const COLORS = ['#d2a94f', '#4cc093', '#7fb2e0', '#ee7a66', '#b59be0', '#e6d27a'];
+
+/** Una promesa de historia por origen (1.4): qué partida te espera, no solo sus números. */
+const HOOK: Record<BackgroundId, string> = {
+  egresado: 'Tenés $2,000 y un título secundario. En 20 años, ¿quién vas a ser?',
+  tecnico: 'Sabés vender. ¿Te quedás detrás del mostrador o terminás siendo el dueño de la cadena?',
+  autodidacta: 'Casi sin dinero, pero con una habilidad que vale. El camino más difícil… y el más épico.',
+  herencia: '$15,000 de una tía y ninguna experiencia. La mayoría lo gasta en tres años. ¿Y vos?',
+};
 
 function ImportCard() {
   const [text, setText] = useState('');
@@ -60,6 +71,9 @@ export function Onboarding() {
   // pueden activar acá (opciones avanzadas), en Ajustes → Partida o en Más → Legal.
   const [illegal, setIllegal] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [mode, setMode] = useState<'libre' | 'desafio'>('libre');
+  const [challenge, setChallenge] = useState(CHALLENGES[0].id);
+  const ch = mode === 'desafio' ? CHALLENGE_BY_ID[challenge] : null;
 
   return (
     <div className="onboard">
@@ -87,20 +101,44 @@ export function Onboarding() {
         </div>
       </div>
 
-      <div className="section-title"><h2>2 · Tu origen</h2></div>
-      <div className="stack" role="radiogroup" aria-label="Origen">
+      <div className="section-title"><h2>2 · ¿Cómo querés jugar?</h2></div>
+      <div className="choice-grid two" role="radiogroup" aria-label="Modo de juego">
+        <button type="button" role="radio" aria-checked={mode === 'libre'} className={`choice ${mode === 'libre' ? 'on' : ''}`} onClick={() => setMode('libre')}>
+          <strong><Icon name="sparkles" size={15} /> Partida libre</strong>
+          <span className="small muted">Elegís tu origen y tus metas. Un mundo nuevo, solo tuyo.</span>
+        </button>
+        <button type="button" role="radio" aria-checked={mode === 'desafio'} className={`choice ${mode === 'desafio' ? 'on' : ''}`} onClick={() => setMode('desafio')}>
+          <strong><Icon name="rocket" size={15} /> Desafío con semilla</strong>
+          <span className="small muted">Un mundo fijo con un objetivo y un plazo. Al cumplirlo, un código para comparar.</span>
+        </button>
+      </div>
+      {mode === 'desafio' && (
+        <div className="stack" role="radiogroup" aria-label="Desafío">
+          {CHALLENGES.map((c) => (
+            <button key={c.id} type="button" role="radio" aria-checked={challenge === c.id} className={`choice ${challenge === c.id ? 'on' : ''}`} onClick={() => setChallenge(c.id)}>
+              <strong><Icon name={iconOf(c.icon, 'rocket')} size={15} /> {c.title}</strong>
+              <span className="small muted">{c.description}</span>
+              <span className="tiny">Objetivo: {c.goal} · origen: {BACKGROUND_BY_ID[c.background].name} · plazo {Math.round(c.limitDays / 365)} años</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'libre' && <div className="section-title"><h2>3 · Tu origen</h2></div>}
+      {mode === 'libre' && <div className="stack" role="radiogroup" aria-label="Origen">
         {BACKGROUNDS.map((b) => (
           <button key={b.id} type="button" role="radio" className={`choice ${bg === b.id ? 'on' : ''}`} onClick={() => setBg(b.id)} aria-checked={bg === b.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <strong>{b.name}</strong>
               <span className="num">{fmtMoney(usd(b.startingCash + b.startingChecking), { decimals: false })}</span>
             </div>
+            <span className="small hook">{HOOK[b.id]}</span>
             <span className="small muted">{b.summary}</span>
             <span className="tiny"><span className="gain">+ {b.pros}</span> · <span className="loss">− {b.cons}</span></span>
             <span className="tiny faint">Educación: {EDUCATION_NAMES[b.education]} · Estilo de vida: {LIFESTYLE_BY_ID[b.lifestyle].name} · Límite de tarjeta {fmtMoney(usd(b.cardLimit), { decimals: false })}</span>
           </button>
         ))}
-      </div>
+      </div>}
 
       <details className="card advanced">
         <summary><strong>Opciones avanzadas</strong> <span className="tiny muted">dificultad, objetivo, actividades ilegales, semilla</span></summary>
@@ -134,8 +172,10 @@ export function Onboarding() {
         </div>
       </details>
 
-      <button className="btn primary block" style={{ minHeight: 52, fontSize: 16 }} onClick={() => void store.startNewGame({ name: name.trim() || 'Jugador', background: bg, style, color, seed: seed.trim() || undefined, difficulty, illegalEnabled: illegal, look })}>
-        Comenzar partida
+      <FuturePreview look={look} />
+
+      <button className="btn primary block" style={{ minHeight: 52, fontSize: 16 }} onClick={() => void store.startNewGame({ name: name.trim() || 'Jugador', background: bg, style, color, seed: seed.trim() || undefined, difficulty, illegalEnabled: illegal, look, challenge: ch?.id })}>
+        {ch ? `Empezar el desafío: ${ch.title}` : 'Comenzar partida'}
       </button>
 
       {importing ? <ImportCard /> : (
@@ -143,6 +183,36 @@ export function Onboarding() {
           <Icon name="upload" size={16} /> ¿Ya tenés una partida? Importar
         </button>
       )}
+    </div>
+  );
+}
+
+/** Vista previa honesta de lo que se puede llegar a tener (la curiosidad, desde el primer minuto). */
+const FUTURE_STEPS: Array<{ icon: IconName; text: string }> = [
+  { icon: 'career', text: 'Tu primer sueldo' },
+  { icon: 'business', text: 'Tu primera empresa' },
+  { icon: 'realestate', text: 'Un edificio propio' },
+  { icon: 'bell', text: 'Salir a bolsa' },
+  { icon: 'crown', text: 'El número 1 de tu ciudad' },
+  { icon: 'history', text: 'Tu dinastía' },
+];
+
+function FuturePreview({ look }: { look: Look }) {
+  // Tu personaje dentro de 40 años, si todo sale bien: canas, traje a medida y un buen reloj.
+  const items: OwnedItem[] = ['camisa_seda', 'pantalon_maison', 'zapatos_maison', 'traje_completo', 'reloj_alta'].map((itemId, i) => ({ uid: i + 1, itemId, boughtDay: 0, price: 0, carrying: 0, condition: 100 }) as OwnedItem);
+  const outfit = { torso: 1, piernas: 2, calzado: 3, abrigo: 4, reloj: 5 };
+  return (
+    <div className="card future">
+      <div className="future-row">
+        <div className="future-avatar"><Avatar data={{ look: { ...look, hairColor: 4 }, items, outfit }} size={64} title="Tu personaje dentro de 40 años" /><span className="tiny faint">en 40 años</span></div>
+        <div className="grow">
+          <strong className="small">Hasta dónde podés llegar</strong>
+          <ol className="future-steps">
+            {FUTURE_STEPS.map((x) => <li key={x.text}><Icon name={x.icon} size={13} /> {x.text}</li>)}
+          </ol>
+        </div>
+      </div>
+      <span className="tiny muted">Nada está garantizado: cada número del juego es real y cada decisión deja una historia.</span>
     </div>
   );
 }

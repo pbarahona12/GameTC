@@ -43,7 +43,7 @@ export const BACKGROUNDS: BackgroundDef[] = [
     id: 'herencia', name: 'Pequeña herencia', summary: 'Recibiste una herencia modesta de una tía. Sin experiencia laboral.',
     startingCash: 500, startingChecking: 14500, education: 'secundaria', fields: [], experience: {},
     skills: { finEdu: 4 }, lifestyle: 'modesto', cardLimit: 1000,
-    pros: 'Capital para invertir o formarte desde el principio.', cons: 'Sin experiencia: un mal uso del capital se nota rápido.',
+    pros: 'Capital para invertir o formarte desde el principio.', cons: 'Sin experiencia laboral. Con más dinero tienta pagar estudios caros, varios a la vez: las cuotas siguen aunque pierdas el empleo, y el capital se va rápido sin un plan.',
   },
 ];
 

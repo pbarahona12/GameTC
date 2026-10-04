@@ -1,3 +1,4 @@
+import { difficultyOf } from '../economy/difficulty';
 import type { AccountId } from '../ledger/accounts';
 import { post, tryPost, CashFlowClass } from '../ledger/ledger';
 import type { Cents } from '../money';
@@ -120,7 +121,9 @@ export function payExpense(state: GameState, account: AccountId, amount: Cents, 
   const useChecking = Math.min(fromChecking, paid);
   const useCash = paid - useChecking;
   const arrears = amount - paid;
-  const fee = Math.max(ARREARS_FEE_MIN, applyRate(arrears, ARREARS_FEE_RATE));
+  // Modo tranquilo (dificultad Fácil, 1.4): el primer atraso de la partida no tiene recargo ni marca en tu historial.
+  const grace = difficultyOf(state).id === 'facil' && !state.options.graceUsed;
+  const fee = grace ? 0 : Math.max(ARREARS_FEE_MIN, applyRate(arrears, ARREARS_FEE_RATE));
   post(state.ledger, {
     ...base,
     memo: `${opt.memo} (pago incompleto)`,
@@ -132,6 +135,11 @@ export function payExpense(state: GameState, account: AccountId, amount: Cents, 
       { account: 'arrears', credit: arrears + fee },
     ],
   });
+  if (grace) {
+    state.options.graceUsed = true;
+    addLog(state, 'warning', '🤝', `No alcanzó el dinero para "${opt.memo}". Por ser tu primer atraso (dificultad Fácil), no hay recargo ni marca en tu historial de crédito: pagalo cuanto antes.`, arrears);
+    return { ok: false, paid, arrears };
+  }
   addLog(state, 'danger', '⛔', `No alcanzó el dinero para "${opt.memo}". Quedó un atraso más un recargo.`, arrears + fee);
   state.player.attributes.stress = Math.min(100, state.player.attributes.stress + 6);
   state.credit.arrearsEvents++;

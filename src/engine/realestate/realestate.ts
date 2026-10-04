@@ -136,7 +136,7 @@ export function monthlyZones(state: GameState): void {
   }
 }
 
-function newProperty(state: GameState, zoneId: string, type: PropertyType, small = false): Property {
+export function newProperty(state: GameState, zoneId: string, type: PropertyType, small = false): Property {
   const m2 = small ? randInt(state, 18, 34) : type === 'vivienda' ? randInt(state, 40, 160) : type === 'local' ? randInt(state, 30, 220) : type === 'oficina' ? randInt(state, 50, 400) : type === 'cochera' ? randInt(state, 11, 15) : randInt(state, 200, 2500);
   const grade = small || type === 'cochera' ? randInt(state, 1, 3) : randInt(state, 1, 5);
   const condition = type === 'terreno' ? 100 : randInt(state, 40, 98);
