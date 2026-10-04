@@ -391,7 +391,7 @@ function SettingsView() {
         <span className="small">Velocidad base (a 1×) <InfoButton term="accion_velocidad" /></span>
         <Seg items={[{ id: 4000, label: 'Lenta · 4 s' }, { id: 2000, label: 'Normal · 2 s' }, { id: 1000, label: 'Rápida · 1 s' }]} value={st.msPerDay} onChange={(v) => store.updateSettings({ msPerDay: v })} />
         <Switch checked={st.autoPause} onChange={() => store.updateSettings({ autoPause: !st.autoPause })} label="Pausa automática ante eventos importantes" />
-        {st.autoPause && (([['peligro', 'Peligros (impagos, quiebras, embargos)'], ['ofertas', 'Ofertas de empleo y de rivales'], ['logros', 'Logros y nuevas etapas'], ['legal', 'Investigaciones, juicios e inspecciones'], ['inversiones', 'Caídas fuertes de inversiones']] as Array<[PauseCategory, string]>).map(([id, label]) => (
+        {st.autoPause && (([['peligro', 'Peligros (impagos, quiebras, embargos)'], ['ofertas', 'Ofertas de empleo y de rivales'], ['logros', 'Logros y nuevas etapas'], ['legal', 'Investigaciones, juicios e inspecciones'], ['inversiones', 'Caídas fuertes de inversiones'], ['decisiones', 'Decisiones con plazo (dilemas)']] as Array<[PauseCategory, string]>).map(([id, label]) => (
           <Switch key={id} checked={st.pauseOn.includes(id)} onChange={() => store.updateSettings({ pauseOn: st.pauseOn.includes(id) ? st.pauseOn.filter((x) => x !== id) : [...st.pauseOn, id] })} label={label} />
         )))}
         <Switch checked={st.successToasts} onChange={() => store.updateSettings({ successToasts: !st.successToasts })} label="Confirmaciones de acciones exitosas" sub="Los errores siempre se muestran." />

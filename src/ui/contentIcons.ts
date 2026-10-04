@@ -30,7 +30,7 @@ export const PHASE_ICON: Record<CyclePhase, IconName> = {
 };
 
 export const NEWS_TOPIC_ICON: Record<NewsTopic, IconName> = {
-  economia: 'economy', bolsa: 'stocks', empresas: 'business', inmuebles: 'realestate', proveedores: 'package', empleo: 'career',
+  economia: 'economy', bolsa: 'stocks', empresas: 'business', inmuebles: 'realestate', proveedores: 'package', empleo: 'career', fortunas: 'crown',
 };
 
 export const SKILL_ICON: Record<SkillId, IconName> = {

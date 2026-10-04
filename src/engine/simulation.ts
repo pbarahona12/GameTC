@@ -36,6 +36,7 @@ import { takeSnapshot as takeStateSnapshot } from './snapshot';
 import { checkInvariants } from './invariants';
 import { worldDay, worldMonth } from './world/rivals';
 import { possessionsMonth } from './lifestyle/shops';
+import { sagaDay, sagaMonth } from './saga/index';
 
 export function advanceDay(state: GameState): void {
   state.day++;
@@ -65,6 +66,7 @@ export function advanceDay(state: GameState): void {
   realEstateDay(state);
   legalDay(state);
   worldDay(state);
+  sagaDay(state);
 
   accrueDaily(state);
   processCardEndOfDay(state);
@@ -80,6 +82,7 @@ export function advanceDay(state: GameState): void {
     monthlyAttributes(state);
     refreshCreditScore(state);
     takeSnapshot(state);
+    sagaMonth(state); // antes del progreso: los logros de clasificación se ven el mismo día
     updateProgression(state);
     compactLedgers(state);
   }

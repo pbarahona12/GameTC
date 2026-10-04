@@ -5,6 +5,7 @@ import { addLog } from '../log';
 import { computeMetrics, Metrics } from '../reports/metrics';
 import { rewardMissions } from './tutorial';
 import { sectionsFromStage } from './unlocks';
+import { onStage, onAchievement, sagaProgress } from '../saga/index';
 
 /**
  * Etapas de magnate. Ninguna exige una ruta concreta: cada criterio puede
@@ -25,7 +26,21 @@ export interface StageDef {
   criteria: (s: GameState, m: Metrics) => Criterion[];
 }
 
-const nw = (m: Metrics, v: number): Criterion => ({ label: `Patrimonio neto ≥ ${fmtMoney(usd(v), { decimals: false })}`, met: m.netWorth >= usd(v) });
+/**
+ * Umbral de patrimonio de una etapa, a precios de HOY (1.4): las etapas se miden en
+ * dinero real, no nominal. Con inflación, $1,000,000 dentro de 40 años valen mucho
+ * menos que hoy, y la etapa 12 no debería abaratarse justo cuando el interés
+ * compuesto hace todo el trabajo. Se redondea para que el número se lea fácil.
+ */
+export function stageThreshold(s: GameState, v: number): number {
+  const raw = v * (s.macro?.priceIndex ?? 1);
+  const mag = Math.pow(10, Math.max(0, Math.floor(Math.log10(raw)) - 1));
+  return usd(Math.round(raw / mag) * mag);
+}
+const nw = (s: GameState, m: Metrics, v: number): Criterion => {
+  const t = stageThreshold(s, v);
+  return { label: `Patrimonio neto ≥ ${fmtMoney(t, { decimals: false })}${(s.macro?.priceIndex ?? 1) > 1.01 ? ' (a precios de hoy)' : ''}`, met: m.netWorth >= t };
+};
 
 export const STAGES: StageDef[] = [
   { n: 1, name: 'Supervivencia financiera', description: 'Recursos limitados. El objetivo es no quedarte sin efectivo.', criteria: () => [] },
@@ -44,23 +59,23 @@ export const STAGES: StageDef[] = [
     n: 4, name: 'Primeras inversiones', description: 'Tu dinero empieza a trabajar para vos.',
     criteria: (s, m) => [
       { label: 'Tener inversiones activas (depósitos, fondos, acciones, inmuebles o empresas)', met: m.investments > 0 || m.realEstate > 0 || s.ledger.balances.business_equity > 0 || s.progression.achievements['first_deposit_matured'] !== undefined },
-      nw(m, 10_000),
+      nw(s, m, 10_000),
     ],
   },
   {
     n: 5, name: 'Patrimonio sólido', description: 'Base financiera sana para emprender o invertir en grande.',
-    criteria: (s, m) => [nw(m, 50_000), { label: 'Fondo de emergencia ≥ 3 meses', met: m.emergencyMonths >= 3 }, { label: 'Puntaje crediticio ≥ 670', met: s.credit.score >= 670 }],
+    criteria: (s, m) => [nw(s, m, 50_000), { label: 'Fondo de emergencia ≥ 3 meses', met: m.emergencyMonths >= 3 }, { label: 'Puntaje crediticio ≥ 670', met: s.credit.score >= 670 }],
   },
   {
     n: 6, name: 'Empresario emergente', description: 'Ingresos más allá del salario.',
-    criteria: (_s, m) => [nw(m, 150_000), { label: 'Ingresos pasivos (intereses, alquileres, dividendos o ganancias de tus empresas) ≥ 20 % de tus gastos', met: m.passiveMonthly >= m.recurringMonthly * 0.2 }, { label: 'Deuda / activos < 50 %', met: m.debtToAssets < 0.5 }],
+    criteria: (s, m) => [nw(s, m, 150_000), { label: 'Ingresos pasivos (intereses, alquileres, dividendos o ganancias de tus empresas) ≥ 20 % de tus gastos', met: m.passiveMonthly >= m.recurringMonthly * 0.2 }, { label: 'Deuda / activos < 50 %', met: m.debtToAssets < 0.5 }],
   },
-  { n: 7, name: 'Magnate regional', description: 'Un patrimonio que ya mueve tu región.', criteria: (s, m) => [nw(m, 1_000_000), { label: 'Al menos una empresa propia con ganancias en los últimos 3 meses', met: s.companies.some((c) => c.status === 'active' && c.history.length >= 3 && c.history.slice(-3).reduce((a, h) => a + h.netIncome, 0) > 0) }] },
-  { n: 8, name: 'Empresario nacional', description: 'Tu nombre se conoce en todo el país.', criteria: (s, m) => [nw(m, 10_000_000), { label: 'Reputación ≥ 60', met: s.player.attributes.reputation >= 60 }] },
-  { n: 9, name: 'Grupo empresarial', description: 'Varias empresas bajo tu control.', criteria: (s, m) => [nw(m, 50_000_000), { label: '3 empresas activas o más', met: s.companies.filter((c) => c.status === 'active').length >= 3 }] },
-  { n: 10, name: 'Corporación internacional', description: 'Operaciones en varias jurisdicciones.', criteria: (s, m) => [nw(m, 250_000_000), { label: 'Empresas o inmuebles en 2 jurisdicciones', met: jurisdictionsPresent(s) >= 2 }] },
-  { n: 11, name: 'Conglomerado global', description: 'Diversificado en múltiples sectores.', criteria: (s, m) => [nw(m, 1_000_000_000), { label: 'Empresas en 5 sectores distintos', met: new Set(s.companies.filter((c) => c.status === 'active').map((c) => c.sector)).size >= 5 }] },
-  { n: 12, name: 'Imperio económico', description: 'La cima.', criteria: (_s, m) => [nw(m, 10_000_000_000)] },
+  { n: 7, name: 'Magnate regional', description: 'Un patrimonio que ya mueve tu región.', criteria: (s, m) => [nw(s, m, 1_000_000), { label: 'Al menos una empresa propia con ganancias en los últimos 3 meses', met: s.companies.some((c) => c.status === 'active' && c.history.length >= 3 && c.history.slice(-3).reduce((a, h) => a + h.netIncome, 0) > 0) }] },
+  { n: 8, name: 'Empresario nacional', description: 'Tu nombre se conoce en todo el país.', criteria: (s, m) => [nw(s, m, 10_000_000), { label: 'Reputación ≥ 60', met: s.player.attributes.reputation >= 60 }] },
+  { n: 9, name: 'Grupo empresarial', description: 'Varias empresas bajo tu control.', criteria: (s, m) => [nw(s, m, 50_000_000), { label: '3 empresas activas o más', met: s.companies.filter((c) => c.status === 'active').length >= 3 }] },
+  { n: 10, name: 'Corporación internacional', description: 'Operaciones en varias jurisdicciones.', criteria: (s, m) => [nw(s, m, 250_000_000), { label: 'Empresas o inmuebles en 2 jurisdicciones', met: jurisdictionsPresent(s) >= 2 }] },
+  { n: 11, name: 'Conglomerado global', description: 'Diversificado en múltiples sectores.', criteria: (s, m) => [nw(s, m, 1_000_000_000), { label: 'Empresas en 5 sectores distintos', met: new Set(s.companies.filter((c) => c.status === 'active').map((c) => c.sector)).size >= 5 }] },
+  { n: 12, name: 'Imperio económico', description: 'La cima: una de las fortunas más grandes del mundo.', criteria: (s, m) => [nw(s, m, 10_000_000_000), { label: 'Top 10 del ranking global de fortunas', met: (s.saga?.ranking.player.bestGlobal ?? 999) <= 10 }] },
 ];
 
 /** Jurisdicciones donde tenés empresas activas o inmuebles (propios o de tus empresas). */
@@ -103,7 +118,22 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'ten_employees', name: 'Generador de empleo', description: 'Tené 10 empleados entre todas tus empresas.', icon: '👥', check: (s) => s.companies.reduce((a, c) => a + c.employees.length, 0) >= 10 },
   { id: 'profitable_exit', name: 'Salida exitosa', description: 'Vendé una empresa ganando más de lo que invertiste.', icon: '🤝', check: (s) => s.formerCompanies.some((f) => f.outcome === 'vendida' && f.result > 0) },
   { id: 'skill_25', name: 'Especialista', description: 'Llevá una habilidad a nivel 25.', icon: '🧠', check: (s) => Object.entries(s.skills).some(([k, v]) => k !== 'luck' && v.level >= 25) },
+  // 1.4 · metas, decisiones y clasificaciones
+  { id: 'first_goal', name: 'Tenía un plan', description: 'Cumplí tu primera meta de vida.', icon: '🎯', check: (s) => Object.keys(s.saga?.goals.completed ?? {}).length >= 1 },
+  { id: 'three_goals', name: 'Vida plena', description: 'Cumplí tres metas de vida.', icon: '🌟', check: (s) => Object.keys(s.saga?.goals.completed ?? {}).length >= 3 },
+  { id: 'decisions_10', name: 'Sin miedo a decidir', description: 'Tomá 10 decisiones antes de que venzan.', icon: '🤔', check: (s) => (s.saga?.stats.decisions ?? 0) >= 10 },
+  { id: 'rank_city_100', name: 'En la lista', description: 'Entrá en el top 100 de las fortunas de tu ciudad.', icon: '📋', check: (s) => s.saga?.ranking.player.bestCity !== null && s.saga?.ranking.player.bestCity !== undefined },
+  { id: 'rank_city_10', name: 'Élite local', description: 'Entrá en el top 10 de tu ciudad.', icon: '🥇', check: (s) => (s.saga?.ranking.player.bestCity ?? 999) <= 10 },
+  { id: 'rank_city_1', name: 'Dueño de la ciudad', description: 'Sé la persona más rica de tu ciudad.', icon: '👑', check: (s) => (s.saga?.ranking.player.bestCity ?? 999) <= 1 },
+  { id: 'rank_reign_12', name: 'Corona defendida', description: 'Mantené el primer puesto de tu ciudad 12 meses seguidos.', icon: '🛡️', check: (s) => (s.saga?.ranking.bestReign ?? 0) >= 12 },
+  { id: 'rank_global_100', name: 'Fortuna mundial', description: 'Entrá en el top 100 del ranking global.', icon: '🌎', check: (s) => s.saga?.ranking.player.bestGlobal !== null && s.saga?.ranking.player.bestGlobal !== undefined },
+  { id: 'rank_global_1', name: 'La persona más rica del mundo', description: 'Superá a todas las fortunas de las cuatro ciudades.', icon: '🏆', check: (s) => (s.saga?.ranking.player.bestGlobal ?? 999) <= 1 },
+  { id: 'rival_beaten', name: 'David contra Goliat', description: 'Superá en patrimonio al dueño de un grupo rival.', icon: '⚔️', check: (s) => (s.saga?.ranking.overtaken.length ?? 0) >= 1 },
+  { id: 'crisis_survivor', name: 'Contra viento y marea', description: 'Terminá una recesión con más patrimonio que al empezar.', icon: '⛈️', check: (s) => (s.saga?.stats.crisesSurvived ?? 0) >= 1 },
 ];
+
+/** Logros que merecen una pantalla de festejo (el resto, un aviso breve). */
+const BIG_ACHIEVEMENTS = new Set(['first_job', 'nw_100k', 'nw_1m', 'first_company', 'profitable_exit', 'rank_city_1', 'rank_global_1', 'three_goals']);
 
 export function evaluateStage(state: GameState, m = computeMetrics(state)): { current: number; details: Array<{ stage: StageDef; criteria: Criterion[]; met: boolean }> } {
   const details = STAGES.map((st) => {
@@ -129,13 +159,16 @@ export function updateProgression(state: GameState): void {
     const st = STAGES[current - 1];
     const recommended = sectionsFromStage(current).map((g) => g.name);
     addLog(state, 'success', '🏆', `Nueva etapa: ${st.name}.${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}`, undefined, 'logros');
+    onStage(state, current, st.name, recommended);
   }
   rewardMissions(state);
+  sagaProgress(state, m);
   for (const a of ACHIEVEMENTS) {
     if (state.progression.achievements[a.id] !== undefined || !a.check) continue;
     if (a.check(state, m)) {
       state.progression.achievements[a.id] = state.day;
       addLog(state, 'success', a.icon, `Logro desbloqueado: ${a.name}.`, undefined, 'logros');
+      onAchievement(state, a.name, a.description, BIG_ACHIEVEMENTS.has(a.id));
     }
   }
 }

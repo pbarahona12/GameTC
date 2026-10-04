@@ -30,11 +30,11 @@ export const SOURCES = [
 ];
 
 export const TOPIC_SKILL: Record<NewsTopic, SkillId> = {
-  economia: 'finEdu', bolsa: 'prediction', empresas: 'management', inmuebles: 'realEstate', proveedores: 'management', empleo: 'management',
+  economia: 'finEdu', bolsa: 'prediction', empresas: 'management', inmuebles: 'realEstate', proveedores: 'management', empleo: 'management', fortunas: 'prediction',
 };
 
 export const TOPIC_NAMES: Record<NewsTopic, string> = {
-  economia: 'Economía', bolsa: 'Bolsa', empresas: 'Empresas', inmuebles: 'Inmuebles', proveedores: 'Proveedores', empleo: 'Empleo',
+  economia: 'Economía', bolsa: 'Bolsa', empresas: 'Empresas', inmuebles: 'Inmuebles', proveedores: 'Proveedores', empleo: 'Empleo', fortunas: 'Fortunas',
 };
 
 const MAX_NEWS = 80;

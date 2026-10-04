@@ -5,6 +5,7 @@ import { initMarkets } from '../engine/business/market';
 import { newMacroV2 } from '../engine/economy/economy';
 import { emptyYtd } from '../engine/tax/incomeTax';
 import { initWorldV3 } from '../engine/worldInit';
+import { migrateSaga } from '../engine/saga/index';
 
 /**
  * Migraciones de partidas guardadas. Cada función transforma una partida de
@@ -117,6 +118,19 @@ export const MIGRATIONS: Record<number, (s: AnyState) => AnyState> = {
     s.version = 5;
     return s;
   },
+  5: (s) => {
+    // v6 (1.4): la historia del magnate (clasificaciones, metas, dilemas, crónica, desafíos).
+    // La economía no se toca: las fortunas del mundo se crean a precios de hoy.
+    for (const r of s.world?.rivals ?? []) {
+      r.assetsValue = r.assetsValue ?? 0;
+      r.attitude = r.attitude ?? 0;
+      r.memory = r.memory ?? [];
+      r.truce = r.truce ?? null;
+    }
+    if (!s.saga) migrateSaga(s as GameState);
+    s.version = 6;
+    return s;
+  },
 };
 
 export function migrate(raw: AnyState): { state: GameState; migratedFrom: number | null } {
@@ -139,6 +153,7 @@ export function validateShape(s: AnyState): string[] {
   if (typeof s.version === 'number' && s.version >= 3) need.push('stocks', 'bonds', 'funds', 'mogul', 'realEstate', 'pros', 'legal', 'options');
   if (typeof s.version === 'number' && s.version >= 4) need.push('managed');
   if (typeof s.version === 'number' && s.version >= 5) need.push('possessions', 'world');
+  if (typeof s.version === 'number' && s.version >= 6) need.push('saga');
   for (const k of need) if (s[k] === undefined || s[k] === null) errs.push(`Falta la sección "${k}".`);
   if (!Array.isArray(s.ledger?.entries)) errs.push('Libro mayor inválido.');
   if (typeof s.day !== 'number') errs.push('Día inválido.');
