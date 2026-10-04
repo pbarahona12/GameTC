@@ -8,7 +8,7 @@ Primera implementación de la auditoría de diseño. Todo vive en `src/engine/sa
 |---|---|---|
 | Listas de fortunas | `saga/ranking.ts`, `content/cities.ts` | 100 fortunas por ciudad (4 ciudades, una por jurisdicción) + ranking global. Siguen a la bolsa por sector, los índices inmobiliarios y las tasas de la partida. Los dueños de los grupos rivales están en la lista (su fortuna incluye el grupo). Puesto estimado fuera del top 100. Hitos, noticias (tema «Fortunas»), retadores y defensa del trono. |
 | Rivales con memoria | `world/rivals.ts`, `world/types.ts` | Rencor 0–100 (sube si les ganás compras, los superás o competís en sus sectores); multiplica sus ataques hasta ×2. Treguas pactadas en un dilema; romperlas cuesta. |
-| Metas de vida | `saga/goals.ts` | 24 metas en 6 categorías (vida, carrera, riqueza, negocios, competencia, valores), hasta 3 activas. |
+| Metas de vida | `saga/goals.ts` | 23 metas en 6 categorías (vida, carrera, riqueza, negocios, competencia, valores), hasta 3 activas. |
 | Decisiones con plazo | `saga/dilemmas.ts` | 15 plantillas con efectos por el libro mayor, empleados, carrera, rivales e inmuebles; opción por defecto si vencen; desenlaces diferidos. Pausan el tiempo (categoría «decisiones»). |
 | Agenda | `saga/agenda.ts` | Vista de todo lo pendiente ordenado por vencimiento. |
 | Crónica y festejos | `saga/chronicle.ts` | Línea de tiempo con resumen anual; festejos pendientes (grandes y chicos). |
