@@ -795,3 +795,14 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
 .future-steps { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .future-steps li { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2, var(--muted)); }
 .future-steps li + li::before { content: '→'; color: var(--faint, var(--muted)); margin-right: 4px; }
+
+/* 1.4 · Edad siempre visible en la barra superior */
+.age-chip { margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; vertical-align: 2px; cursor: pointer; white-space: nowrap; }
+.age-chip.risk { color: var(--loss, #c0392b); border-color: currentColor; }
+.date-block .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.celebrate-card.sombre .celebrate-ic { color: var(--muted); background: var(--surface-2); }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; font-family: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Segmentos con muchas opciones o textos largos: pasan a la línea siguiente en vez de salirse de la pantalla. */
+.seg { flex-wrap: wrap; }
+.seg button { min-width: fit-content; padding-inline: 8px; }

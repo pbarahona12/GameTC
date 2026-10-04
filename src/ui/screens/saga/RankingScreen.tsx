@@ -1,3 +1,4 @@
+import { ageOf } from '../../../engine/saga/life';
 import { useState } from 'react';
 import { useGame, useDerived } from '../../store';
 import { cityTableOf, positionOf } from '../../derived';
@@ -80,14 +81,14 @@ function RankLine({ r, n, open, onToggle, view }: { r: RankRow; n: number; open:
     return (
       <div className="row rank-row me">
         <span className="rank-n num">{n}</span>
-        <div className="grow"><div className="title small">{s.player.name} (vos)</div><div className="meta">{view === 'global' ? cityName(s.tax.jurisdiction) : 'Tu patrimonio neto'}</div></div>
+        <div className="grow"><div className="title small">{s.player.name} (vos)</div><div className="meta">{Math.floor(ageOf(s))} años · {view === 'global' ? cityName(s.tax.jurisdiction) : 'tu patrimonio neto'}</div></div>
         <span className="amt small"><Money c={r.wealth} fit /></span>
       </div>
     );
   }
   const m = r.m!;
   const rival = m.rivalId ? s.world.rivals.find((x) => x.id === m.rivalId) : undefined;
-  const moved = view !== 'global' && m.prevCityRank ? m.prevCityRank - n : 0;
+  const moved = view !== 'global' && m.lastRank && m.prevCityRank ? m.lastRank - m.prevCityRank : 0;
   return (
     <>
       <button className={`row rank-row ${rival ? 'rival' : ''}`} onClick={onToggle} aria-expanded={open}>

@@ -1,3 +1,4 @@
+import { ageOf } from '../../../engine/saga/life';
 import { useState } from 'react';
 import { useGame, useUI, store } from '../../store';
 import { navStore } from '../../nav';
@@ -29,6 +30,7 @@ export function WardrobeScreen() {
         <div className="wh-info">
           <span className="eyebrow">Imagen personal <InfoButton term="imagen_personal" /></span>
           <div className="wh-score"><strong className="num">{b.total}</strong><span className="small muted">/100 · {imageLabel(b.total)}</span></div>
+          <button type="button" className="link tiny" onClick={() => navStore.open({ kind: 'life' })}>{s.player.name} · {Math.floor(ageOf(s))} años · salud {Math.round(s.player.attributes.health)}/100</button>
           {([['Ropa puesta', b.outfit, 50], ['Reloj y accesorio', b.accessories, 22], ['Vehículo', b.vehicle, 20], ['Reputación', b.reputation, 8]] as Array<[string, number, number]>).map(([l, val, max]) => (
             <div key={l} className="wh-bar"><span className="tiny muted">{l}</span><span className="tiny num">{val}/{max}</span><Bar value={val / max} /></div>
           ))}

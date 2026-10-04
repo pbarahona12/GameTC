@@ -6,13 +6,14 @@ import { Bar, Money } from '../../components/common';
 import { firstMonthSteps, firstMonthActive, markFirstStep, dismissFirstMonth } from '../../../engine/saga/firstMonth';
 import type { AgendaItem, AgendaTarget } from '../../../engine/saga/agenda';
 import { cityName } from '../../../engine/saga/ranking';
-import { fmtMoney, fmtMoneyFit, fmtNumber } from '../../../engine/format';
+import { fmtMoney, fmtMoneyFit, fmtNumber, fmtPct } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import { MAX_ACTIVE_GOALS } from '../../../engine/saga/goals';
 import { bestVehicle } from '../../../engine/lifestyle/effects';
 import { ITEM_BY_ID } from '../../../content/shops';
 import { SECTOR_ICON } from '../../contentIcons';
-import { surplusBreakdown, investSurplus } from '../../../engine/saga/quick';
+import { surplusBreakdown, investSurplus, INDEX_FUND } from '../../../engine/saga/quick';
+import { FUND_BY_ID } from '../../../content/funds';
 import { usd } from '../../../engine/money';
 import { ConfirmButton } from '../../components/common';
 
@@ -20,6 +21,7 @@ export const iconOf = (name: string, fallback: IconName = 'sparkles'): IconName 
 
 export function goTarget(t: AgendaTarget): void {
   if (t.kind === 'dilemma') navStore.open({ kind: 'dilemma', id: t.id });
+  else if (t.kind === 'life') navStore.open({ kind: 'life' });
   else navStore.go(t.tab, t.sub);
 }
 
@@ -41,10 +43,12 @@ export function FirstMonthCard() {
   const steps = firstMonthSteps(s);
   const done = steps.filter((x) => x.done).length;
   const current = steps.find((x) => !x.done)!;
+  const running = ui.speed !== 0;
+  const timeStep = current.id === 'tiempo' || current.id === 'cierre';
   const act = () => {
-    if (current.id === 'gastos' || current.id === 'cierre') store.run((st) => markFirstStep(st, current.id), { toast: false });
-    if (current.id === 'tiempo' || current.id === 'cierre') {
-      if (ui.speed === 0) store.togglePlay();
+    if (current.id === 'gastos') store.quick((st) => markFirstStep(st, current.id));
+    if (timeStep) {
+      if (!running) store.togglePlay();
       return;
     }
     if (current.target.kind === 'tab') navStore.go(current.target.tab, current.target.sub);
@@ -53,38 +57,45 @@ export function FirstMonthCard() {
     <section className="card first-month" aria-label="Tu primer mes">
       <div className="card-head">
         <span className="eyebrow" style={{ flex: 1 }}><Icon name="rocket" size={13} /> Tu primer mes · {done} de {steps.length}</span>
-        <button className="btn sm ghost" aria-label="Ocultar la guía del primer mes" onClick={() => store.run((st) => dismissFirstMonth(st), { toast: false })}><Icon name="close" size={15} /></button>
+        <button className="btn sm ghost" aria-label="Ocultar la guía del primer mes" onClick={() => { store.quick((st) => { dismissFirstMonth(st); }); store.toast('Guía oculta. Podés volver a verla en Ajustes → Partida.', 'ok'); }}><Icon name="close" size={15} /></button>
       </div>
       <ol className="fm-steps">
         {steps.map((x) => (
-          <li key={x.id} className={x.done ? 'done' : x === current ? 'now' : ''}>
+          <li key={x.id} className={x.done ? 'done' : x === current ? 'now' : ''} aria-current={x === current ? 'step' : undefined}>
             <span className="fm-dot" aria-hidden>{x.done ? <Icon name="check" size={12} /> : null}</span>
-            <span className="small">{x.title}</span>
+            <span className="small">{x.title}{x.done && <span className="sr-only"> (hecho)</span>}</span>
           </li>
         ))}
       </ol>
       <strong>{current.title}</strong>
-      <p className="small muted">{current.body}</p>
-      <button className="btn sm primary" onClick={act}>{current.id === 'tiempo' && ui.speed !== 0 ? 'El tiempo ya corre' : current.action}</button>
+      <p className="small muted">{current.body}{current.id === 'tiempo' ? ` A 1×, un día dura ${ui.settings.msPerDay / 1000} segundo${ui.settings.msPerDay === 1000 ? '' : 's'}.` : ''}</p>
+      <div className="btn-row">
+        <button className="btn sm primary" disabled={timeStep && running} onClick={act}>{timeStep && running ? 'El tiempo ya corre' : current.action}</button>
+        {!timeStep && <button className="btn sm ghost" onClick={() => store.quick((st) => { markFirstStep(st, current.id); })}>Saltar este paso</button>}
+      </div>
     </section>
   );
 }
 
-/** Resumen honesto del primer cierre de mes (aparece una vez cerrado). */
+/** Resumen honesto del primer cierre de mes (aparece una vez cerrado, hasta cerrarlo o el mes siguiente). */
 export function FirstMonthSummary() {
   const s = useGame();
   const h = s.history[0];
-  if (!h || s.history.length > 2 || s.saga.firstMonth.dismissed) return null;
-  const left = h.cashIn - h.cashOut;
+  if (!h || s.history.length !== 1 || s.saga.firstMonth.summarySeen) return null;
+  // Ingresos menos gastos (el estado de resultados): pasar plata al ahorro o a un fondo no es "gastar".
+  const left = h.income - h.expenses;
   return (
     <div className="card first-summary">
-      <span className="eyebrow"><Icon name="calendar" size={13} /> Así fue tu primer mes</span>
-      <div className="fs-row">
-        <span>Entró <strong className="num gain">{fmtMoney(h.cashIn, { decimals: false })}</strong></span>
-        <span>Salió <strong className="num loss">{fmtMoney(h.cashOut, { decimals: false })}</strong></span>
-        <span>{left >= 0 ? 'Te quedó' : 'Te faltó'} <strong className={`num ${left >= 0 ? 'gain' : 'loss'}`}>{fmtMoney(Math.abs(left), { decimals: false })}</strong></span>
+      <div className="card-head">
+        <span className="eyebrow" style={{ flex: 1 }}><Icon name="calendar" size={13} /> Así fue tu primer mes</span>
+        <button className="btn sm ghost" aria-label="Cerrar el resumen del primer mes" onClick={() => store.quick((st) => { st.saga.firstMonth.summarySeen = true; })}><Icon name="close" size={15} /></button>
       </div>
-      <p className="small muted">{left > 0 ? 'Lo que sobra decide tu futuro: un fondo de emergencia primero, después invertir.' : 'Gastaste más de lo que entró. Revisá tu estilo de vida o buscá un empleo mejor pago.'}</p>
+      <div className="fs-row">
+        <span>Ganaste <strong className="num gain">{fmtMoney(h.income, { decimals: false })}</strong></span>
+        <span>Gastaste <strong className="num loss">{fmtMoney(h.expenses, { decimals: false })}</strong></span>
+        <span>{left >= 0 ? 'Te sobró' : 'Te faltó'} <strong className={`num ${left >= 0 ? 'gain' : 'loss'}`}>{fmtMoney(Math.abs(left), { decimals: false })}</strong></span>
+      </div>
+      <p className="small muted">{left > 0 ? 'Lo que sobra decide tu futuro: un fondo de emergencia primero, después invertir.' : left === 0 ? 'Salió justo: cualquier imprevisto te deja sin margen.' : 'Gastaste más de lo que ganaste. Revisá tu estilo de vida o buscá un empleo mejor pago.'}</p>
     </div>
   );
 }
@@ -228,8 +239,8 @@ export function SurplusAction() {
   if (b.surplus < usd(50 * s.macro.priceIndex) || s.progression.stage < 2) return null;
   return (
     <div className="surplus">
-      <span className="small"><Icon name="idea" size={14} /> Te sobran <strong>{fmtMoney(b.surplus, { decimals: false })}</strong> por encima de tu reserva de 6 meses ({fmtMoney(b.reserve, { decimals: false })}).</span>
-      <ConfirmButton label="Invertirlo en el fondo índice" className="btn sm" confirmLabel="Invertir" detail={<>Se compra el Fondo Índice (toda la bolsa) por {fmtMoney(b.surplus, { decimals: false })}, con su comisión de entrada. Podés rescatarlo cuando quieras desde Invertir → Fondos.</>} onConfirm={() => store.run((st) => investSurplus(st))} />
+      <span className="small"><Icon name="idea" size={14} /> Te sobran <strong>{fmtMoney(b.surplus, { decimals: false })}</strong> por encima de tu reserva ({fmtMoney(b.reserve, { decimals: false })}: 6 meses de gastos esenciales y cuotas, más tarjeta e impuestos pendientes).</span>
+      <ConfirmButton label="Invertirlo en el fondo índice" className="btn sm" confirmLabel="Invertir" detail={<>Se compra el Fondo Índice (toda la bolsa) por {fmtMoney(b.surplus, { decimals: false })}, sin comisión de entrada (cobra {fmtPct(FUND_BY_ID[INDEX_FUND]?.fee ?? 0.002, 1)} anual). Puede bajar de valor; podés rescatarlo cuando quieras desde Invertir → Fondos.</>} onConfirm={() => store.run((st) => investSurplus(st))} />
     </div>
   );
 }

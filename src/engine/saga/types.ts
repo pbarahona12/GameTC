@@ -20,15 +20,17 @@ export interface Magnate {
   id: number;
   name: string;
   city: JurisdictionId;
-  /** Edad al empezar la partida. */
+  /** Edad el día 0 de la partida (la actual = esta + años transcurridos). */
   age: number;
   source: FortuneSource;
   /** Sector bursátil que sigue su fortuna (si corresponde). */
   sector?: StockSector;
   /** Patrimonio actual (centavos). */
   wealth: Cents;
-  /** Puesto en su ciudad al cierre del mes anterior (para noticias de subas y bajas). */
+  /** Puesto en su ciudad al último cierre de mes (para noticias de subas y bajas). */
   prevCityRank: number;
+  /** Puesto en el cierre anterior a ese (para mostrar cuánto subió o bajó en el mes). */
+  lastRank?: number;
   /** Mejor puesto en su ciudad. */
   bestCityRank: number;
   /** Cabeza visible de un grupo rival (su fortuna incluye el grupo). */
@@ -152,6 +154,8 @@ export interface FirstMonthState {
   /** Pasos del primer mes guiado ya hechos. */
   done: string[];
   dismissed: boolean;
+  /** Ya cerró el resumen del primer mes. */
+  summarySeen?: boolean;
 }
 
 export interface ChallengeRun {
@@ -208,6 +212,8 @@ export interface LifeState {
   ancestors: Ancestor[];
   /** Fallecimiento por edad activado (por defecto sí; se puede apagar en Tu vida y legado). */
   mortal?: boolean;
+  /** Heredero elegido (si fallecés, hereda él; si ya no está disponible, el hijo adulto mayor o un sobrino). */
+  heirId?: number | 'sobrino' | null;
 }
 
 export interface SagaState {

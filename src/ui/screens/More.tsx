@@ -1,3 +1,4 @@
+import { fmtPct } from '../../engine/format';
 import { LEGAL } from '../../content/legal';
 import { APP_VERSION } from '../../version';
 import type { ReactNode } from 'react';
@@ -16,7 +17,7 @@ import { positionOf } from '../derived';
 import { useDerived } from '../store';
 import { fmtNumber } from '../../engine/format';
 import { cityName } from '../../engine/saga/ranking';
-import { ageOf } from '../../engine/saga/life';
+import { monthlyDeathRisk, ageOf } from '../../engine/saga/life';
 import { phaseInfo } from '../../engine/economy/economy';
 import { residence } from '../../engine/tax/taxEngine';
 import { legalRiskSummary, heatLabel } from '../../engine/legal/legal';
@@ -86,7 +87,7 @@ export function More() {
         { icon: 'wardrobe', title: 'Tu personaje', sub: `Imagen ${img} · ${imageLabel(img)} · vestidor y bienes`, onClick: () => navStore.setSub('more', 'wardrobe'), visual: <Avatar data={avatarOf(s)} size={34} bust /> },
         { icon: 'shop', title: 'Tiendas', sub: 'Ropa, vehículos, tecnología, hogar y lujo', onClick: () => navStore.setSub('more', 'shops') },
         { icon: 'progress', title: 'Progreso y habilidades', sub: `Etapa ${s.progression.stage}/12 · logros y habilidades`, onClick: () => navStore.open({ kind: 'progress' }) },
-        { icon: 'crown', title: 'Tu vida y legado', sub: `${Math.floor(ageOf(s))} años · generación ${s.saga.life?.generation ?? 1}${s.saga.life?.partner ? ' · en pareja' : ''}`, onClick: () => navStore.open({ kind: 'life' }) },
+        { icon: 'crown', title: 'Tu vida y legado', sub: `${Math.floor(ageOf(s))} años · generación ${s.saga.life?.generation ?? 1}${s.saga.life?.partner ? ' · en pareja' : ''}`, onClick: () => navStore.open({ kind: 'life' }), alert: monthlyDeathRisk(s) > 0 },
         { icon: 'missions', title: 'Metas de vida', sub: goals ? `${goals} en curso · ${Object.keys(s.saga.goals.completed).length} cumplidas` : 'Elegí qué querés lograr en esta partida', onClick: () => navStore.open({ kind: 'goals' }) },
         { icon: 'history', title: 'Tu crónica', sub: `${chron} momento${chron === 1 ? '' : 's'} de tu historia como magnate`, onClick: () => navStore.open({ kind: 'chronicle' }) },
         { icon: 'list', title: 'Misiones', sub: missionsLeft ? `${missionsLeft} por hacer · te enseñan cada sistema` : 'Todas cumplidas', onClick: () => navStore.open({ kind: 'tutorial' }) },
@@ -98,7 +99,7 @@ export function More() {
         { icon: 'crown', title: 'Listas de fortunas', sub: `${pos.exact ? `Puesto ${pos.rank}` : `Puesto ~${fmtNumber(pos.rank)}`} en ${cityName(pos.city)}${pos.globalRank ? ` · ${pos.globalRank}° del mundo` : ''}`, onClick: () => navStore.setSub('more', 'ranking') },
         { icon: 'news', title: 'Noticias', sub: unread ? `${unread} nueva${unread > 1 ? 's' : ''} · rumores y anticipos` : 'Rumores y anticipos: analizalos', onClick: () => navStore.setSub('more', 'news'), badge: unread },
         { icon: 'rivals', title: 'Competencia', sub: poach ? `${poach} oferta${poach > 1 ? 's' : ''} por tus empleados` : 'Grupos rivales y sus movimientos', onClick: () => navStore.setSub('more', 'rivals'), alert: poach > 0 },
-        { icon: 'economy', title: 'Economía', sub: `${ph.name} · inflación ${(s.macro.inflation * 100).toFixed(1)} % · tasa ${(s.macro.policyRate * 100).toFixed(2)} %`, onClick: () => navStore.setSub('more', 'economy') },
+        { icon: 'economy', title: 'Economía', sub: `${ph.name} · inflación ${fmtPct(s.macro.inflation, 1)} · tasa ${fmtPct(s.macro.policyRate, 2)}`, onClick: () => navStore.setSub('more', 'economy') },
       ],
     },
     {

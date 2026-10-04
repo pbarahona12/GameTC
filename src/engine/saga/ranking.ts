@@ -144,6 +144,9 @@ export function initRanking(state: GameState): void {
       rk.magnates.push(m);
     }
   }
+  // La edad guardada es la que tenían el día 0 (así se calcula la actual en cualquier momento).
+  const yearsIn = Math.floor(state.day / 365);
+  if (yearsIn) for (const m of rk.magnates) m.age -= yearsIn;
   for (const r of state.world.rivals) {
     r.city = r.city ?? RIVAL_HEADS[r.id]?.city ?? 'valdoria';
     r.assetsValue = r.assetsValue ?? 0;
@@ -364,9 +367,15 @@ export function rankingMonth(state: GameState): void {
     const floor = usd(c.top100 * pi * 0.35);
     let replaced = 0;
     for (const m of rk.magnates) {
-      if (m.city !== c.id || m.rivalId || replaced >= 2 || m.wealth >= floor) continue;
+      const tooOld = m.age + Math.floor(state.day / 365) > 92;
+      if (m.rivalId && tooOld) {
+        // El grupo pasa a la generación siguiente de la familia: la fortuna sigue, cambia la cara.
+        m.age = randInt(g, 42, 58) - Math.floor(state.day / 365);
+        continue;
+      }
+      if (m.city !== c.id || m.rivalId || replaced >= 2 || (m.wealth >= floor && !tooOld)) continue;
       const fresh = newMagnate(g, m.id, c.id, c.top100 * randRange(g, 1.05, 1.9), pi, used, true);
-      Object.assign(m, fresh, { prevCityRank: m.prevCityRank, bestCityRank: 999, offensive: 0 });
+      Object.assign(m, fresh, { prevCityRank: m.prevCityRank, lastRank: 0, bestCityRank: 999, offensive: 0, age: fresh.age - Math.floor(state.day / 365) });
       replaced++;
     }
   }
@@ -411,6 +420,7 @@ export function rankingMonth(state: GameState): void {
     }
     rows.forEach((row, i) => {
       if (!row.m) return;
+      row.m.lastRank = row.m.prevCityRank;
       row.m.prevCityRank = i + 1;
       row.m.bestCityRank = Math.min(row.m.bestCityRank, i + 1);
     });

@@ -1,3 +1,4 @@
+import { ageOf } from '../engine/saga/life';
 import { Fragment, ReactNode, useEffect, useState } from 'react';
 import { navStore, useNav, SheetSpec } from './nav';
 import { store, useUI, useGame, useDerived } from './store';
@@ -357,7 +358,7 @@ function SettingsView() {
           <Avatar data={avatarOf(s)} size={46} bust />
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong>{s.player.name}</strong>
-            <div className="tiny muted">{formatDate(s.day)} · dificultad {DIFFICULTY_BY_ID[s.options.difficulty].name.toLowerCase()} · <SavedAgo className="" /></div>
+            <div className="tiny muted">{Math.floor(ageOf(s))} años · {formatDate(s.day)} · dificultad {DIFFICULTY_BY_ID[s.options.difficulty].name.toLowerCase()} · <SavedAgo className="" /></div>
           </div>
           <span className="act"><button className="btn sm dark" onClick={async () => { if (await store.save()) store.toast('Partida guardada.', 'ok'); }}><Icon name="save" size={15} /> Guardar</button><InfoButton term="accion_guardar" /></span>
         </div>
@@ -456,7 +457,7 @@ function ProgressView() {
   const a = s.player.attributes;
   const attrs: Array<[string, number, string, string?]> = [
     ['Estrés', a.stress, 'Más de 60 reduce el desempeño; más de 50 desgasta la salud.', 'estres'],
-    ['Salud', a.health, 'Por debajo de 60 aumenta la probabilidad de imprevistos médicos.'],
+    ['Salud', a.health, `Por debajo de 60 aumenta la probabilidad de imprevistos médicos. Desde los 50 años tiende a bajar; desde los 68, una salud baja aumenta el riesgo de fallecer. Tenés ${Math.floor(ageOf(s))} años.`],
     ['Reputación', a.reputation, 'Mejora la probabilidad de recibir ofertas. Sube con el nivel de tu puesto y certificados.'],
     ['Red de contactos', a.network, 'Mejora la probabilidad de ofertas. Sube con estudios formales y puestos de nivel alto.'],
   ];

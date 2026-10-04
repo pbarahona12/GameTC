@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGame, useDerived, store } from '../../store';
+import { useGame, useDerived, store, useUI } from '../../store';
 import { goalsOf } from '../../derived';
 import { navStore } from '../../nav';
 import { Icon } from '../../icons';
@@ -13,10 +13,12 @@ import { fmtMoneyFit, fmtMoney, fmtPct } from '../../../engine/format';
 import { AgendaList, dueText, iconOf } from './SagaCards';
 import { explainNetWorth, ExplainPeriod } from '../../../engine/reports/explain';
 import { Money, AmountInput, ConfirmButton, Switch } from '../../components/common';
-import { life, ageOf, childAge, heirs, estateTax, retire, succession, createFoundation, donateToFoundation, monthlyDeathRisk, RETIRE_AGE, heirProfile, skillName, setMortality } from '../../../engine/saga/life';
+import { life, ageOf, childAge, heirs, estateTax, retire, succession, createFoundation, donateToFoundation, monthlyDeathRisk, RETIRE_AGE, heirProfile, skillName, setMortality, designatedHeir, setHeir, CHILD_COST_USD, FOUNDATION_MIN_USD } from '../../../engine/saga/life';
 import { JURISDICTION_BY_ID } from '../../../content/jurisdictions';
 import { renderChronicleImage } from './chronicleImage';
 import { exportImage } from '../../../persistence/platformStorage';
+import { usd } from '../../../engine/money';
+import { balanceSheet } from '../../../engine/reports/statements';
 
 const CAT_NAMES: Record<GoalCategory, string> = { riqueza: 'Riqueza', negocios: 'Negocios', vida: 'Vida', competencia: 'Competencia', carrera: 'Carrera', valores: 'Valores' };
 
@@ -276,55 +278,60 @@ export function ExplainView() {
 /** TU VIDA Y LEGADO: edad, familia, retiro, sucesión y fundación. */
 export function LifeView() {
   const s = useGame();
+  const ui = useUI();
   const l = life(s);
   const age = ageOf(s, l.birthDay);
   const hs = heirs(s);
-  const [heir, setHeir] = useState<number | 'sobrino'>(hs[0].id);
+  const heir = designatedHeir(s).id;
   const [fname, setFname] = useState(`Fundación ${s.player.name.split(' ').pop()}`);
   const [amount, setAmount] = useState(0);
   const tax = estateTax(s);
   const risk = monthlyDeathRisk(s);
   const j = JURISDICTION_BY_ID[s.tax.jurisdiction];
+  const minutesPerYear = Math.round((365 * ui.settings.msPerDay) / 60000);
+  const minors = l.children.filter((c) => childAge(s, c) < 22).length;
+  const foundationMin = usd(FOUNDATION_MIN_USD * s.macro.priceIndex);
+  const canFound = balanceSheet(s).netWorth >= foundationMin;
+  const p = heirProfile(s, heir);
+  const heirName = hs.find((h) => h.id === heir)?.name ?? '';
   return (
     <Sheet title="Tu vida y legado">
       <div className="card">
         <div className="card-head"><h2><Icon name="crown" size={17} /> {s.player.name}</h2><Pill tone="neutral">generación {l.generation}</Pill></div>
         <div className="kv">
-          <dt>Edad</dt><dd>{Math.floor(age)} años</dd>
-          <dt>Salud</dt><dd>{Math.round(s.player.attributes.health)}/100</dd>
+          <dt>Edad</dt><dd><strong>{Math.floor(age)} años</strong></dd>
+          <dt>Salud</dt><dd className={s.player.attributes.health < 50 ? 'warn' : ''}>{Math.round(s.player.attributes.health)}/100</dd>
           <dt>Situación</dt><dd>{l.retired ? 'Jubilado' : s.career.job ? 'Trabajando' : 'Sin empleo'}</dd>
-          {risk > 0 && <><dt>Riesgo de salud anual</dt><dd className="warn">≈ {fmtPct(Math.min(1, risk * 12), 1)}</dd></>}
+          {l.mortal === false ? <><dt>Fallecimiento por edad</dt><dd>desactivado</dd></>
+            : risk > 0 ? <><dt>Riesgo de fallecer este año</dt><dd className="loss">≈ {fmtPct(Math.min(1, 1 - Math.pow(1 - risk, 12)), 1)}</dd></>
+            : <><dt>Riesgo de fallecer</dt><dd>desde los 68 (faltan {Math.ceil(68 - age)} años)</dd></>}
         </div>
-        <p className="tiny muted">Un año de juego dura 12 minutos a 1×. Desde los 50 la salud tiende a bajar; desde los 68 hay un riesgo real de morir (mayor con mala salud). Si pasa, hereda tu heredero principal. <InfoButton term="legado" /></p>
+        <p className="tiny muted">Un año de juego dura unos {minutesPerYear} minutos a 1×. Desde los 50 la salud tiende a bajar; desde los 68 hay un riesgo real de fallecer, mayor con mala salud. Si pasa, hereda {heirName}. <InfoButton term="legado" /></p>
         <Switch checked={l.mortal !== false} onChange={() => store.run((st) => setMortality(st, life(st).mortal === false))} label="Fallecimiento por edad" sub="Si lo apagás, tu personaje envejece pero solo pasa la posta cuando vos decidís." term="legado" />
       </div>
 
       <span className="eyebrow">Familia</span>
       <div className="card">
-        <p className="small">{l.partner ? `Pareja: ${l.partner}.` : 'Sin pareja por ahora (la vida trae sus propuestas como decisiones).'}</p>
+        <p className="small">{l.partner ? `Pareja: ${l.partner}.` : 'Sin pareja por ahora: la propuesta puede llegar como una decisión entre los 26 y los 42 años.'}</p>
         {l.children.length > 0 ? (
           <div className="rows">{l.children.map((c) => <div key={c.id} className="row"><Icon name="sparkles" size={15} /><div className="grow small">{c.name}</div><span className="tiny muted">{Math.floor(childAge(s, c))} años</span></div>)}</div>
         ) : <p className="tiny muted">Sin hijos. Si no hay hijos adultos, hereda un sobrino.</p>}
+        {minors > 0 && <p className="tiny">Crianza y escuela: {fmtMoney(usd(CHILD_COST_USD * minors * s.macro.priceIndex), { decimals: false })} por mes ({minors === 1 ? 'un hijo menor' : `${minors} hijos menores`} de 22 años).</p>}
       </div>
 
       <span className="eyebrow">Sucesión</span>
       <div className="card">
-        <p className="small">Si hoy pasaras la posta, el impuesto a la herencia en {j.flag} {j.name} sería <strong>{fmtMoney(tax.tax, { decimals: false })}</strong> ({fmtPct(tax.rate, 0)} sobre lo que supera {fmtMoney(tax.exempt, { decimals: false })}). Mudar tu residencia o donar a tu fundación lo cambia.</p>
-        <label className="small" htmlFor="heir-pick">Heredero</label>
-        <select id="heir-pick" className="input" value={String(heir)} onChange={(e) => setHeir(e.target.value === 'sobrino' ? 'sobrino' : Number(e.target.value))}>
+        <p className="small">Si hoy pasaras la posta, el impuesto a la herencia en {j.flag} {j.name} sería <strong>{fmtMoney(tax.tax, { decimals: false })}</strong> ({fmtPct(tax.rate, 0)} sobre lo que supera {fmtMoney(tax.exempt, { decimals: false })}). Mudar tu residencia o donar a tu fundación lo cambia. Si no alcanza el efectivo, se paga en 24 cuotas automáticas (las ves en Más → Legal → Multas; si una falla, hay embargo).</p>
+        <label className="small" htmlFor="heir-pick">Tu heredero (también si fallecés)</label>
+        <select id="heir-pick" className="input" value={String(heir)} onChange={(e) => store.run((st) => setHeir(st, e.target.value === 'sobrino' ? 'sobrino' : Number(e.target.value)), { toast: false })}>
           {hs.map((h) => <option key={String(h.id)} value={String(h.id)}>{h.name} · {h.relation}, {h.age} años</option>)}
         </select>
-        {(() => {
-          const p = heirProfile(s, heir);
-          return (
-            <p className="tiny">
-              <strong>Se destaca en:</strong> {p.strengths.map((k) => `${skillName(k)} (${p.skills[k]})`).join(', ')} · <strong>Flojea en:</strong> {p.weaknesses.map((k) => `${skillName(k)} (${p.skills[k]})`).join(', ')}. {p.weaknesses.includes('management') ? 'Quizás convenga dejar las empresas en manos de gerentes.' : ''}
-            </p>
-          );
-        })()}
+        <p className="tiny">
+          <strong>Se destaca en:</strong> {p.strengths.map((k) => `${skillName(k)} (${p.skills[k]})`).join(', ')} · <strong>Flojea en:</strong> {p.weaknesses.map((k) => `${skillName(k)} (${p.skills[k]})`).join(', ')}. {p.weaknesses.includes('management') ? 'Quizás convenga dejar las empresas en manos de gerentes.' : ''}
+        </p>
         <div className="btn-row">
-          {!l.retired && <button className="btn sm" disabled={age < RETIRE_AGE} onClick={() => store.run((st) => retire(st))}>Jubilarme</button>}
-          <ConfirmButton label="Pasar la posta" className="btn sm primary" disabled={age < RETIRE_AGE} confirmLabel="Pasar la posta" detail={<>Tu heredero toma el control de todo: empresas, inmuebles e inversiones. Tiene sus propias habilidades (algo heredó) y empieza sin empleo. Se paga el impuesto a la herencia.</>} onConfirm={() => { const r = store.run((st) => succession(st, heir, 'retiro')); if (r.ok) navStore.close(); }} />
+          {!l.retired && <ConfirmButton label="Jubilarme" className="btn sm" disabled={age < RETIRE_AGE} confirmLabel="Jubilarme" detail={<>Dejás tu empleo (si tenés) y baja tu estrés. Tus empresas, inmuebles e inversiones siguen. Sin empleo, tu reputación tiende a bajar con el tiempo.</>} onConfirm={() => store.run((st) => retire(st))} />}
+          <ConfirmButton label="Pasar la posta" className="btn sm primary" disabled={age < RETIRE_AGE} confirmLabel="Pasar la posta" detail={<>{heirName} toma el control de todo: empresas, inmuebles e inversiones. Tiene sus propias habilidades y empieza sin empleo (sin empleo, la reputación tiende a bajar). Se paga el impuesto a la herencia: {fmtMoney(tax.tax, { decimals: false })}.</>} onConfirm={() => { const r = store.run((st) => succession(st, heir, 'retiro')); if (r.ok) navStore.close(); }} />
         </div>
         {age < RETIRE_AGE && <span className="tiny faint">Podés jubilarte o pasar la posta desde los {RETIRE_AGE} años (te faltan {Math.ceil(RETIRE_AGE - age)}).</span>}
       </div>
@@ -333,7 +340,7 @@ export function LifeView() {
       <div className="card">
         {l.foundation ? (
           <>
-            <p className="small"><strong>{l.foundation.name}</strong> · donado {fmtMoney(l.foundation.given, { decimals: false })} desde {formatDate(l.foundation.since)}. Suma reputación de forma permanente y cuenta para la meta de filántropo.</p>
+            <p className="small"><strong>{l.foundation.name}</strong> · donado {fmtMoney(l.foundation.given, { decimals: false })} desde {formatDate(l.foundation.since)}. Suma +3 de reputación por cada {fmtMoney(usd(1_000_000 * s.macro.priceIndex), { decimals: false })} donados (hasta +15) y cuenta para la meta de filántropo.</p>
             <AmountInput id="found-amt" value={amount} onChange={setAmount} label="Monto a donar" />
             <button className="btn sm" disabled={!amount} onClick={() => { const r = store.run((st) => donateToFoundation(st, amount)); if (r.ok) setAmount(0); }}>Donar</button>
           </>
@@ -341,7 +348,8 @@ export function LifeView() {
           <>
             <p className="small muted">Una fundación financia becas, salud e investigación en el mundo del juego. Lo que le donás ya no es tuyo: baja tu patrimonio (y el impuesto a la herencia) y construye tu reputación.</p>
             <div className="field"><label htmlFor="fname">Nombre</label><input id="fname" className="input" value={fname} onChange={(e) => setFname(e.target.value)} /></div>
-            <button className="btn sm" onClick={() => store.run((st) => createFoundation(st, fname))}>Crear fundación</button>
+            <button className="btn sm" disabled={!canFound} onClick={() => store.run((st) => createFoundation(st, fname))}>Crear fundación</button>
+            {!canFound && <span className="tiny faint">Hace falta un patrimonio de {fmtMoney(foundationMin, { decimals: false })}.</span>}
           </>
         )}
       </div>
