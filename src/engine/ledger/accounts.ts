@@ -89,6 +89,7 @@ export const ACCOUNTS = {
   brokerage_fees: { name: 'Comisiones de inversión', type: 'expense', group: 'financial', term: 'comision_corretaje' },
   property_expenses: { name: 'Mantenimiento y administración de inmuebles', type: 'expense', group: 'property', term: 'gastos_inmueble' },
   property_tax: { name: 'Impuesto inmobiliario', type: 'expense', group: 'tax', term: 'impuesto_inmobiliario' },
+  inheritance_tax: { name: 'Impuesto a la herencia', type: 'expense', group: 'tax', term: 'legado' },
   professional_fees: { name: 'Honorarios profesionales', type: 'expense', group: 'other', term: 'profesionales' },
   legal_costs: { name: 'Costos legales y judiciales', type: 'expense', group: 'legal', term: 'defensa_legal' },
   fines: { name: 'Multas y sanciones', type: 'expense', group: 'legal', term: 'multa' },

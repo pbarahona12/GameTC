@@ -19,6 +19,7 @@ import { annualVol, beta, maxDrawdown, valueAtRisk, herfindahl } from '../../../
 import type { GameState } from '../../../engine/state';
 import { Icon } from '../../icons';
 import { INVEST_CLASS_ICON, PROPERTY_ICON } from '../../contentIcons';
+import { insightsOf } from '../../derived';
 
 const CLASS_NAMES: Record<InvestClass, string> = { stocks: 'Acciones', bonds: 'Bonos', funds: 'Fondos', mogul: 'Mogul Exchange', managed: 'Cuenta con gestor' };
 const CLASS_TAB: Record<InvestClass, string> = { stocks: 'lite', bonds: 'bonds', funds: 'funds', mogul: 'mogul', managed: 'gestor' };
@@ -179,8 +180,16 @@ export function Portfolio() {
   const b = s.ledger.balances;
   const y = s.tax.ytd;
   const total = data.value + Math.max(0, data.reEquity);
+  // Diagnóstico en una frase (1.4): la alerta de inversiones más importante del asesor.
+  const diag = useDerived(insightsOf).find((i) => i.category === 'inversiones' || i.category === 'inmuebles');
   return (
     <>
+      {diag && (
+        <button className={`alert ${diag.severity}`} style={{ textAlign: 'left' }} onClick={() => navStore.open({ kind: 'advisor' })}>
+          <span className="stripe" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}><strong className="small">{diag.title}</strong><span className="small muted">{diag.what}</span></div>
+        </button>
+      )}
       <section className="hero">
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span className="eyebrow">Todo lo que tenés invertido</span>

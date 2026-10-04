@@ -3,6 +3,7 @@ import type { Cents } from '../money';
 import { incomeStatement, balanceSheet } from './statements';
 import { startOfMonth, dateOf, dayOf } from '../time/calendar';
 import { fmtMoney } from '../format';
+import { coIncomeStatement } from '../business/reports';
 
 /**
  * EXPLICAR ESTE NÚMERO (1.4): por qué cambió tu patrimonio, en lenguaje simple y
@@ -92,4 +93,22 @@ function summarize(change: Cents, items: ExplainItem[]): string {
   if (up[0]) parts.push(`lo que más sumó fue ${word(up[0])} (${fmtMoney(up[0].amount, { decimals: false })})`);
   if (down[0]) parts.push(`lo que más restó, ${word(down[0])} (${fmtMoney(-down[0].amount, { decimals: false })})`);
   return `${head}${parts.length ? `: ${parts.join('; ')}` : ''}.`;
+}
+
+/** Por qué una empresa ganó o perdió en los últimos 30 días (de su estado de resultados). */
+export function explainCompany(co: import('../business/types').Company, day: number): { net: Cents; items: ExplainItem[]; summary: string } {
+  const from = Math.max(co.openDay, day - 29);
+  const is = coIncomeStatement(co, from, day);
+  const items: ExplainItem[] = [];
+  if (is.revenue) items.push({ key: 'sales', label: 'Ventas', amount: is.revenue, kind: 'ingreso' });
+  if (is.otherIncome) items.push({ key: 'other', label: 'Otros ingresos', amount: is.otherIncome, kind: 'ingreso' });
+  for (const l of [...is.cogs, ...is.opex, ...is.financial]) if (l.amount) items.push({ key: l.account, label: l.name, amount: -l.amount, kind: 'gasto' });
+  if (is.depreciation) items.push({ key: 'dep', label: 'Depreciación de equipos', amount: -is.depreciation, kind: 'gasto', detail: 'No sale dinero: es el desgaste de los equipos.' });
+  if (is.tax) items.push({ key: 'tax', label: 'Impuesto empresarial', amount: -is.tax, kind: 'impuesto' });
+  items.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+  const worst = items.filter((x) => x.amount < 0).slice(0, 2).map((x) => x.label.toLowerCase()).join(' y ');
+  const summary = is.netIncome >= 0
+    ? `Ganó ${fmtMoney(is.netIncome, { decimals: false })} en 30 días: las ventas (${fmtMoney(is.revenue, { decimals: false })}) cubrieron los costos${worst ? `; los más grandes, ${worst}` : ''}.`
+    : `Perdió ${fmtMoney(-is.netIncome, { decimals: false })} en 30 días: ${is.revenue ? `las ventas (${fmtMoney(is.revenue, { decimals: false })}) no alcanzaron para pagar` : 'todavía no vende y paga'} ${worst || 'sus costos'}.`;
+  return { net: is.netIncome, items, summary };
 }

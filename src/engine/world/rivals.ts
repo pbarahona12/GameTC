@@ -149,7 +149,7 @@ function newIntent(state: GameState, r: RivalGroup, kind: IntentKind, days: [num
 }
 
 function rivalFor(state: GameState, sector: BizSectorId | null, styles?: RivalGroup['style'][]): RivalGroup | undefined {
-  const pool = state.world.rivals.filter((r) => (!sector || r.sectors.includes(sector)) && (!styles || styles.includes(r.style)) && !(sector && inTruce(state, r, sector)));
+  const pool = state.world.rivals.filter((r) => !r.acquired && !isAllied(state, r) && (!sector || r.sectors.includes(sector)) && (!styles || styles.includes(r.style)) && !(sector && inTruce(state, r, sector)));
   return pool.length ? pool[Math.floor(nextRandom(wrng(state)) * pool.length)] : undefined;
 }
 
@@ -229,7 +229,7 @@ function planCompetitor(state: GameState, sector: BizSectorId): void {
   // así un rumor sobre "tu" sector no delata que es cierto.
   const mine = [...playerSectors(state)].filter((x) => x !== sector);
   const fs = mine.length ? mine[Math.floor(nextRandom(wrng(state)) * mine.length)] : sector;
-  const pool = state.world.rivals.filter((x) => x.sectors.includes(fs) && styles.includes(x.style) && (fs !== sector || x.id !== r.id));
+  const pool = state.world.rivals.filter((x) => !x.acquired && x.sectors.includes(fs) && styles.includes(x.style) && (fs !== sector || x.id !== r.id));
   if (!pool.length) return;
   const fr = pool[Math.floor(nextRandom(wrng(state)) * pool.length)];
   publishCandidate(state, false, () => competitorDraft(fr, fs, state.day + randInt(wrng(state), 30, 50), false));
@@ -274,10 +274,21 @@ function sniped(state: GameState, r: RivalGroup, what: string): void {
  * (0–100 → ×1 a ×2). Durante una tregua en ese sector, nada.
  */
 export function hostilityFactor(state: GameState, sector: BizSectorId | null): number {
-  const pool = state.world.rivals.filter((r) => !sector || r.sectors.includes(sector));
+  const pool = state.world.rivals.filter((r) => !r.acquired && !isAllied(state, r) && (!sector || r.sectors.includes(sector)));
+  if (sector && !pool.length && state.world.rivals.some((r) => !r.acquired && r.sectors.includes(sector))) return 0;
   if (sector && pool.length && pool.every((r) => r.truce && r.truce.sector === sector && r.truce.until >= state.day)) return 0;
-  const att = pool.filter((r) => !(r.truce && r.truce.until >= state.day && (!sector || r.truce.sector === sector))).reduce((a, r) => Math.max(a, r.attitude ?? 0), 0);
-  return 1 + att / 100;
+  const att = pool.filter((r) => !(r.truce && r.truce.until >= state.day && (!sector || r.truce.sector === sector))).reduce((a, r) => Math.max(a, (r.attitude ?? 0) / 100 + rivalryExtra(state, r)), 0);
+  return 1 + att;
+}
+
+/** Aliado tuyo vigente (1.4): no te ataca. */
+const isAllied = (state: GameState, r: RivalGroup) => !!r.ally && r.ally.until >= state.day;
+
+/** Hostilidad extra de la rivalidad (1.4): némesis +0.25, coalición en tu contra +0.3. */
+function rivalryExtra(state: GameState, r: RivalGroup): number {
+  const rv = state.saga?.rivalry;
+  if (!rv) return 0;
+  return (rv.nemesisId === r.id ? 0.25 : 0) + (rv.coalition && rv.coalition.until >= state.day && rv.coalition.members.includes(r.id) ? 0.3 : 0);
 }
 
 const inTruce = (state: GameState, r: RivalGroup, sector: BizSectorId) => !!r.truce && r.truce.until >= state.day && r.truce.sector === sector;

@@ -9,6 +9,12 @@ import { cityName } from '../../../engine/saga/ranking';
 import { fmtMoney, fmtMoneyFit, fmtNumber } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import { MAX_ACTIVE_GOALS } from '../../../engine/saga/goals';
+import { bestVehicle } from '../../../engine/lifestyle/effects';
+import { ITEM_BY_ID } from '../../../content/shops';
+import { SECTOR_ICON } from '../../contentIcons';
+import { surplusBreakdown, investSurplus } from '../../../engine/saga/quick';
+import { usd } from '../../../engine/money';
+import { ConfirmButton } from '../../components/common';
 
 export const iconOf = (name: string, fallback: IconName = 'sparkles'): IconName => (isIconName(name) ? name : fallback);
 
@@ -182,4 +188,48 @@ export function GoalsCard() {
 /** Monto chico con signo, para filas del ranking. */
 export function WealthCell({ c }: { c: number }) {
   return <Money c={c} fit />;
+}
+
+/** TU IMPERIO: el progreso material a la vista (casa, auto, inmuebles, empresas, fundación, puesto). */
+export function EmpireScene() {
+  const s = useGame();
+  const p = useDerived(positionOf);
+  const items: Array<{ key: string; icon: IconName; label: string; tone?: 'accent' | 'muted' }> = [];
+  const home = s.realEstate.properties.find((x) => x.owner.kind === 'personal' && x.usedBy === 'jugador');
+  items.push(home ? { key: 'home', icon: 'home', label: 'Tu casa', tone: 'accent' } : { key: 'rent', icon: 'key', label: 'Alquilás', tone: 'muted' });
+  const v = bestVehicle(s);
+  if (v) items.push({ key: 'car', icon: 'car', label: ITEM_BY_ID[v.itemId]?.name ?? 'Vehículo' });
+  const props = s.realEstate.properties.filter((x) => (x.owner.kind === 'personal' || x.owner.kind === 'company') && x !== home);
+  props.slice(0, 5).forEach((x) => items.push({ key: `p${x.id}`, icon: x.type === 'cochera' ? 'parking' : 'realestate', label: x.name }));
+  if (props.length > 5) items.push({ key: 'pmore', icon: 'realestate', label: `+${props.length - 5} inmuebles` });
+  s.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc).slice(0, 6).forEach((c) => items.push({ key: `c${c.id}`, icon: c.listed ? 'bell' : SECTOR_ICON[c.sector] ?? 'business', label: c.listed ? `${c.name} (${c.listed.ticker})` : c.name, tone: c.listed ? 'accent' : undefined }));
+  if (s.saga.life?.foundation) items.push({ key: 'found', icon: 'gift', label: s.saga.life.foundation.name, tone: 'accent' });
+  if (p.exact) items.push({ key: 'rank', icon: 'crown', label: `Puesto ${p.rank} en ${cityName(p.city)}`, tone: 'accent' });
+  if (items.length <= 1) return null;
+  return (
+    <section className="card empire" aria-label="Tu imperio">
+      <span className="eyebrow"><Icon name="realestate" size={13} /> Tu imperio</span>
+      <div className="empire-street">
+        {items.map((it) => (
+          <div key={it.key} className={`empire-lot ${it.tone ?? ''}`} title={it.label}>
+            <span className="empire-ic" aria-hidden><Icon name={it.icon} size={22} /></span>
+            <span className="tiny empire-label">{it.label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** INVERTIR LO QUE SOBRA: una sola acción, con la reserva a la vista. */
+export function SurplusAction() {
+  const s = useGame();
+  const b = surplusBreakdown(s);
+  if (b.surplus < usd(50 * s.macro.priceIndex) || s.progression.stage < 2) return null;
+  return (
+    <div className="surplus">
+      <span className="small"><Icon name="idea" size={14} /> Te sobran <strong>{fmtMoney(b.surplus, { decimals: false })}</strong> por encima de tu reserva de 6 meses ({fmtMoney(b.reserve, { decimals: false })}).</span>
+      <ConfirmButton label="Invertirlo en el fondo índice" className="btn sm" confirmLabel="Invertir" detail={<>Se compra el Fondo Índice (toda la bolsa) por {fmtMoney(b.surplus, { decimals: false })}, con su comisión de entrada. Podés rescatarlo cuando quieras desde Invertir → Fondos.</>} onConfirm={() => store.run((st) => investSurplus(st))} />
+    </div>
+  );
 }

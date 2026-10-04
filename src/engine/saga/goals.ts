@@ -210,6 +210,42 @@ export const GOALS: GoalDef[] = [
     },
   },
   {
+    id: 'familia', title: 'Formar una familia', icon: 'sparkles', category: 'vida', stage: 2,
+    description: 'Tener pareja y al menos un hijo. Las propuestas llegan como decisiones con los años.',
+    check: (s) => {
+      const l = s.saga.life;
+      const done = !!l?.partner && (l?.children.length ?? 0) > 0;
+      return { progress: done ? 1 : l?.partner ? 0.5 : 0, done, label: done ? 'Tu familia crece' : l?.partner ? `En pareja con ${l.partner}` : 'Todavía sin pareja' };
+    },
+  },
+  {
+    id: 'dinastia', title: 'Fundar una dinastía', icon: 'crown', category: 'vida', stage: 6,
+    description: 'Que tu heredero reciba la fortuna familiar y la haga crecer: llegar a la segunda generación con más patrimonio que la primera.',
+    check: (s, m) => {
+      const l = s.saga.life;
+      const first = l?.ancestors[0];
+      const done = !!first && (l?.generation ?? 1) >= 2 && m.netWorth > first.netWorth;
+      return { progress: done ? 1 : first ? 0.7 : Math.min(0.5, (s.progression.stage - 1) / 12), done, label: done ? 'La segunda generación ya superó a la primera' : first ? `Superá los ${fmtShort(first.netWorth)} de ${first.name}` : 'Primero, pasar la posta a un heredero' };
+    },
+  },
+  {
+    id: 'cotizar', title: 'Tocar la campana', icon: 'bell', category: 'negocios', stage: 7,
+    description: 'Sacar una empresa tuya a la bolsa.',
+    check: (s) => {
+      const done = s.companies.some((c) => !!c.listed);
+      const corp = s.companies.some((c) => c.legalForm === 'corporacion' && c.status === 'active');
+      return { progress: done ? 1 : corp ? 0.5 : 0, done, label: done ? 'Una empresa tuya cotiza' : corp ? 'Tenés una corporación: hacela crecer' : 'Necesitás una corporación rentable' };
+    },
+  },
+  {
+    id: 'absorber', title: 'Comprar a un rival', icon: 'deal', category: 'competencia', stage: 8,
+    description: 'Comprar uno de los cuatro grupos rivales. Deja de competir con vos para siempre.',
+    check: (s) => {
+      const done = s.world.rivals.some((r) => !!r.acquired);
+      return { progress: done ? 1 : Math.min(0.9, (s.progression.stage - 1) / 8), done, label: done ? 'Ya compraste un grupo rival' : 'Se habilita desde la etapa 8' };
+    },
+  },
+  {
     id: 'millon_rapido', title: 'Tu primer millón en 10 años', icon: 'rocket', category: 'riqueza', stage: 1, styles: ['emprendedor', 'inversionista', 'libre'],
     description: 'Llegar a $1,000,000 de patrimonio antes de cumplir 10 años de partida.',
     check: (s, m) => {

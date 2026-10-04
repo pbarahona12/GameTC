@@ -188,7 +188,7 @@ export function App() {
   if (!ui.state && ui.bootError) return <><BootErrorScreen /><Toasts /></>;
   if (!ui.state) return <><DotBudget><Onboarding /></DotBudget><Suspense fallback={null}><SheetHost /></Suspense><Toasts /></>;
   return (
-    <div className="app">
+    <div className={`app ${nav.tab === 'home' ? 'home-wide' : ''}`}>
       <TopBar />
       <UpdateBanner />
       {ui.loadNotice && (

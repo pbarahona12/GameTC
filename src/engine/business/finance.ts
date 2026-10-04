@@ -104,10 +104,10 @@ export function processCoLoans(state: GameState, co: Company): void {
   for (const l of co.loans) {
     if (l.balance <= 0 || l.nextDueDay !== state.day) continue;
     const interest = roundCents((l.balance * l.apr) / 12);
-    const due = Math.max(interest, Math.min(l.payment, l.balance + interest));
+    const due = l.bullet ? (l.paymentsMade + 1 >= l.termMonths ? l.balance + interest : interest) : Math.max(interest, Math.min(l.payment, l.balance + interest));
     const principal = due - interest;
     if (co.ledger.balances.cash >= due) {
-      coPost(co.ledger, { day: state.day, memo: 'Cuota de préstamo', cf: 'financing', tag: 'coloan:payment', lines: [{ account: 'loans', debit: principal }, { account: 'interest', debit: interest }, { account: 'cash', credit: due }] });
+      coPost(co.ledger, { day: state.day, memo: l.bullet ? (principal > 0 ? 'Vencimiento de bonos (capital e intereses)' : 'Cupón de bonos') : 'Cuota de préstamo', cf: 'financing', tag: 'coloan:payment', lines: [{ account: 'loans', debit: principal }, { account: 'interest', debit: interest }, { account: 'cash', credit: due }] });
       l.paymentsMade++;
     } else {
       // Cuota impaga: pasa a deuda vencida con recargo.
@@ -133,7 +133,7 @@ export function prepayCoLoan(state: GameState, co: Company, loanId: number, amou
   if (pay <= 0 || co.ledger.balances.cash < pay) return FAIL('Caja insuficiente.');
   coPost(co.ledger, { day: state.day, memo: 'Amortización anticipada de préstamo', cf: 'financing', tag: 'coloan:payment', lines: [{ account: 'loans', debit: pay }, { account: 'cash', credit: pay }] });
   l.balance -= pay;
-  if (l.balance > 0) l.payment = amortizedPayment(l.balance, l.apr, Math.max(1, l.termMonths - l.paymentsMade));
+  if (l.balance > 0) l.payment = l.bullet ? roundCents((l.balance * l.apr) / 12) : amortizedPayment(l.balance, l.apr, Math.max(1, l.termMonths - l.paymentsMade));
   return OK('Pago anticipado aplicado.');
 }
 

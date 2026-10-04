@@ -163,6 +163,8 @@ export interface ChallengeRun {
   finalNetWorth?: Cents;
   /** Código para comparar resultados con otras personas. */
   code?: string;
+  /** Medalla por eficiencia (1.4). */
+  medal?: 'oro' | 'plata' | 'bronce' | null;
 }
 
 export interface SagaStats {
@@ -176,6 +178,38 @@ export interface SagaStats {
   decisions: number;
 }
 
+// ------------------------------------------------------------------ vida y legado
+
+export interface Child {
+  id: number;
+  name: string;
+  /** Día de nacimiento (días de juego; negativo si nació antes de empezar). */
+  born: number;
+}
+
+export interface Ancestor {
+  name: string;
+  born: number;
+  until: number;
+  netWorth: Cents;
+  cause: 'retiro' | 'fallecimiento';
+}
+
+export interface LifeState {
+  /** Día de nacimiento del personaje actual (negativo: nació antes del día 0). */
+  birthDay: number;
+  /** Generación de la dinastía (1 = el fundador). */
+  generation: number;
+  partner: string | null;
+  children: Child[];
+  retired: boolean;
+  /** Fundación propia: nombre y total aportado (ya no es tuyo: se donó). */
+  foundation: { name: string; given: Cents; since: number } | null;
+  ancestors: Ancestor[];
+  /** Fallecimiento por edad activado (por defecto sí; se puede apagar en Tu vida y legado). */
+  mortal?: boolean;
+}
+
 export interface SagaState {
   rng: number;
   ranking: RankingState;
@@ -186,4 +220,12 @@ export interface SagaState {
   firstMonth: FirstMonthState;
   challenge: ChallengeRun | null;
   stats: SagaStats;
+  /** Edad, familia, retiro, sucesión y fundación (1.4). */
+  life?: LifeState;
+  /** Acuerdos de proveedor interno entre tus empresas (1.4). */
+  deals?: import('./integration').Deal[];
+  /** Némesis, guerras de precios y coaliciones (1.4). */
+  rivalry?: import('./rivalry').RivalryState;
+  /** Equipo directivo contratado (1.4): coordina muchas empresas. */
+  exec?: { hired: boolean; since: number } | null;
 }

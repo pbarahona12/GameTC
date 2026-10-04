@@ -25,6 +25,7 @@ import { BandChart } from '../../components/charts';
 import { GroupTab } from './GroupTab';
 import { SECTOR_ICON } from '../../contentIcons';
 import { Icon } from '../../icons';
+import { explainCompany } from '../../../engine/reports/explain';
 
 export function runCo(id: number, fn: (s: GameState, co: Company) => ActionResult | void): ActionResult {
   return store.run((s) => {
@@ -51,6 +52,26 @@ const HOLDING_GROUPS: Array<TabGroup<CoTab>> = [
   { id: 'manage', label: 'Gestión', items: [{ id: 'manage', label: 'Gestión' }] },
 ];
 
+/** ¿Por qué ganó o perdió? Las líneas más grandes de los últimos 30 días. */
+function WhyCompany({ co }: { co: Company }) {
+  const s = useGame();
+  const e = explainCompany(co, s.day);
+  const max = Math.max(1, ...e.items.map((x) => Math.abs(x.amount)));
+  return (
+    <details className="card why-company">
+      <summary><strong className="small">{e.net >= 0 ? '¿Por qué gana?' : '¿Por qué pierde?'}</strong> <span className="small muted">{e.summary}</span></summary>
+      <div className="explain-list" style={{ marginTop: 10 }}>
+        {e.items.slice(0, 7).map((x) => (
+          <div key={x.key} className={`explain-row k-${x.kind}`}>
+            <div className="explain-top"><span className="small">{x.label}</span><Money c={x.amount} colored sign /></div>
+            <div className="explain-bar"><span style={{ width: `${(Math.abs(x.amount) / max) * 100}%` }} className={x.amount >= 0 ? 'up' : 'down'} /></div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function Summary({ co }: { co: Company }) {
   const s = useGame();
   const m = useDerived(coMetricsOf, co.id);
@@ -76,6 +97,7 @@ function Summary({ co }: { co: Company }) {
         <Stat label="Personal" term="nomina" value={co.employees.length} sub={`Nómina ${fmtMoney(m.payrollMonthly, { decimals: false })}/mes`} />
         <Stat label="Valoración" term="valoracion" value={<Money c={v.value} />} sub={`Por ${v.method}`} />
       </div>
+      {s.day >= co.openDay && <WhyCompany co={co} />}
       {h.length > 1 && (
         <div className="card">
           <CardHead title="Evolución mensual" term="estado_resultados" />

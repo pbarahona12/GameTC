@@ -11,7 +11,9 @@ import { dilemmasDay, TEMPLATE_BY_ID } from '../src/engine/saga/dilemmas';
 import { celebrate } from '../src/engine/saga/chronicle';
 import { Home } from '../src/ui/screens/Home';
 import { RankingScreen } from '../src/ui/screens/saga/RankingScreen';
-import { DilemmaSheet, GoalsView, ChronicleView, ExplainView } from '../src/ui/screens/saga/sagaSheets';
+import { DilemmaSheet, GoalsView, ChronicleView, ExplainView, LifeView } from '../src/ui/screens/saga/sagaSheets';
+import { IpoCard, CompanyTraffic, DealsCard } from '../src/ui/screens/business/Corporate';
+import { foundCompany } from '../src/engine/business/ownership';
 import { Celebrations } from '../src/ui/screens/saga/Celebrations';
 import { Onboarding } from '../src/ui/screens/Onboarding';
 import type { GameState } from '../src/engine/state';
@@ -117,5 +119,41 @@ describe('1.4 · Interfaz de la historia', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Desafío con semilla/ }));
     expect(screen.getAllByText(/El primer millón/).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Empezar el desafío/ })).toBeTruthy();
+  });
+
+  it('la hoja de vida muestra edad y heredero, y pasar la posta crea la generación 2', async () => {
+    const g = rich('ui-life');
+    g.saga.life!.birthDay = g.day - Math.round(63 * 365.25);
+    g.tax.jurisdiction = 'isla_coral';
+    await loadGame(g);
+    render(<LifeView />);
+    expect(screen.getByText('63 años')).toBeTruthy();
+    expect(screen.getByText(/generación 1/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pasar la posta' }));
+    const confirm = screen.getAllByRole('button', { name: 'Pasar la posta' });
+    fireEvent.click(confirm[confirm.length - 1]);
+    expect(store.ui.state!.saga.life!.generation).toBe(2);
+  });
+
+  it('empresas: semáforo, proveedores propios y requisitos para salir a bolsa', async () => {
+    const g = rich('ui-corp');
+    post(g.ledger, { day: 0, memo: 'Aporte', cf: 'internal', tag: 'opening', lines: [{ account: 'checking', debit: usd(200_000) }, { account: 'opening_equity', credit: usd(200_000) }] });
+    expect(foundCompany(g, { sector: 'minimarket', name: 'Almacén Uno', legalForm: 'srl', capital: usd(40_000) }).ok).toBe(true);
+    expect(foundCompany(g, { sector: 'cafeteria', name: 'Café Dos', legalForm: 'corporacion', capital: usd(60_000) }).ok).toBe(true);
+    await loadGame(g);
+    const [mini, cafe] = store.ui.state!.companies;
+    render(<CompanyTraffic />);
+    expect(screen.getByText('Cómo van tus empresas')).toBeTruthy();
+    expect(screen.getByText('Almacén Uno')).toBeTruthy();
+    cleanup();
+    render(<DealsCard co={cafe} />);
+    fireEvent.click(screen.getAllByText('Firmar')[0]);
+    expect(store.ui.state!.saga.deals!.length).toBe(1);
+    cleanup();
+    render(<IpoCard co={cafe} />);
+    expect(screen.getByText(/24 meses de historia/)).toBeTruthy();
+    cleanup();
+    render(<IpoCard co={mini} />);
+    expect(screen.getByText(/Solo una corporación/)).toBeTruthy();
   });
 });

@@ -167,6 +167,8 @@ export interface CoLoan {
   paymentsMade: number;
   missed: number;
   guaranteed: boolean;
+  /** Bono corporativo (1.4): solo intereses cada mes y el capital entero al vencer. */
+  bullet?: boolean;
 }
 
 export interface Delegation {
@@ -247,6 +249,8 @@ export interface Company {
   investedByOwner: Cents;
   receivedByOwner: Cents;
   saleOffer: { price: Cents; expires: number; from?: string } | null;
+  /** Cotiza en la bolsa (1.4): salió a bolsa ese día con ese símbolo; historial de valor de mercado. */
+  listed?: { day: number; ticker: string; floatPct: number; ipoValue: Cents; indexAtIpo: number; caps: Array<{ d: number; v: Cents }> } | null;
   taxFilings: CoTaxFiling[];
   /** Jurisdicción donde está registrada (impuesto de sociedades y dividendos). */
   jurisdiction: JurisdictionId;
@@ -333,6 +337,6 @@ export interface FormerCompany {
   name: string;
   sector: BizSectorId;
   endDay: number;
-  outcome: 'vendida' | 'liquidada' | 'quiebra';
+  outcome: 'vendida' | 'liquidada' | 'quiebra' | 'fusionada';
   result: Cents;
 }

@@ -129,11 +129,24 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'rank_global_100', name: 'Fortuna mundial', description: 'Entrá en el top 100 del ranking global.', icon: '🌎', check: (s) => s.saga?.ranking.player.bestGlobal !== null && s.saga?.ranking.player.bestGlobal !== undefined },
   { id: 'rank_global_1', name: 'La persona más rica del mundo', description: 'Superá a todas las fortunas de las cuatro ciudades.', icon: '🏆', check: (s) => (s.saga?.ranking.player.bestGlobal ?? 999) <= 1 },
   { id: 'rival_beaten', name: 'David contra Goliat', description: 'Superá en patrimonio al dueño de un grupo rival.', icon: '⚔️', check: (s) => (s.saga?.ranking.overtaken.length ?? 0) >= 1 },
+  { id: 'family', name: 'Familia', description: 'Formá una familia y tené tu primer hijo.', icon: '👶', check: (s) => (s.saga?.life?.children.length ?? 0) > 0 },
+  { id: 'dynasty_2', name: 'Dinastía', description: 'Pasale la fortuna familiar a la segunda generación.', icon: '🏛️', check: (s) => (s.saga?.life?.generation ?? 1) >= 2 },
+  { id: 'foundation', name: 'Mecenas', description: 'Creá tu propia fundación.', icon: '🎗️', check: (s) => !!s.saga?.life?.foundation },
+  { id: 'ipo', name: 'Tocar la campana', description: 'Sacá una empresa tuya a la bolsa.', icon: '🔔', check: (s) => s.companies.some((c) => !!c.listed) },
+  { id: 'rival_acquired', name: 'El pez grande', description: 'Comprá uno de los grupos rivales.', icon: '🐋', check: (s) => s.world.rivals.some((r) => !!r.acquired) },
+  { id: 'nemesis_beaten', name: 'Ajuste de cuentas', description: 'Vencé a tu némesis: compralo o duplicá la fortuna de su dueño.', icon: '🗡️', check: (s) => (s.saga?.rivalry?.beaten.length ?? 0) >= 1 },
+  { id: 'price_war', name: 'Precio justo', description: 'Resistí una guerra de precios sin cerrar tu empresa.', icon: '🛡️', check: (s) => (s.saga?.rivalry?.warsSurvived ?? 0) >= 1 },
+  // Eficiencia (1.4): no solo el tamaño importa.
+  { id: 'fast_million', name: 'Millonario veloz', description: 'Llegá a $1,000,000 de patrimonio (a precios de hoy) en menos de 10 años de juego.', icon: '⚡', check: (s) => s.day < 3650 && (s.history[s.history.length - 1]?.netWorth ?? 0) >= usd(1_000_000 * s.macro.priceIndex) },
+  { id: 'clean_decade', name: 'Diez años sin atrasos', description: 'Jugá 10 años sin un solo pago atrasado.', icon: '🧘', check: (s) => s.day >= 3650 && s.credit.arrearsEvents === 0 },
+  { id: 'big_employer', name: 'Gran empleador', description: 'Dale trabajo a 100 personas a la vez en tus empresas.', icon: '👥', check: (s) => s.companies.filter((c) => c.status === 'active' || c.status === 'insolvent').reduce((a, c) => a + c.employees.length, 0) >= 100 },
+  { id: 'taxpayer', name: 'Contribuyente ejemplar', description: 'Pagá el equivalente a $1,000,000 de hoy en impuestos, sin evasión.', icon: '🏛️', check: (s) => !s.legal.acts.some((a) => a.kind === 'evasion' || a.kind === 'evasion_empresa') && s.tax.filings.reduce((a, f) => a + Math.max(0, f.taxAfterCredits), 0) + s.companies.reduce((a, c) => a + c.taxFilings.reduce((b, f) => b + f.tax, 0), 0) >= usd(1_000_000 * s.macro.priceIndex) },
+  { id: 'challenge_gold', name: 'Medalla de oro', description: 'Cumplí un desafío con semilla con medalla de oro.', icon: '🥇', check: (s) => s.saga?.challenge?.medal === 'oro' },
   { id: 'crisis_survivor', name: 'Contra viento y marea', description: 'Terminá una recesión con más patrimonio que al empezar.', icon: '⛈️', check: (s) => (s.saga?.stats.crisesSurvived ?? 0) >= 1 },
 ];
 
 /** Logros que merecen una pantalla de festejo (el resto, un aviso breve). */
-const BIG_ACHIEVEMENTS = new Set(['first_job', 'nw_100k', 'nw_1m', 'first_company', 'profitable_exit', 'rank_city_1', 'rank_global_1', 'three_goals']);
+const BIG_ACHIEVEMENTS = new Set(['nemesis_beaten', 'challenge_gold', 'fast_million', 'ipo', 'rival_acquired', 'dynasty_2', 'first_job', 'nw_100k', 'nw_1m', 'first_company', 'profitable_exit', 'rank_city_1', 'rank_global_1', 'three_goals']);
 
 export function evaluateStage(state: GameState, m = computeMetrics(state)): { current: number; details: Array<{ stage: StageDef; criteria: Criterion[]; met: boolean }> } {
   const details = STAGES.map((st) => {
@@ -159,7 +172,8 @@ export function updateProgression(state: GameState): void {
     const st = STAGES[current - 1];
     const recommended = sectionsFromStage(current).map((g) => g.name);
     addLog(state, 'success', '🏆', `Nueva etapa: ${st.name}.${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}`, undefined, 'logros');
-    onStage(state, current, st.name, recommended, st.description);
+    const nextSt = STAGES[current];
+    onStage(state, current, st.name, recommended, st.description, nextSt ? `llegar a la etapa ${current + 1} (${nextSt.name})` : null);
   }
   rewardMissions(state);
   sagaProgress(state, m);

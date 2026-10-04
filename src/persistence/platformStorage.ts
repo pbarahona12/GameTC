@@ -232,3 +232,34 @@ export async function exportToFile(text: string, filename: string): Promise<{ ok
     return { ok: false, message: `No se pudo descargar: ${(e as Error).message}` };
   }
 }
+
+/**
+ * Comparte una imagen PNG (1.4: la crónica como imagen). En Android se guarda en la
+ * caché privada (la única carpeta que expone el FileProvider) y se abre el menú
+ * de compartir; en el navegador se descarga.
+ */
+export async function exportImage(dataUrl: string, filename: string, title: string): Promise<{ ok: boolean; message: string }> {
+  const base64 = dataUrl.split(',')[1] ?? '';
+  if (await isNative()) {
+    try {
+      const fs = await import('@capacitor/filesystem');
+      const { Share } = await import('@capacitor/share');
+      const w = await fs.Filesystem.writeFile({ path: filename, data: base64, directory: fs.Directory.Cache });
+      await Share.share({ title, url: w.uri, dialogTitle: title });
+      return { ok: true, message: 'Elegí dónde compartir la imagen.' };
+    } catch (e) {
+      return { ok: false, message: `No se pudo compartir: ${(e as Error).message}` };
+    }
+  }
+  try {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return { ok: true, message: 'Imagen descargada.' };
+  } catch (e) {
+    return { ok: false, message: `No se pudo descargar: ${(e as Error).message}` };
+  }
+}

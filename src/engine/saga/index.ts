@@ -12,6 +12,13 @@ import { dateOf } from '../time/calendar';
 import { fmtMoney } from '../format';
 import { BACKGROUND_BY_ID } from '../../content/backgrounds';
 import { cityName } from './ranking';
+import { life, lifeMonth } from './life';
+import { erasMonth } from './eras';
+import { dealsMonth } from './integration';
+import { listedMonth } from './corporate';
+import { rivalryMonth } from './rivalry';
+import { GOAL_BY_ID } from './goals';
+import { execMonth } from './executive';
 
 /**
  * Orquestador de la historia del magnate (1.4). Se engancha al ciclo diario y
@@ -35,6 +42,7 @@ export function emptySaga(seed: number): SagaState {
 /** Partida nueva: listas de fortunas, primera página de la crónica y desafío (si hay). */
 export function initSaga(state: GameState, challengeId?: string): void {
   state.saga = emptySaga(state.seed);
+  life(state);
   initRanking(state);
   const bg = BACKGROUND_BY_ID[state.player.background];
   chronicle(state, 'inicio', 'sparkles', `Empieza la historia de ${state.player.name}`, `${bg.summary} Ciudad: ${cityName(state.tax.jurisdiction)}.`);
@@ -47,19 +55,28 @@ export function migrateSaga(state: GameState): void {
   // En una partida avanzada, los primeros dilemas no llegan de golpe.
   state.saga.dilemmas.nextDay = state.day + 20;
   state.saga.firstMonth.dismissed = state.day > 60;
+  life(state);
   initRanking(state);
   chronicle(state, 'inicio', 'sparkles', 'Empieza tu crónica', `La crónica empieza hoy: ${state.player.name} tiene ${fmtMoney(balanceSheet(state).netWorth, { decimals: false })} de patrimonio y está en la etapa ${state.progression.stage}.`);
 }
 
 export function sagaDay(state: GameState): void {
   if (state.meta.projection || !state.saga) return;
+  if (dateOf(state.day).d === 1) {
+    dealsMonth(state);
+    execMonth(state);
+  }
   dilemmasDay(state);
 }
 
 export function sagaMonth(state: GameState): void {
   if (state.meta.projection || !state.saga) return;
   rankingMonth(state);
+  lifeMonth(state);
+  erasMonth(state);
+  listedMonth(state, dateOf(state.day).m);
   checkTruces(state);
+  rivalryMonth(state);
   trackCrises(state);
   checkChallenge(state);
   if (dateOf(state.day).m === 12) yearSummary(state, rankSummary(state));
@@ -72,9 +89,15 @@ export function sagaProgress(state: GameState, m: Metrics): void {
 }
 
 /** La interfaz celebra cada etapa nueva y los logros (y la crónica los recuerda). */
-export function onStage(state: GameState, n: number, name: string, recommended: string[], description = ''): void {
+export function onStage(state: GameState, n: number, name: string, recommended: string[], description = '', next: string | null = null): void {
   if (!state.saga) return;
-  const text = `${description}${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}`.trim() || 'Seguís avanzando.';
+  // Cierre de capítulo: lo que queda abierto para la próxima vez (metas, decisiones y la etapa siguiente).
+  const open: string[] = state.saga.goals.active.map((g) => GOAL_BY_ID[g.id]?.title ?? '').filter(Boolean).slice(0, 2).map((x) => `tu meta «${x}»`);
+  const pending = state.saga.dilemmas.open.length;
+  if (pending) open.push(`${pending} decisión${pending > 1 ? 'es' : ''} pendiente${pending > 1 ? 's' : ''}`);
+  if (next && open.length < 3) open.push(next);
+  if (!state.saga.goals.active.length && open.length < 3) open.push('elegir tus metas de vida');
+  const text = `${description}${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}${open.length ? ` Para la próxima: ${open.slice(0, 3).join('; ')}.` : ''}`.trim() || 'Seguís avanzando.';
   celebrate(state, 'big', 'progress', `Etapa ${n}: ${name}`, text);
   chronicle(state, 'etapa', 'progress', `Etapa ${n}: ${name}`, text);
 }

@@ -6,6 +6,8 @@ import { newMacroV2 } from '../engine/economy/economy';
 import { emptyYtd } from '../engine/tax/incomeTax';
 import { initWorldV3 } from '../engine/worldInit';
 import { migrateSaga } from '../engine/saga/index';
+import { life } from '../engine/saga/life';
+import { ACCOUNT_IDS } from '../engine/ledger/accounts';
 
 /**
  * Migraciones de partidas guardadas. Cada función transforma una partida de
@@ -143,6 +145,10 @@ export function migrate(raw: AnyState): { state: GameState; migratedFrom: number
     raw = m(raw);
     v = raw.version;
   }
+  // Cuentas nuevas del plan de cuentas (por ejemplo, 1.4: impuesto a la herencia) en cualquier partida.
+  if (raw.ledger?.balances) for (const a of ACCOUNT_IDS) if (raw.ledger.balances[a] === undefined) raw.ledger.balances[a] = 0;
+  // 1.4: la vida del personaje (edad, familia, legado) se crea si falta.
+  if (raw.saga && raw.player && !raw.saga.life) life(raw as GameState);
   return { state: raw as GameState, migratedFrom: from === SAVE_VERSION ? null : from };
 }
 

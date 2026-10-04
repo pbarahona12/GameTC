@@ -248,6 +248,8 @@ export interface GameOptions {
   difficulty: Difficulty;
   /** Actividades ilegales ficticias habilitadas. */
   illegalEnabled: boolean;
+  /** Modo tranquilo (Fácil): ya se usó el perdón del primer atraso. */
+  graceUsed?: boolean;
 }
 
 export interface CreditState {

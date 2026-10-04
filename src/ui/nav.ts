@@ -20,7 +20,8 @@ export type SheetSpec =
   | { kind: 'dilemma'; id: number }
   | { kind: 'agenda' }
   | { kind: 'challenges' }
-  | { kind: 'explain' };
+  | { kind: 'explain' }
+  | { kind: 'life' };
 
 interface NavState {
   tab: Tab;

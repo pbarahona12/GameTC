@@ -1,3 +1,5 @@
+import { LEGAL } from '../../content/legal';
+import { APP_VERSION } from '../../version';
 import type { ReactNode } from 'react';
 import { useNav, navStore } from '../nav';
 import { useGame, useUI } from '../store';
@@ -14,6 +16,7 @@ import { positionOf } from '../derived';
 import { useDerived } from '../store';
 import { fmtNumber } from '../../engine/format';
 import { cityName } from '../../engine/saga/ranking';
+import { ageOf } from '../../engine/saga/life';
 import { phaseInfo } from '../../engine/economy/economy';
 import { residence } from '../../engine/tax/taxEngine';
 import { legalRiskSummary, heatLabel } from '../../engine/legal/legal';
@@ -83,6 +86,7 @@ export function More() {
         { icon: 'wardrobe', title: 'Tu personaje', sub: `Imagen ${img} · ${imageLabel(img)} · vestidor y bienes`, onClick: () => navStore.setSub('more', 'wardrobe'), visual: <Avatar data={avatarOf(s)} size={34} bust /> },
         { icon: 'shop', title: 'Tiendas', sub: 'Ropa, vehículos, tecnología, hogar y lujo', onClick: () => navStore.setSub('more', 'shops') },
         { icon: 'progress', title: 'Progreso y habilidades', sub: `Etapa ${s.progression.stage}/12 · logros y habilidades`, onClick: () => navStore.open({ kind: 'progress' }) },
+        { icon: 'crown', title: 'Tu vida y legado', sub: `${Math.floor(ageOf(s))} años · generación ${s.saga.life?.generation ?? 1}${s.saga.life?.partner ? ' · en pareja' : ''}`, onClick: () => navStore.open({ kind: 'life' }) },
         { icon: 'missions', title: 'Metas de vida', sub: goals ? `${goals} en curso · ${Object.keys(s.saga.goals.completed).length} cumplidas` : 'Elegí qué querés lograr en esta partida', onClick: () => navStore.open({ kind: 'goals' }) },
         { icon: 'history', title: 'Tu crónica', sub: `${chron} momento${chron === 1 ? '' : 's'} de tu historia como magnate`, onClick: () => navStore.open({ kind: 'chronicle' }) },
         { icon: 'list', title: 'Misiones', sub: missionsLeft ? `${missionsLeft} por hacer · te enseñan cada sistema` : 'Todas cumplidas', onClick: () => navStore.open({ kind: 'tutorial' }) },
@@ -113,6 +117,7 @@ export function More() {
         { icon: 'log', title: 'Registro de actividad', sub: 'Todo lo que pasó en tu partida', onClick: () => navStore.open({ kind: 'log' }) },
         { icon: 'glossary', title: 'Glosario', sub: 'Cada concepto explicado con ejemplos', onClick: () => navStore.open({ kind: 'glossary' }) },
         { icon: 'settings', title: 'Ajustes', sub: 'Partida, apariencia, guardado y actualizaciones', onClick: () => navStore.open({ kind: 'settings' }) },
+        { icon: 'mail', title: 'Enviar un comentario', sub: 'Abrí tu correo para contarnos qué te gustó o dónde te trabaste (no se envía ningún dato de tu partida)', onClick: openFeedback },
         { icon: 'shield', title: 'Privacidad y términos', sub: 'Qué datos guarda el juego, términos de uso y licencias', onClick: () => navStore.open({ kind: 'legal' }) },
       ],
     },
@@ -139,4 +144,15 @@ export function More() {
       ))}
     </>
   );
+}
+
+function openFeedback(): void {
+  window.location.assign(feedbackLink());
+}
+
+/** Comentario por correo: lo escribe la persona; el juego no adjunta datos. */
+function feedbackLink(): string {
+  const subject = encodeURIComponent(`Comentario sobre Ultimate Realistic Tycoon ${APP_VERSION}`);
+  const body = encodeURIComponent('Contanos qué te gustó, qué te confundió o dónde te trabaste:\n\n');
+  return `mailto:${LEGAL.contact}?subject=${subject}&body=${body}`;
 }

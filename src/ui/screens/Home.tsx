@@ -17,7 +17,7 @@ import { phaseInfo } from '../../engine/economy/economy';
 import { fmtPct } from '../../engine/format';
 import { logIcon, PHASE_ICON, NEWS_TOPIC_ICON } from '../contentIcons';
 import { ExportReminder } from '../components/Slots';
-import { FirstMonthCard, FirstMonthSummary, AgendaCard, StandingCard, GoalsCard } from './saga/SagaCards';
+import { FirstMonthCard, FirstMonthSummary, AgendaCard, StandingCard, GoalsCard, EmpireScene, SurplusAction } from './saga/SagaCards';
 import { firstMonthActive } from '../../engine/saga/firstMonth';
 
 export function LogRow({ l }: { l: LogItem }) {
@@ -112,6 +112,8 @@ export function Home() {
         {s.macro.events.some((e) => e.startDay <= s.day && e.endDay >= s.day) && <> · {s.macro.events.filter((e) => e.startDay <= s.day && e.endDay >= s.day).map((e) => e.name.toLowerCase()).join(', ')}</>}
       </button>
 
+      <div className="home-grid">
+      <div className="home-col">
       <section className="hero" aria-label="Patrimonio neto">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="eyebrow">Patrimonio neto</span>
@@ -145,12 +147,18 @@ export function Home() {
         </button>
       </div>
 
+      <SurplusAction />
+
       <AgendaCard />
 
       <div className="saga-pair">
         <StandingCard />
         <GoalsCard />
       </div>
+
+      <EmpireScene />
+      </div>
+      <div className="home-col">
 
       {insights.length > 0 && (
         <div className="stack" style={{ gap: 8 }}>
@@ -206,6 +214,8 @@ export function Home() {
           {s.log.length === 0 && <p className="small muted" style={{ padding: '12px 0' }}>Todavía no pasó nada. Usá los controles de tiempo de arriba para avanzar el calendario.</p>}
           {s.log.slice(-6).reverse().map((l) => <LogRow key={l.id} l={l} />)}
         </div>
+      </div>
+      </div>
       </div>
     </>
   );

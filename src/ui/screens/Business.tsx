@@ -21,6 +21,7 @@ import { SoftGate } from '../components/Gate';
 import type { Company } from '../../engine/business/types';
 import { SECTOR_ICON } from '../contentIcons';
 import { Icon } from '../icons';
+import { CompanyTraffic, ExecCard } from './business/Corporate';
 
 const COLORS = ['#d2a94f', '#4cc093', '#7fb2e0', '#ee7a66', '#b59be0', '#e6d27a'];
 
@@ -82,6 +83,8 @@ function Portfolio() {
           <Act label="Competencia" help="grupos_rivales" className="btn ghost" onClick={() => navStore.go('more', 'rivals')} />
         </div>
       </div>
+      <CompanyTraffic />
+      <ExecCard />
       {open.map((co) => <CompanyCard key={co.id} co={co} />)}
       {s.formerCompanies.length > 0 && (
         <div className="card">

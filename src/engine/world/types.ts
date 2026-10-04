@@ -63,6 +63,10 @@ export interface RivalGroup {
   memory?: Array<{ day: number; text: string }>;
   /** Tregua pactada en un dilema: no te ataca y vos no entrás en ese sector (1.4). */
   truce?: { sector: BizSectorId; from: number; until: number } | null;
+  /** Lo compraste vos (1.4): ya no compite ni ataca. */
+  acquired?: { day: number; price: Cents } | null;
+  /** Aliado tuyo (1.4, dilema): no te ataca mientras dure. */
+  ally?: { from: number; until: number; against: string | null } | null;
 }
 
 export type IntentKind = 'comprar_empresa' | 'comprar_inmueble' | 'abrir_competidor' | 'exclusividad';

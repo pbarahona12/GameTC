@@ -341,8 +341,8 @@ export function rankingMonth(state: GameState): void {
   // Competir en sus sectores con varias empresas les molesta (una sola, casi nada).
   for (const r of state.world.rivals) {
     r.assetsValue = roundCents(Math.max(0, (r.assetsValue ?? 0) * (1 + mm.market * 0.8 + 0.002)));
-    const rivalsIn = state.companies.filter((c) => !c.npc && (c.status === 'active' || c.status === 'insolvent') && r.sectors.includes(c.sector)).length;
-    r.attitude = clamp((r.attitude ?? 0) - 2 + Math.min(3, rivalsIn * 1.5), 0, 100);
+    const rivalsIn = r.acquired ? 0 : state.companies.filter((c) => !c.npc && (c.status === 'active' || c.status === 'insolvent') && r.sectors.includes(c.sector)).length;
+    r.attitude = r.acquired ? 0 : clamp((r.attitude ?? 0) - 2 + Math.min(3, rivalsIn * 1.5), 0, 100);
   }
 
   // 2 · Las fortunas siguen al mercado, con su propia suerte.
@@ -450,7 +450,7 @@ export function rankingMonth(state: GameState): void {
 
   // 8 · Superar a un grupo rival (por patrimonio): lo festejás vos… y ellos lo recuerdan.
   for (const m of rk.magnates) {
-    if (!m.rivalId || rk.overtaken.includes(m.rivalId)) continue;
+    if (!m.rivalId || rk.overtaken.includes(m.rivalId) || state.world.rivals.find((x) => x.id === m.rivalId)?.acquired) continue;
     const w = magnateWealth(state, m);
     if (nw <= w) continue;
     rk.overtaken.push(m.rivalId);
@@ -532,6 +532,6 @@ export function rankSummary(state: GameState): string | null {
 
 /** Rival con más rencor hacia vos entre los que operan en un sector (o en general). */
 export function hostility(state: GameState, sector?: string): number {
-  const pool = state.world.rivals.filter((r) => !sector || r.sectors.includes(sector as never));
+  const pool = state.world.rivals.filter((r) => !r.acquired && (!sector || r.sectors.includes(sector as never)));
   return pool.reduce((a, r) => Math.max(a, r.attitude ?? 0), 0);
 }

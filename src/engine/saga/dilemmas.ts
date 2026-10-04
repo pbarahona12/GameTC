@@ -18,6 +18,15 @@ import { srng, rememberRival, playerCity, cityName } from './ranking';
 import { newProperty } from '../realestate/realestate';
 import { ZONES } from '../../content/realestate';
 import { formatDate } from '../time/calendar';
+import { ageOf, life, retire, succession, heirs, RETIRE_AGE } from './life';
+import { buyBackShares, marketCap } from './corporate';
+import { setPrivateInsurance, insuranceCost, monthlyRecurring } from '../finance/budget';
+import { valuation } from '../business/reports';
+import { companyShareEstimate } from '../business/market';
+import { revalue } from '../business/ownership';
+import { LEGAL_FORM_BY_ID } from '../../content/sectors';
+import { isAlly, nemesisOf, warsIn, registerWarDilemma } from './rivalry';
+import type { RivalGroup } from '../world/types';
 
 /**
  * DILEMAS CON PLAZO (1.4): situaciones con 2–3 opciones, cada una con costos y
@@ -53,6 +62,8 @@ interface Template {
   options: Opt[];
   /** Opción que se aplica si vence (nunca cuesta dinero). */
   fallback: string;
+  /** Puede aparecer aunque falte para el próximo dilema (ayuda en una urgencia). */
+  urgent?: boolean;
   /** Aplica la decisión y devuelve el texto del resultado. */
   apply: (s: GameState, d: Dilemma, choice: string, g: RngHolder) => string;
   /** Desenlace diferido (si `apply` lo programó). */
@@ -90,7 +101,7 @@ function schedule(s: GameState, d: Dilemma, choice: string, days: number, extra:
   s.saga.dilemmas.pending.push({ id: s.meta.nextId++, dilemmaId: d.id, template: d.template, choice, params: { ...d.params, ...extra }, day: s.day + Math.max(1, Math.round(days)) });
 }
 
-function companyCost(co: Company, amount: Cents, memo: string, account: 'training' | 'admin' | 'wages', day: number): boolean {
+function companyCost(co: Company, amount: Cents, memo: string, account: 'training' | 'admin' | 'wages' | 'marketing' | 'professional_fees', day: number): boolean {
   if (amount <= 0) return true;
   if (co.ledger.balances.cash < amount) return false;
   coPost(co.ledger, { day, memo, cf: 'operating', tag: 'saga:dilema', lines: [{ account, debit: amount }, { account: 'cash', credit: amount }] });
@@ -99,7 +110,7 @@ function companyCost(co: Company, amount: Cents, memo: string, account: 'trainin
 
 /** Rival que opera en el sector de una empresa (o cualquiera). */
 function rivalFor(s: GameState, sector: string, g: RngHolder) {
-  const pool = s.world.rivals.filter((r) => r.sectors.includes(sector as never));
+  const pool = s.world.rivals.filter((r) => !r.acquired && r.sectors.includes(sector as never));
   return pool.length ? pick(g, pool) : undefined;
 }
 
@@ -119,6 +130,34 @@ function withSagaRng<T>(s: GameState, fn: () => T): T {
 // ------------------------------------------------------------------ plantillas
 
 const TEMPLATES: Template[] = [
+  {
+    id: 'changa', icon: 'career', weight: 5, cooldown: 120, urgent: true,
+    eligible: (s) => !s.career.job && s.day >= 10 && s.day < 730 && spendable(s) < monthlyRecurring(s, true) * 1.2,
+    create: (s, g) => ({ params: { pay: roundCents(usd(randRange(g, 520, 760) * pi(s)) / 100) * 100, who: randomName(g), what: pick(g, ['atender un puesto en la feria', 'ayudar en una mudanza grande', 'cubrir turnos en un depósito', 'repartir volantes y pedidos']) }, days: 5 }),
+    title: () => 'Un trabajo temporal mientras buscás empleo',
+    body: (_s, d) => `${str(d, 'who')} necesita a alguien para ${str(d, 'what')} durante tres semanas. Pagan ${money(num(d, 'pay'))} al terminar. Podés seguir postulándote igual.`,
+    options: [
+      { id: 'aceptar', label: 'Aceptar', detail: (_s, d) => `Cobrás ${money(num(d, 'pay'))} en 3 semanas. Estrés +5.` },
+      { id: 'familia', label: 'Pedirle ayuda a tu familia', detail: (s) => `Te dan ${money(usd(300 * pi(s)))} (y te lo recuerdan en cada almuerzo). Estrés +3.` },
+      { id: 'no', label: 'No, me enfoco en buscar empleo', detail: () => 'Sin ingresos extra.' },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice, g) => {
+      if (choice === 'no') return 'Seguís buscando empleo.';
+      if (choice === 'familia') {
+        earn(s, usd(300 * pi(s)), 'Ayuda de tu familia');
+        attr(s, 'stress', 3);
+        return `Tu familia te ayudó con ${money(usd(300 * pi(s)))}.`;
+      }
+      attr(s, 'stress', 5);
+      schedule(s, d, choice, 21 + randInt(g, 0, 2));
+      return `Empezás mañana. Cobrás ${money(num(d, 'pay'))} en tres semanas.`;
+    },
+    resolve: (s, o) => {
+      earn(s, num(o, 'pay'), `Trabajo temporal: ${str(o, 'what')}`);
+      addLog(s, 'income', '💵', `Cobraste ${money(num(o, 'pay'))} por el trabajo temporal.`, num(o, 'pay'));
+    },
+  },
   {
     id: 'aumento', icon: 'pros', weight: 3, cooldown: 240,
     eligible: (s) => myCompanies(s).some((c) => c.employees.some((e) => e.skill >= 55 && s.day - e.hiredDay > 150)),
@@ -371,7 +410,8 @@ const TEMPLATES: Template[] = [
       attr(s, 'network', 6);
       attr(s, 'reputation', 2);
       attr(s, 'stress', 2);
-      const r = s.world.rivals.length ? pick(g, s.world.rivals) : undefined;
+      const live = s.world.rivals.filter((x) => !x.acquired);
+      const r = live.length ? pick(g, live) : undefined;
       if (r && (r.attitude ?? 0) > 25 && chance(g, 0.5)) {
         rememberRival(s, r, -15, 'Charlaron en la gala y bajó la tensión');
         return `Fuiste a la gala. Charlaste con la gente de ${r.name} y la tensión bajó un poco.`;
@@ -485,9 +525,9 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'tregua', icon: 'deal', weight: 3, cooldown: 720,
-    eligible: (s) => s.world.rivals.some((r) => (r.attitude ?? 0) >= 35 && !r.truce && myCompanies(s).some((c) => r.sectors.includes(c.sector))),
+    eligible: (s) => s.world.rivals.some((r) => !r.acquired && (r.attitude ?? 0) >= 35 && !r.truce && myCompanies(s).some((c) => r.sectors.includes(c.sector))),
     create: (s, g) => {
-      const pool = s.world.rivals.filter((r) => (r.attitude ?? 0) >= 35 && !r.truce && myCompanies(s).some((c) => r.sectors.includes(c.sector)));
+      const pool = s.world.rivals.filter((r) => !r.acquired && (r.attitude ?? 0) >= 35 && !r.truce && myCompanies(s).some((c) => r.sectors.includes(c.sector)));
       const r = pick(g, pool);
       const co = myCompanies(s).find((c) => r.sectors.includes(c.sector))!;
       return { params: { rivalId: r.id, rival: r.name, sector: co.sector, sectorName: SECTOR_BY_ID[co.sector].name }, days: 12 };
@@ -546,7 +586,8 @@ const TEMPLATES: Template[] = [
     create: (s, g) => {
       const amount = roundCents(clamp(spendable(s) * randRange(g, 0.15, 0.3), usd(250_000 * pi(s)), usd(500_000_000 * pi(s))) / 1_000_000) * 1_000_000;
       const what = pick(g, ['una cadena hotelera extranjera que sale de la región', 'la concesión del nuevo puerto seco', 'el 20 % de una minera en problemas', 'una red de clínicas que se reestructura', 'los derechos de una autopista de peaje']);
-      const r = s.world.rivals.length ? pick(g, s.world.rivals) : undefined;
+      const live = s.world.rivals.filter((x) => !x.acquired);
+      const r = live.length ? pick(g, live) : undefined;
       return { params: { amount, what, rival: r?.name ?? '', rivalId: r?.id ?? '' }, days: 15 };
     },
     title: (_s, d) => `Gran oportunidad: ${str(d, 'what')}`,
@@ -586,6 +627,238 @@ const TEMPLATES: Template[] = [
     },
   },
   {
+    id: 'familia', icon: 'sparkles', weight: 3, cooldown: 1100,
+    eligible: (s) => !life(s).partner && ageOf(s) >= 26 && ageOf(s) <= 42,
+    create: (s, g) => ({ params: { partner: `${FIRST_NAMES[Math.floor(nextRandom(g) * FIRST_NAMES.length)]}`, cost: roundCents(usd(randRange(g, 3000, 9000) * pi(s)) / 10000) * 10000 }, days: 20 }),
+    title: (_s, d) => `¿Formar una familia con ${str(d, 'partner')}?`,
+    body: (_s, d) => `Llevan años juntos y ${str(d, 'partner')} quiere casarse. La boda cuesta unos ${money(num(d, 'cost'))}. Con los años pueden llegar hijos: cuestan, y también podrían heredar tu fortuna.`,
+    options: [
+      { id: 'casarse', label: 'Casarse', detail: (_s, d) => `Boda ${money(num(d, 'cost'))}. Estrés −6, contactos +3. Pueden llegar hijos.`, blocked: (s, d) => cantPay(num(d, 'cost'))(s) },
+      { id: 'convivir', label: 'Convivir sin boda', detail: () => 'Sin gasto. Pueden llegar hijos igual.' },
+      { id: 'no', label: 'Seguir solo', detail: () => 'Te enfocás en tu carrera y tus negocios.' },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice) => {
+      const l = life(s);
+      if (choice === 'no') return 'Seguís solo, enfocado en lo tuyo.';
+      if (choice === 'casarse') {
+        if (!spend(s, num(d, 'cost'), 'Boda', 'leisure')) return 'No alcanzó el dinero para la boda.';
+        attr(s, 'stress', -6);
+        attr(s, 'network', 3);
+      }
+      l.partner = str(d, 'partner');
+      chronicle(s, 'vida', 'sparkles', choice === 'casarse' ? `Te casaste con ${l.partner}` : `Te fuiste a vivir con ${l.partner}`, 'Empieza tu familia.');
+      return choice === 'casarse' ? `Te casaste con ${l.partner}.` : `Ahora vivís con ${l.partner}.`;
+    },
+  },
+  {
+    id: 'retiro', icon: 'sun', weight: 4, cooldown: 1095,
+    eligible: (s) => ageOf(s) >= RETIRE_AGE + 3 && !life(s).retired,
+    create: (s) => ({ params: { age: Math.floor(ageOf(s)), heir: heirs(s)[0]?.name ?? '' }, days: 30 }),
+    title: (_s, d) => `Tenés ${num(d, 'age')} años: ¿es hora de pensar en el retiro?`,
+    body: (_s, d) => `Tu salud ya no es la de antes. Podés jubilarte (seguís dueño de todo), pasarle la posta a ${str(d, 'heir')} o seguir como siempre.`,
+    options: [
+      { id: 'jubilarse', label: 'Jubilarme', detail: () => 'Dejás el empleo (si tenés), bajás el estrés. Tus negocios siguen.' },
+      { id: 'posta', label: 'Pasar la posta', detail: (_s, d) => `${str(d, 'heir')} toma el control de la fortuna familiar. Se paga el impuesto a la herencia.` },
+      { id: 'seguir', label: 'Seguir como siempre', detail: () => 'El riesgo para tu salud crece con los años.' },
+    ],
+    fallback: 'seguir',
+    apply: (s, _d, choice) => {
+      if (choice === 'jubilarse') {
+        const r = retire(s);
+        return r.ok ? r.message ?? 'Te jubilaste.' : r.error;
+      }
+      if (choice === 'posta') {
+        const h = heirs(s)[0];
+        const r = succession(s, h.id, 'retiro');
+        return r.ok ? r.message ?? 'Pasaste la posta.' : r.error;
+      }
+      return 'Seguís al frente de todo.';
+    },
+  },
+  {
+    id: 'vacaciones', icon: 'sun', weight: 2, cooldown: 300,
+    eligible: (s) => s.player.attributes.stress >= 62 && spendable(s) >= usd(1500 * pi(s)),
+    create: (s, g) => ({ params: { cost: roundCents(clamp(spendable(s) * 0.05, usd(800 * pi(s)), usd(60_000 * pi(s))) / 10000) * 10000, where: pick(g, ['la costa de Isla Coral', 'las montañas de Norvalia', 'un crucero por el sur']) }, days: 10 }),
+    title: () => 'Estás agotado: ¿te tomás unas vacaciones?',
+    body: (s, d) => `Tu estrés está en ${Math.round(s.player.attributes.stress)}/100. Dos semanas en ${str(d, 'where')} cuestan ${money(num(d, 'cost'))}.`,
+    options: [
+      { id: 'ir', label: 'Irme de vacaciones', detail: () => 'Estrés −20, salud +4.', blocked: (s, d) => cantPay(num(d, 'cost'))(s) },
+      { id: 'seguir', label: 'Seguir trabajando', detail: () => 'Sin gasto, pero el estrés alto daña tu salud y tu desempeño.' },
+    ],
+    fallback: 'seguir',
+    apply: (s, d, choice) => {
+      if (choice === 'seguir') {
+        attr(s, 'health', -2);
+        return 'Seguiste trabajando. El cansancio se nota (salud −2).';
+      }
+      if (!spend(s, num(d, 'cost'), `Vacaciones en ${str(d, 'where')}`, 'leisure')) return 'No alcanzó el dinero.';
+      attr(s, 'stress', -20);
+      attr(s, 'health', 4);
+      return `Volviste renovado de ${str(d, 'where')}.`;
+    },
+  },
+  {
+    id: 'seguro', icon: 'shield', weight: 1, cooldown: 900,
+    eligible: (s) => !s.budget.privateInsurance && (s.player.attributes.health < 65 || ageOf(s) >= 45),
+    create: () => ({ params: {}, days: 14 }),
+    title: () => 'Un asesor te ofrece un seguro médico privado',
+    body: (s) => `Cuesta ${money(insuranceCost(s))} por mes. Con tu ${ageOf(s) >= 45 ? 'edad' : 'salud actual'}, un imprevisto médico sin seguro puede salir caro.`,
+    options: [
+      { id: 'contratar', label: 'Contratarlo', detail: (s) => `${money(insuranceCost(s))}/mes. Cubre la mayor parte de los imprevistos médicos.` },
+      { id: 'no', label: 'No por ahora', detail: () => 'Te ahorrás la cuota y asumís el riesgo.' },
+    ],
+    fallback: 'no',
+    apply: (s, _d, choice) => {
+      if (choice === 'no') return 'No contrataste el seguro.';
+      const r = setPrivateInsurance(s, true);
+      return r.ok ? 'Contrataste el seguro médico privado.' : r.error;
+    },
+  },
+  {
+    id: 'patrocinio', icon: 'megaphone', weight: 2, cooldown: 360,
+    eligible: (s) => myCompanies(s).some((c) => c.ledger.balances.cash >= usd(5000 * pi(s))),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.ledger.balances.cash >= usd(5000 * pi(s))));
+      return { params: { companyId: co.id, company: co.name, cost: roundCents(clamp(co.ledger.balances.cash * 0.08, usd(1500 * pi(s)), usd(200_000 * pi(s))) / 10000) * 10000, team: pick(g, ['el club de fútbol del barrio', 'la maratón de la ciudad', 'el festival de música']) }, days: 12 };
+    },
+    title: (_s, d) => `${str(d, 'team')} busca un patrocinador`,
+    body: (_s, d) => `Poner el nombre de ${str(d, 'company')} cuesta ${money(num(d, 'cost'))} (lo paga la empresa). Mucha gente lo va a ver.`,
+    options: [
+      { id: 'patrocinar', label: 'Patrocinar', detail: () => 'La empresa gana conocimiento de marca (+10) y reputación (+4).', blocked: (s, d) => ((companyOf(s, d)?.ledger.balances.cash ?? 0) < num(d, 'cost') ? 'La empresa no tiene caja suficiente' : null) },
+      { id: 'no', label: 'No', detail: () => 'La empresa se ahorra el gasto.' },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice) => {
+      const co = companyOf(s, d);
+      if (!co || choice === 'no') return 'No patrocinaste.';
+      if (!companyCost(co, num(d, 'cost'), `Patrocinio: ${str(d, 'team')}`, 'admin', s.day)) return 'La empresa no tenía caja.';
+      co.awareness = clamp(co.awareness + 10, 0, 100);
+      co.reputation = clamp(co.reputation + 4, 0, 100);
+      return `${co.name} patrocina ${str(d, 'team')}: más gente la conoce.`;
+    },
+  },
+  {
+    id: 'premio', icon: 'medal', weight: 1, cooldown: 500,
+    eligible: (s) => myCompanies(s).some((c) => c.history.length >= 6 && c.quality >= 55),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.history.length >= 6 && c.quality >= 55));
+      return { params: { companyId: co.id, company: co.name, fee: roundCents(usd(randRange(g, 800, 3000) * pi(s)) / 10000) * 10000 }, days: 10 };
+    },
+    title: (_s, d) => `${str(d, 'company')} está nominada a «Empresa del año»`,
+    body: (_s, d) => `La inscripción y la presentación cuestan ${money(num(d, 'fee'))}. Si gana, es publicidad gratis por meses.`,
+    options: [
+      { id: 'participar', label: 'Participar', detail: (s, d) => `Chance de ganar según la calidad (${Math.round(companyOf(s, d)?.quality ?? 0)}) y la reputación de la empresa.`, blocked: (s, d) => ((companyOf(s, d)?.ledger.balances.cash ?? 0) < num(d, 'fee') ? 'La empresa no tiene caja suficiente' : null) },
+      { id: 'no', label: 'No participar', detail: () => 'Sin gasto.' },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      if (!co || choice === 'no') return 'No participaste.';
+      if (!companyCost(co, num(d, 'fee'), 'Inscripción al premio «Empresa del año»', 'admin', s.day)) return 'La empresa no tenía caja.';
+      const p = clamp((co.quality - 40) / 80 + (co.reputation - 40) / 150, 0.1, 0.75);
+      if (chance(g, p)) {
+        co.awareness = clamp(co.awareness + 15, 0, 100);
+        co.reputation = clamp(co.reputation + 8, 0, 100);
+        attr(s, 'reputation', 3);
+        chronicle(s, 'empresa', 'medal', `${co.name}: Empresa del año`, 'Ganó el premio: más clientes la conocen y la eligen.');
+        return `¡${co.name} ganó «Empresa del año»!`;
+      }
+      return `${co.name} no ganó esta vez, pero quedó entre las finalistas.`;
+    },
+  },
+  {
+    id: 'mentor', icon: 'education', weight: 1, cooldown: 700,
+    eligible: (s) => s.progression.stage >= 6,
+    create: (_s, g) => ({ params: { who: randomName(g) }, days: 14 }),
+    title: (_s, d) => `${str(d, 'who')} te pide que seas su mentor`,
+    body: () => 'Una emprendedora joven admira tu historia y quiere aprender de vos. Te llevaría algunas horas por semana.',
+    options: [
+      { id: 'aceptar', label: 'Aceptar', detail: () => 'Estrés +3, contactos +5, reputación +2. Quizás algún día te ofrezca entrar en su empresa.' },
+      { id: 'no', label: 'No tengo tiempo', detail: () => 'Sin cambios.' },
+    ],
+    fallback: 'no',
+    apply: (s, _d, choice) => {
+      if (choice === 'no') return 'Le dijiste que no tenías tiempo.';
+      attr(s, 'stress', 3);
+      attr(s, 'network', 5);
+      attr(s, 'reputation', 2);
+      s.saga.dilemmas.lastByTemplate.startup = -99999;
+      return 'Ahora sos su mentor.';
+    },
+  },
+  {
+    id: 'escandalo', icon: 'news', weight: 3, cooldown: 500,
+    eligible: (s) => s.saga.ranking.player.city !== null && s.saga.ranking.player.city <= 10,
+    create: (_s, g) => ({ params: { outlet: pick(g, ['El Observador', 'Diario Libre de Valdoria', 'un periodista independiente']) } , days: 12 }),
+    title: (_s, d) => `${str(d, 'outlet')} investiga tu fortuna`,
+    body: (s) => `Estar entre las 10 fortunas de ${cityName(playerCity(s))} trae preguntas: de dónde salió tu dinero y cuántos impuestos pagás.`,
+    options: [
+      { id: 'transparencia', label: 'Abrir tus cuentas', detail: (s) => `Una auditoría externa cuesta ${money(usd(25_000 * pi(s)))}. ${s.legal.acts.length ? 'Puede salir a la luz algo que hiciste.' : 'Reputación +4.'}`, blocked: (s) => cantPay(usd(25_000 * pi(s)))(s) },
+      { id: 'abogados', label: 'Responder con abogados', detail: (s) => `${money(usd(10_000 * pi(s)))}. La nota sale igual, más suave.`, blocked: (s) => cantPay(usd(10_000 * pi(s)))(s) },
+      { id: 'ignorar', label: 'No responder', detail: () => 'La nota sale como la escriban.' },
+    ],
+    fallback: 'ignorar',
+    apply: (s, _d, choice) => {
+      const dirty = s.legal.acts.some((a) => a.status === 'oculto');
+      if (choice === 'transparencia') {
+        if (!spend(s, usd(25_000 * pi(s)), 'Auditoría externa de tu patrimonio')) return 'No alcanzó el dinero.';
+        if (dirty) {
+          s.legal.heat = clamp(s.legal.heat + 15, 0, 100);
+          attr(s, 'reputation', -6);
+          return 'La auditoría encontró irregularidades: la nota fue durísima (reputación −6, sospecha +15).';
+        }
+        attr(s, 'reputation', 4);
+        return 'La auditoría confirmó que todo está en regla: la nota te dejó bien parado (reputación +4).';
+      }
+      if (choice === 'abogados') {
+        if (!spend(s, usd(10_000 * pi(s)), 'Abogados por la nota periodística')) return 'No alcanzó el dinero.';
+        attr(s, 'reputation', dirty ? -2 : 0);
+        return 'La nota salió más suave.';
+      }
+      attr(s, 'reputation', dirty ? -6 : -1);
+      if (dirty) s.legal.heat = clamp(s.legal.heat + 8, 0, 100);
+      return dirty ? 'La nota insinúa negocios turbios (reputación −6, sospecha +8).' : 'La nota no encontró nada, pero tu silencio no cayó bien (reputación −1).';
+    },
+  },
+  {
+    id: 'opa_hostil', icon: 'rivals', weight: 4, cooldown: 600,
+    eligible: (s) => myCompanies(s).some((c) => c.listed && c.ownership < 0.9) && s.world.rivals.some((r) => !r.acquired && (r.attitude ?? 0) >= 25),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.listed && c.ownership < 0.9));
+      const r = pick(g, s.world.rivals.filter((x) => !x.acquired && (x.attitude ?? 0) >= 25));
+      return { params: { companyId: co.id, company: co.name, rivalId: r.id, rival: r.name, cost: roundCents(marketCap(s, co) * Math.min(0.1, 1 - co.ownership) * 1.15) }, days: 14 };
+    },
+    title: (_s, d) => `${str(d, 'rival')} compra acciones de ${str(d, 'company')}`,
+    body: () => `Ya tiene una parte de las acciones que cotizan y quiere más: busca un lugar en el directorio y, si puede, quedarse con la empresa.`,
+    options: [
+      { id: 'recomprar', label: 'Recomprar acciones', detail: (_s, d) => `Cuesta ${money(num(d, 'cost'))}. Subís tu participación y los dejás afuera.`, blocked: (s, d) => cantPay(num(d, 'cost'))(s) },
+      { id: 'directorio', label: 'Darles un asiento', detail: () => 'Baja la tensión con el grupo, pero los inversores lo ven como debilidad (reputación −2).' },
+      { id: 'ignorar', label: 'Esperar', detail: () => 'Puede que desistan… o que te hagan una oferta por toda la empresa.' },
+    ],
+    fallback: 'ignorar',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      const r = s.world.rivals.find((x) => x.id === str(d, 'rivalId'));
+      if (!co || !r) return 'La situación cambió.';
+      if (choice === 'recomprar') {
+        const res = buyBackShares(s, co, 0.1);
+        if (res.ok) rememberRival(s, r, 10, `Le cerraste la puerta en ${co.name}`);
+        return res.ok ? res.message ?? 'Recompraste acciones.' : res.error;
+      }
+      if (choice === 'directorio') {
+        rememberRival(s, r, -35, `Le diste un asiento en el directorio de ${co.name}`);
+        attr(s, 'reputation', -2);
+        return `${r.name} entra al directorio de ${co.name}. La tensión baja.`;
+      }
+      if (chance(g, 0.5)) return `${r.name} desistió por ahora.`;
+      const price = roundCents(valuation(s, co).value * randRange(g, 1.15, 1.35));
+      co.saleOffer = { price, expires: s.day + 15, from: r.name };
+      rememberRival(s, r, 10, `Ofertó por toda ${co.name}`);
+      return `${r.name} ofrece ${money(price)} por toda ${co.name}. La oferta está en Negocios (vence en 15 días).`;
+    },
+  },
+  {
     id: 'herencia_tio', icon: 'key', weight: 1, cooldown: 99999,
     eligible: (s) => s.day > 365 * 2,
     create: (s, g) => ({ params: { value: roundCents(usd(randRange(g, 8000, 30000) * pi(s)) / 10000) * 10000, what: pick(g, ['su viejo taller mecánico', 'un local en el pueblo', 'una colección de herramientas y un galpón']) }, days: 20 }),
@@ -607,6 +880,341 @@ const TEMPLATES: Template[] = [
       attr(s, 'network', 2);
       chronicle(s, 'vida', 'gift', 'Una herencia para el pueblo', `Donaste ${str(d, 'what')} (unos ${money(v)}).`);
       return 'Donaste la herencia al pueblo. Te lo agradecen.';
+    },
+  },
+
+  // ---------------------------------------------------------------- 1.4 · desafíos que crecen con la fortuna
+  {
+    id: 'guerra_precios', icon: 'rivals', weight: 0, cooldown: 0,
+    // Solo la abre una guerra de precios real (rivalry.ts), no el sorteo.
+    eligible: () => false,
+    create: () => null,
+    title: (_s, d) => `${str(d, 'rival')} te declaró una guerra de precios`,
+    body: (_s, d) => `Bajó sus precios en ${str(d, 'sectorName').toLowerCase()} hasta el ${formatDate(num(d, 'until'))} para quitarle clientes a ${str(d, 'company')}. ¿Cómo respondés?`,
+    options: [
+      { id: 'igualar', label: 'Bajar tus precios 10 %', detail: () => 'Retenés clientes, pero ganás menos por venta. Podés volver a subirlos cuando termine.' },
+      { id: 'diferenciar', label: 'Diferenciarte', detail: (s) => `Campaña y mejoras por ${money(usd(6000 * pi(s)))} de la caja de la empresa: calidad +6 y más gente que te conoce.`, blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < usd(6000 * pi(s)) ? 'La empresa no tiene esa caja.' : null; } },
+      { id: 'aguantar', label: 'Aguantar sin cambiar nada', detail: () => 'Sin costo hoy; vas a perder parte de las ventas mientras dure.' },
+    ],
+    fallback: 'aguantar',
+    apply: (s, d, choice) => {
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      if (choice === 'igualar') {
+        for (const p of co.products) p.price = roundCents(p.price * 0.9);
+        return `${co.name} bajó sus precios 10 %. Revisalos cuando termine la guerra (${formatDate(num(d, 'until'))}).`;
+      }
+      if (choice === 'diferenciar') {
+        if (!companyCost(co, usd(6000 * pi(s)), 'Campaña de diferenciación ante una guerra de precios', 'marketing', s.day)) return 'La empresa no tenía la caja.';
+        co.quality = clamp(co.quality + 6, 0, 100);
+        co.awareness = clamp(co.awareness + 8, 0, 100);
+        return `${co.name} apuesta por la calidad: +6 de calidad y más conocida.`;
+      }
+      return 'Aguantás sin cambios.';
+    },
+  },
+  {
+    id: 'alianza', icon: 'deal', weight: 2, cooldown: 900,
+    eligible: (s) => {
+      const act = s.world.rivals.filter((r) => !r.acquired);
+      return s.progression.stage >= 6 && act.some((r) => (r.attitude ?? 0) <= 15 && !isAlly(s, r)) && act.some((r) => (r.attitude ?? 0) >= 40);
+    },
+    create: (s, g) => {
+      const act = s.world.rivals.filter((r) => !r.acquired);
+      const enemy = nemesisOf(s) ?? [...act].sort((a, b) => (b.attitude ?? 0) - (a.attitude ?? 0))[0];
+      const pool = act.filter((r) => r !== enemy && (r.attitude ?? 0) <= 15 && !isAlly(s, r));
+      if (!pool.length || !enemy) return null;
+      const r = pick(g, pool);
+      return { params: { rivalId: r.id, rival: r.name, enemyId: enemy.id, enemy: enemy.name }, days: 14 };
+    },
+    title: (_s, d) => `${str(d, 'rival')} te propone una alianza`,
+    body: (_s, d) => `Quieren unir fuerzas contra ${str(d, 'enemy')}: durante tres años no te atacan ni compiten por tus empleados. ${str(d, 'enemy')} se va a enterar.`,
+    options: [
+      { id: 'aceptar', label: 'Aliarte', detail: (_s, d) => `${str(d, 'rival')} deja de atacarte por 3 años. El rencor de ${str(d, 'enemy')} sube.` },
+      { id: 'rechazar', label: 'Seguir solo', detail: () => 'Nada cambia.' },
+    ],
+    fallback: 'rechazar',
+    apply: (s, d, choice) => {
+      const r = s.world.rivals.find((x) => x.id === str(d, 'rivalId'));
+      const e = s.world.rivals.find((x) => x.id === str(d, 'enemyId'));
+      if (!r || r.acquired) return 'El grupo ya no existe.';
+      if (choice !== 'aceptar') return 'Seguís compitiendo con todos.';
+      r.ally = { from: s.day, until: s.day + 1095, against: e?.id ?? null };
+      rememberRival(s, r, -30, 'Se aliaron');
+      if (e) rememberRival(s, e, 15, `Te aliaste con ${r.name}`);
+      chronicle(s, 'rival', 'deal', `Alianza con ${r.name}`, `Hasta el ${formatDate(s.day + 1095)}, contra ${str(d, 'enemy')}.`);
+      return `Alianza firmada con ${r.name} hasta el ${formatDate(s.day + 1095)}.`;
+    },
+  },
+  {
+    id: 'posicion_dominante', icon: 'legal', weight: 3, cooldown: 1080,
+    eligible: (s) => s.progression.stage >= 6 && myCompanies(s).some((c) => c.history.length >= 6 && companyShareEstimate(c) >= 0.3),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.history.length >= 6 && companyShareEstimate(c) >= 0.3));
+      const revenue = co.history.slice(-12).reduce((a, h) => a + h.revenue, 0);
+      return { params: { companyId: co.id, company: co.name, share: Math.round(companyShareEstimate(co) * 100), revenue }, days: 15 };
+    },
+    title: (_s, d) => `Investigación por posición dominante: ${str(d, 'company')}`,
+    body: (_s, d) => `La Comisión de Defensa de la Competencia cree que ${str(d, 'company')} controla cerca del ${num(d, 'share')} % de su mercado y que eso perjudica a los clientes. Ventas de los últimos 12 meses: ${money(num(d, 'revenue'))}.`,
+    options: [
+      { id: 'compromiso', label: 'Comprometerte a bajar precios', detail: () => 'Bajás 5 % los precios: menos margen, caso cerrado y reputación +3.' },
+      { id: 'acuerdo', label: 'Pagar un acuerdo', detail: (_s, d) => `Multa negociada del 2 % de las ventas anuales (${money(roundCents(num(d, 'revenue') * 0.02))}) sin admitir culpa.`, blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < roundCents(num(d, 'revenue') * 0.02) ? 'La empresa no tiene esa caja.' : null; } },
+      { id: 'defender', label: 'Defenderte en el proceso', detail: (s) => `Abogados por ${money(usd(15_000 * pi(s)))}. 55 % de ganar; si perdés, multa del 6 % de las ventas anuales.`, blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < usd(15_000 * pi(s)) ? 'La empresa no tiene caja para los abogados.' : null; } },
+    ],
+    fallback: 'compromiso',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      if (choice === 'compromiso') {
+        for (const p of co.products) p.price = roundCents(p.price * 0.95);
+        attr(s, 'reputation', 3);
+        return `${co.name} bajó sus precios 5 %. La Comisión cerró el caso.`;
+      }
+      if (choice === 'acuerdo') {
+        companyFine(s, co, roundCents(num(d, 'revenue') * 0.02), 'Acuerdo con Defensa de la Competencia');
+        return 'Acuerdo cerrado: caso terminado sin admitir culpa.';
+      }
+      companyCost(co, usd(15_000 * pi(s)), 'Abogados: investigación por posición dominante', 'professional_fees', s.day);
+      schedule(s, d, 'defender', 60 + randInt(g, 0, 30));
+      return 'Empieza el proceso. La resolución llega en 2 o 3 meses.';
+    },
+    resolve: (s, o, g) => {
+      const co = companyOf(s, o);
+      if (!co) return;
+      if (chance(g, 0.55)) {
+        attr(s, 'reputation', 2);
+        addLog(s, 'success', '⚖️', `Ganaste el caso por posición dominante de ${co.name}.`, undefined, 'logros');
+        chronicle(s, 'dilema', 'legal', `Ganaste el caso de ${co.name}`, 'La Comisión no probó el abuso de posición dominante.');
+        return;
+      }
+      const fine = roundCents(num(o, 'revenue') * 0.06);
+      companyFine(s, co, fine, 'Multa por abuso de posición dominante');
+      attr(s, 'reputation', -4);
+      addLog(s, 'danger', '⚖️', `Perdiste el caso: ${co.name} paga una multa de ${money(fine)} (reputación −4).`, -fine);
+      chronicle(s, 'dilema', 'legal', `Multa a ${co.name}`, `Abuso de posición dominante: ${money(fine)}.`);
+    },
+  },
+  {
+    id: 'auditoria_fiscal', icon: 'tax', weight: 3, cooldown: 900,
+    eligible: (s) => s.progression.stage >= 5 && s.tax.filings.length >= 2,
+    create: (s) => ({ params: { year: s.tax.filings[s.tax.filings.length - 1].year, cost: usd(3500 * pi(s)) }, days: 12 }),
+    title: (_s, d) => `La agencia tributaria revisa tu declaración de ${num(d, 'year')}`,
+    body: () => 'Es una auditoría de rutina, pero piden comprobantes de ingresos, gastos deducidos e inversiones.',
+    options: [
+      { id: 'contador', label: 'Que la prepare un contador', detail: (_s, d) => `${money(num(d, 'cost'))}. Casi seguro sale todo en orden.`, blocked: (s, d) => cantPay(num(d, 'cost'))(s) },
+      { id: 'solo', label: 'Preparar todo vos', detail: (s) => `Gratis. Con tu educación financiera (${s.skills.finEdu.level}/100) puede haber errores que se multan.` },
+    ],
+    fallback: 'solo',
+    apply: (s, d, choice) => {
+      if (choice === 'contador' && !spend(s, num(d, 'cost'), 'Contador: auditoría fiscal')) return 'No alcanzó el dinero.';
+      schedule(s, d, choice, 45);
+      return 'Entregaste la documentación. El resultado llega en unas 6 semanas.';
+    },
+    resolve: (s, o, g) => {
+const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'evasion_empresa') && a.status === 'oculto');
+      const errorP = o.choice === 'contador' ? 0.05 : clamp(0.45 - s.skills.finEdu.level / 200, 0.1, 0.45);
+      // Si hubo evasión real, la auditoría deja pruebas: el caso puede abrirse por el sistema legal.
+      for (const a of hidden) a.evidence = clamp(a.evidence + 30, 0, 100);
+      if (hidden.length) addLog(s, 'danger', '🧾', 'La auditoría encontró inconsistencias en tus ingresos declarados: las pruebas en tu contra aumentaron.', undefined, 'ofertas');
+      if (!chance(g, errorP)) {
+        if (!hidden.length) addLog(s, 'success', '🧾', 'Auditoría fiscal terminada: todo en orden.');
+        return;
+      }
+      const fine = roundCents(usd(1200 * pi(s)) * (1 + s.progression.stage / 6));
+      post(s.ledger, { day: s.day, memo: 'Auditoría fiscal: ajuste y multa', cf: 'internal', tag: 'saga:dilema', lines: [{ account: 'fines', debit: fine }, { account: 'fines_payable', credit: fine }] });
+      s.legal.fines.push({ id: s.meta.nextId++, caseId: null, label: 'Auditoría fiscal', balance: fine, original: fine, dueDay: s.day + 30, installment: null, garnishing: false });
+      addLog(s, 'danger', '🧾', `La auditoría encontró errores en tu declaración: multa de ${money(fine)} (pagala en Legal).`, -fine, 'ofertas');
+    },
+  },
+  {
+    id: 'franquicia', icon: 'store', weight: 2, cooldown: 1080,
+    eligible: (s) => s.progression.stage >= 6 && myCompanies(s).some((c) => (c.sector === 'cafeteria' || c.sector === 'minimarket') && c.history.length >= 12 && c.reputation >= 60 && c.history.slice(-6).reduce((a, h) => a + h.netIncome, 0) > 0),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => (c.sector === 'cafeteria' || c.sector === 'minimarket') && c.history.length >= 12 && c.reputation >= 60 && c.history.slice(-6).reduce((a, h) => a + h.netIncome, 0) > 0));
+      const profit6 = Math.max(0, co.history.slice(-6).reduce((a, h) => a + h.netIncome, 0));
+      return { params: { companyId: co.id, company: co.name, fee: roundCents(Math.max(usd(20_000 * pi(s)), profit6) / 100) * 100, chain: pick(g, ['Grupo Andino', 'Lumen Retail', 'Casa Boreal', 'Nordhaven Foods']) }, days: 14 };
+    },
+    title: (_s, d) => `${str(d, 'chain')} quiere franquiciar ${str(d, 'company')} en el exterior`,
+    body: (_s, d) => `Pagan ${money(num(d, 'fee'))} por la licencia de tu marca y tus recetas fuera del país. Si manejan mal los locales, la marca sufre también acá.`,
+    options: [
+      { id: 'licencia', label: 'Vender la licencia', detail: (_s, d) => `Cobrás ${money(num(d, 'fee'))} ahora. 30 % de riesgo de que la marca pierda reputación en un año.` },
+      { id: 'rechazar', label: 'Cuidar la marca', detail: () => 'Nada cambia. Podés expandirte vos abriendo en otra jurisdicción.' },
+    ],
+    fallback: 'rechazar',
+    apply: (s, d, choice) => {
+      if (choice !== 'licencia') return 'Preferiste cuidar tu marca.';
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      coPost(co.ledger, { day: s.day, memo: `Licencia de marca a ${str(d, 'chain')}`, cf: 'operating', tag: 'saga:dilema', lines: [{ account: 'cash', debit: num(d, 'fee') }, { account: 'other_income', credit: num(d, 'fee') }] });
+      schedule(s, d, choice, 300);
+      chronicle(s, 'empresa', 'store', `${co.name} llega al exterior`, `${str(d, 'chain')} pagó ${money(num(d, 'fee'))} por la licencia.`);
+      return `${co.name} cobró ${money(num(d, 'fee'))} por la licencia.`;
+    },
+    resolve: (s, o, g) => {
+      const co = companyOf(s, o);
+      if (!co || !chance(g, 0.3)) return;
+      co.reputation = clamp(co.reputation - 10, 0, 100);
+      addLog(s, 'warning', '🌐', `Los locales de ${str(o, 'chain')} tuvieron problemas: la reputación de ${co.name} baja 10.`);
+    },
+  },
+  {
+    id: 'socio_capital', icon: 'invest', weight: 2, cooldown: 900,
+    eligible: (s) => myCompanies(s).some((c) => LEGAL_FORM_BY_ID[c.legalForm].limitedLiability && !c.parentId && !c.listed && c.history.length >= 12 && c.ownership >= 0.9 && valuation(s, c).value > usd(150_000 * pi(s))),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => LEGAL_FORM_BY_ID[c.legalForm].limitedLiability && !c.parentId && !c.listed && c.history.length >= 12 && c.ownership >= 0.9 && valuation(s, c).value > usd(150_000 * pi(s))));
+      const v = valuation(s, co).value;
+      const pct = 0.2;
+      const k = randRange(g, 0.9, 1.15);
+      return { params: { companyId: co.id, company: co.name, investor: randomName(g), money: roundCents((v * k * pct) / (1 - pct) / 100) * 100, k: Math.round(k * 100) }, days: 14 };
+    },
+    title: (_s, d) => `${str(d, 'investor')} quiere entrar como socio en ${str(d, 'company')}`,
+    body: (_s, d) => `Pone ${money(num(d, 'money'))} en la caja de la empresa a cambio del 20 % (valúa la empresa ${num(d, 'k') >= 100 ? `${num(d, 'k') - 100} % por encima` : `${100 - num(d, 'k')} % por debajo`} de tu valoración). Capital para crecer sin deuda, a cambio de compartir las ganancias para siempre.`,
+    options: [
+      { id: 'aceptar', label: 'Aceptar el 20 %', detail: (_s, d) => `Entran ${money(num(d, 'money'))} a la caja. Tu participación baja un 20 %.` },
+      { id: 'contraoferta', label: 'Ofrecer solo el 15 %', detail: () => 'Por el mismo dinero. Puede aceptar (50 %) o irse.' },
+      { id: 'rechazar', label: 'Rechazar', detail: () => 'La empresa sigue siendo toda tuya.' },
+    ],
+    fallback: 'rechazar',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      if (choice === 'rechazar') return 'Rechazaste al socio.';
+      const pct = choice === 'aceptar' ? 0.2 : 0.15;
+      if (choice === 'contraoferta' && !chance(g, 0.5)) return `${str(d, 'investor')} no aceptó la contraoferta y se fue.`;
+      coPost(co.ledger, { day: s.day, memo: `Aporte de capital de ${str(d, 'investor')} (${fmtPct(pct, 0)})`, cf: 'financing', tag: 'capital:partner', lines: [{ account: 'cash', debit: num(d, 'money') }, { account: 'capital', credit: num(d, 'money') }] });
+      co.ownership = co.ownership * (1 - pct);
+      co.capitalRaised = (co.capitalRaised ?? 0) + num(d, 'money');
+      revalue(s, co);
+      chronicle(s, 'empresa', 'invest', `Nuevo socio en ${co.name}`, `${str(d, 'investor')} aportó ${money(num(d, 'money'))} por el ${fmtPct(pct, 0)}.`);
+      return `${str(d, 'investor')} aportó ${money(num(d, 'money'))} por el ${fmtPct(pct, 0)} de ${co.name}.`;
+    },
+  },
+  {
+    id: 'horas_extra', icon: 'career', weight: 4, cooldown: 400,
+    eligible: (s) => !!s.career.job && s.day >= 60 && s.career.job.performance < 85,
+    create: (_s, g) => ({ params: { project: pick(g, ['el cierre del trimestre', 'un cliente nuevo muy exigente', 'la mudanza de oficinas', 'una auditoría interna']) }, days: 6 }),
+    title: () => 'Tu jefe te pide horas extra (sin pago)',
+    body: (_s, d) => `Hace falta gente para ${str(d, 'project')} durante dos meses. No se pagan, pero «se van a tener en cuenta en la evaluación».`,
+    options: [
+      { id: 'aceptar', label: 'Aceptar', detail: () => 'Desempeño +12 (más chances de ascenso en tu evaluación). Estrés +10, salud −3.' },
+      { id: 'parcial', label: 'Solo algunas tardes', detail: () => 'Desempeño +5. Estrés +4.' },
+      { id: 'no', label: 'No, tu horario es tu horario', detail: () => 'Desempeño −3. Tu vida, intacta.' },
+    ],
+    fallback: 'no',
+    apply: (s, _d, choice) => {
+      const job = s.career.job;
+      if (!job) return 'Ya no tenés ese empleo.';
+      const perf = choice === 'aceptar' ? 12 : choice === 'parcial' ? 5 : -3;
+      job.performance = clamp(job.performance + perf, 0, 100);
+      if (choice === 'aceptar') { attr(s, 'stress', 10); attr(s, 'health', -3); }
+      if (choice === 'parcial') attr(s, 'stress', 4);
+      return `Desempeño ${perf >= 0 ? '+' : ''}${perf} (ahora ${Math.round(job.performance)}/100).`;
+    },
+  },
+  {
+    id: 'gerente_escandalo', icon: 'news', weight: 2, cooldown: 900,
+    eligible: (s) => myCompanies(s).some((c) => c.employees.some((e) => e.role === 'gerente')),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.employees.some((e) => e.role === 'gerente')));
+      const m = co.employees.find((e) => e.role === 'gerente')!;
+      return { params: { companyId: co.id, company: co.name, employeeId: m.id, manager: m.name, what: pick(g, ['maltratar a un proveedor en público', 'usar la tarjeta de la empresa para gastos personales', 'un comentario ofensivo en redes']) }, days: 8 };
+    },
+    title: (_s, d) => `Escándalo: el gerente de ${str(d, 'company')}`,
+    body: (_s, d) => `Un video muestra a ${str(d, 'manager')} ${str(d, 'what')}. La prensa pregunta qué vas a hacer.`,
+    options: [
+      { id: 'despedir', label: 'Despedirlo', detail: () => 'La empresa se queda sin gerente (y paga la indemnización). Reputación de la empresa protegida.' },
+      { id: 'disculpa', label: 'Disculpa pública y capacitación', detail: (s) => `${money(usd(2500 * pi(s)))} de la empresa. Reputación de la empresa −4.` , blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < usd(2500 * pi(s)) ? 'La empresa no tiene esa caja.' : null; } },
+      { id: 'ignorar', label: 'No decir nada', detail: () => 'Reputación de la empresa −10 y tuya −3.' },
+    ],
+    fallback: 'ignorar',
+    apply: (s, d, choice) => {
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      if (choice === 'despedir') {
+        const e = co.employees.find((x) => x.id === num(d, 'employeeId'));
+        if (e) {
+          const severance = roundCents(e.wage * 2);
+          companyCost(co, Math.min(severance, co.ledger.balances.cash), `Indemnización de ${e.name}`, 'wages', s.day);
+          co.employees = co.employees.filter((x) => x !== e);
+        }
+        return `${str(d, 'manager')} ya no trabaja en ${co.name}. Contratá otro gerente si querés seguir delegando.`;
+      }
+      if (choice === 'disculpa') {
+        companyCost(co, usd(2500 * pi(s)), 'Capacitación y comunicación tras un escándalo', 'training', s.day);
+        co.reputation = clamp(co.reputation - 4, 0, 100);
+        return 'Disculpa pública: la nota pierde fuerza.';
+      }
+      co.reputation = clamp(co.reputation - 10, 0, 100);
+      attr(s, 'reputation', -3);
+      return 'El silencio se nota: reputación de la empresa −10 y tuya −3.';
+    },
+  },
+  {
+    id: 'competidor_cierra', icon: 'store', weight: 2, cooldown: 600,
+    eligible: (s) => myCompanies(s).some((c) => (s.markets[c.sector]?.competitors.filter((x) => x.active).length ?? 0) >= 3),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => (s.markets[c.sector]?.competitors.filter((x) => x.active).length ?? 0) >= 3));
+      const comps = s.markets[co.sector].competitors.filter((x) => x.active && !s.world.rivals.some((r) => x.name.includes(r.name.split(' ').pop() ?? '¬')));
+      if (!comps.length) return null;
+      const c = pick(g, comps);
+      return { params: { companyId: co.id, company: co.name, competitorId: c.id, competitor: c.name, price: usd(randRange(g, 8000, 20000) * pi(s)) }, days: 10 };
+    },
+    title: (_s, d) => `${str(d, 'competitor')} cierra y vende su cartera de clientes`,
+    body: (_s, d) => `El dueño se jubila. Ofrece a ${str(d, 'company')} su base de clientes y su marca por ${money(num(d, 'price'))}. Si no la comprás, puede quedársela un grupo rival.`,
+    options: [
+      { id: 'comprar', label: 'Comprar la cartera', detail: (_s, d) => `${money(num(d, 'price'))} de la caja de la empresa: el competidor desaparece y te conocen más.`, blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < num(d, 'price') ? 'La empresa no tiene esa caja.' : null; } },
+      { id: 'no', label: 'Dejar pasar', detail: () => 'El local cierra o lo toma otro.' },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      const m = co ? s.markets[co.sector] : undefined;
+      const c = m?.competitors.find((x) => x.id === num(d, 'competitorId'));
+      if (!co || !m || !c) return 'Ya no es posible.';
+      if (choice === 'comprar') {
+        if (!companyCost(co, num(d, 'price'), `Compra de la cartera de ${c.name}`, 'marketing', s.day)) return 'La empresa no tenía la caja.';
+        c.active = false;
+        co.awareness = clamp(co.awareness + 15, 0, 100);
+        return `${c.name} cerró y sus clientes ahora conocen ${co.name}.`;
+      }
+      if (chance(g, 0.5)) {
+        c.active = false;
+        return `${c.name} cerró.`;
+      }
+      return `Otro inversor se quedó con ${c.name}; sigue compitiendo.`;
+    },
+  },
+  {
+    id: 'ciberataque', icon: 'shield', weight: 2, cooldown: 720,
+    eligible: (s) => myCompanies(s).some((c) => c.sector === 'saas' || c.sector === 'consultora'),
+    create: (s, g) => {
+      const co = pick(g, myCompanies(s).filter((c) => c.sector === 'saas' || c.sector === 'consultora'));
+      return { params: { companyId: co.id, company: co.name, cost: usd(randRange(g, 4000, 9000) * pi(s)) }, days: 7 };
+    },
+    title: (_s, d) => `${str(d, 'company')}: una auditoría encontró una falla de seguridad`,
+    body: () => 'Todavía no la aprovechó nadie. Arreglarla bien lleva dinero y una semana de trabajo.',
+    options: [
+      { id: 'arreglar', label: 'Arreglarla ya', detail: (_s, d) => `${money(num(d, 'cost'))} de la caja de la empresa. Riesgo cero.`, blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < num(d, 'cost') ? 'La empresa no tiene esa caja.' : null; } },
+      { id: 'despues', label: 'Dejarlo para más adelante', detail: () => '35 % de riesgo de un ataque en los próximos meses: días sin vender y reputación −12.' },
+    ],
+    fallback: 'despues',
+    apply: (s, d, choice, g) => {
+      const co = companyOf(s, d);
+      if (!co) return 'La empresa ya no opera.';
+      if (choice === 'arreglar') {
+        companyCost(co, num(d, 'cost'), 'Corrección de una falla de seguridad', 'professional_fees', s.day);
+        return 'Falla corregida.';
+      }
+      if (chance(g, 0.35)) schedule(s, d, choice, randInt(g, 30, 120));
+      return 'Quedó pendiente.';
+    },
+    resolve: (s, o) => {
+      const co = companyOf(s, o);
+      if (!co) return;
+      co.suspendedUntil = Math.max(co.suspendedUntil ?? 0, s.day + 5);
+      co.reputation = clamp(co.reputation - 12, 0, 100);
+      addLog(s, 'danger', '🛡️', `Atacaron ${co.name} por la falla que quedó sin corregir: 5 días sin servicio y reputación −12.`);
+      chronicle(s, 'empresa', 'shield', `Ciberataque a ${co.name}`, 'La falla de seguridad que quedó pendiente se aprovechó.');
     },
   },
 ];
@@ -685,7 +1293,19 @@ export function dilemmasDay(s: GameState): void {
     dl.pending = dl.pending.filter((o) => o.day > s.day);
     for (const o of due) TEMPLATE_BY_ID[o.template]?.resolve?.(s, o, srng(s));
   }
-  if (s.legal.prison || s.day < dl.nextDay || dl.open.length >= MAX_OPEN) return;
+  if (s.legal.prison || dl.open.length >= MAX_OPEN) return;
+  if (s.day < dl.nextDay) {
+    // Urgencias (por ejemplo, un trabajo temporal si te quedás sin dinero): no esperan turno.
+    const urgent = TEMPLATES.find((t) => t.urgent && (dl.lastByTemplate[t.id] ?? -99999) + t.cooldown <= s.day && !dl.open.some((d) => d.template === t.id) && t.eligible(s));
+    if (!urgent) return;
+    const made = urgent.create(s, srng(s));
+    if (!made) return;
+    const d: Dilemma = { id: s.meta.nextId++, template: urgent.id, day: s.day, deadline: s.day + made.days, params: made.params, status: 'abierto' };
+    dl.open.push(d);
+    dl.lastByTemplate[urgent.id] = s.day;
+    addLog(s, 'info', '🤔', `Decisión pendiente: ${urgent.title(s, d)}. Tenés hasta el ${formatDate(d.deadline)}.`, undefined, 'decisiones');
+    return;
+  }
   const g = srng(s);
   // Un dilema cada 5–10 semanas (en promedio); los primeros meses son más tranquilos.
   dl.nextDay = s.day + randInt(g, 35, 75);
@@ -716,6 +1336,34 @@ export function dilemmasDay(s: GameState): void {
   dl.lastByTemplate[t.id] = s.day;
   addLog(s, 'info', '🤔', `Decisión pendiente: ${t.title(s, d)}. Tenés hasta el ${formatDate(d.deadline)}.`, undefined, 'decisiones');
 }
+
+/** Multa a una empresa: lo que no alcanza la caja queda como deuda vencida. */
+function companyFine(s: GameState, co: Company, amount: Cents, memo: string): void {
+  if (amount <= 0) return;
+  const paid = Math.min(amount, co.ledger.balances.cash);
+  const lines = [{ account: 'fines' as const, debit: amount }, { account: 'cash' as const, credit: paid }];
+  if (amount > paid) lines.push({ account: 'arrears' as const, credit: amount - paid } as never);
+  coPost(co.ledger, { day: s.day, memo, cf: 'operating', tag: 'saga:dilema', lines });
+}
+
+/** Abre un dilema puntual (lo usan otros sistemas: por ejemplo, una guerra de precios real). */
+export function openDilemma(s: GameState, templateId: string, params: DilemmaParams, days: number): Dilemma | null {
+  const t = TEMPLATE_BY_ID[templateId];
+  const dl = s.saga.dilemmas;
+  if (!t || s.legal.prison || dl.open.some((d) => d.template === templateId)) return null;
+  const d: Dilemma = { id: s.meta.nextId++, template: t.id, day: s.day, deadline: s.day + days, params, status: 'abierto' };
+  dl.open.push(d);
+  dl.lastByTemplate[t.id] = s.day;
+  addLog(s, 'info', '🤔', `Decisión pendiente: ${t.title(s, d)}. Tenés hasta el ${formatDate(d.deadline)}.`, undefined, 'decisiones');
+  return d;
+}
+
+registerWarDilemma((s: GameState, r: RivalGroup, companyId: number) => {
+  const co = s.companies.find((c) => c.id === companyId);
+  const war = co ? warsIn(s, co.sector)[0] : undefined;
+  if (!co || !war) return;
+  openDilemma(s, 'guerra_precios', { rivalId: r.id, rival: r.name, companyId: co.id, company: co.name, sector: co.sector, sectorName: SECTOR_BY_ID[co.sector].name, until: war.until }, 10);
+});
 
 /** Pactos rotos: abrir o comprar una empresa en el sector de una tregua vigente. */
 export function checkTruces(s: GameState): void {

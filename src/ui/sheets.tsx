@@ -31,7 +31,7 @@ import { applyUpdate, checkForUpdate, OTA_REPO, dismissUpdateNotes } from '../pe
 import { useOta } from './useOta';
 import { LogRow } from './screens/Home';
 import { CHAPTER_ICON } from './contentIcons';
-import { GoalsView, DilemmaSheet, AgendaSheet, ChronicleView, ChallengesView, ExplainView } from './screens/saga/sagaSheets';
+import { GoalsView, DilemmaSheet, AgendaSheet, ChronicleView, ChallengesView, ExplainView, LifeView } from './screens/saga/sagaSheets';
 import { playTone } from './feedback';
 
 /** Bloque de una ficha del glosario (no se muestra si el campo está vacío). */
@@ -705,6 +705,7 @@ function render(spec: SheetSpec) {
     case 'chronicle': return <ChronicleView />;
     case 'challenges': return <ChallengesView />;
     case 'explain': return <ExplainView />;
+    case 'life': return <LifeView />;
   }
 }
 
