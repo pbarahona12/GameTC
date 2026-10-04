@@ -72,9 +72,9 @@ export function sagaProgress(state: GameState, m: Metrics): void {
 }
 
 /** La interfaz celebra cada etapa nueva y los logros (y la crónica los recuerda). */
-export function onStage(state: GameState, n: number, name: string, recommended: string[]): void {
+export function onStage(state: GameState, n: number, name: string, recommended: string[], description = ''): void {
   if (!state.saga) return;
-  const text = recommended.length ? `Desde ahora se recomienda: ${recommended.join(', ')}.` : 'Seguís avanzando.';
+  const text = `${description}${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}`.trim() || 'Seguís avanzando.';
   celebrate(state, 'big', 'progress', `Etapa ${n}: ${name}`, text);
   chronicle(state, 'etapa', 'progress', `Etapa ${n}: ${name}`, text);
 }

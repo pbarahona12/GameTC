@@ -6,7 +6,9 @@ import { SECTOR_BY_ID } from '../../../content/sectors';
 import { formatDate } from '../../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../../engine/format';
 import { hashNormal } from '../../../engine/rng';
-import { Pill, Act, ScreenIntro, Empty, CardHead } from '../../components/common';
+import { Pill, Act, ScreenIntro, Empty, CardHead, Bar, InfoButton } from '../../components/common';
+import { Icon } from '../../icons';
+import { RIVAL_HEADS, cityName } from '../../../engine/saga/ranking';
 import type { PoachOffer } from '../../../engine/world/types';
 import { monogram } from '../../contentIcons';
 
@@ -36,6 +38,10 @@ export function PoachCard({ p }: { p: PoachOffer }) {
       </div>
     </div>
   );
+}
+
+function attitudeLabel(a: number): string {
+  return a >= 80 ? 'En guerra' : a >= 60 ? 'Hostil' : a >= 25 ? 'Desconfiado' : a > 5 ? 'Atento' : 'Indiferente';
 }
 
 export function RivalsScreen() {
@@ -70,6 +76,7 @@ export function RivalsScreen() {
       {s.world.rivals.map((r) => {
         // Capital estimado públicamente (±20 %): estable durante el mes.
         const est = Math.round(r.capital * (1 + Math.max(-0.2, Math.min(0.2, hashNormal(`${r.id}|${Math.floor(s.day / 30)}`) * 0.1))));
+        const head = s.saga.ranking.magnates.find((m) => m.rivalId === r.id);
         return (
           <div className="card" key={r.id}>
             <div className="card-head">
@@ -81,7 +88,13 @@ export function RivalsScreen() {
               <Pill tone={STYLE[r.style].tone}>{STYLE[r.style].label}</Pill>
             </div>
             <p className="small muted">{r.description}</p>
-            <div className="kv"><dt>Capital estimado</dt><dd>~{fmtMoney(est, { decimals: false })}</dd><dt>Controla</dt><dd>{r.holdings.length ? `${r.holdings.length} negocio${r.holdings.length > 1 ? 's' : ''} o inmueble${r.holdings.length > 1 ? 's' : ''}` : '—'}</dd></div>
+            <div className="kv"><dt>Capital estimado</dt><dd>~{fmtMoney(est, { decimals: false })}</dd><dt>Controla</dt><dd>{r.holdings.length ? `${r.holdings.length} negocio${r.holdings.length > 1 ? 's' : ''} o inmueble${r.holdings.length > 1 ? 's' : ''}` : '—'}</dd>{head && <><dt>Dueño</dt><dd>{head.name} · {RIVAL_HEADS[r.id] ? cityName(RIVAL_HEADS[r.id].city) : ''}</dd></>}</div>
+            <div className="stack" style={{ gap: 4 }}>
+              <span className="small" style={{ display: 'flex', gap: 6 }}><strong style={{ flex: 1 }}>Actitud hacia vos <InfoButton term="rencor_rivales" /></strong><span className="num">{attitudeLabel(r.attitude ?? 0)}</span></span>
+              <Bar value={(r.attitude ?? 0) / 100} tone={(r.attitude ?? 0) >= 60 ? 'loss' : (r.attitude ?? 0) >= 25 ? 'warn' : 'gain'} />
+              {r.truce && r.truce.until >= s.day && <span className="tiny gain"><Icon name="deal" size={12} /> Tregua hasta el {formatDate(r.truce.until)}: no te ataca y vos no entrás con empresas nuevas en {SECTOR_BY_ID[r.truce.sector].name.toLowerCase()}.</span>}
+              {(r.memory ?? []).slice(-3).reverse().map((m, i) => <span key={i} className="tiny muted">· {m.text} ({formatDate(m.day)})</span>)}
+            </div>
             {r.moves.length === 0 ? <span className="tiny muted">Sin movimientos todavía.</span> : (
               <div className="rows">
                 {r.moves.slice(-4).reverse().map((m, i) => (

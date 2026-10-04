@@ -24,6 +24,7 @@ import { spendable } from '../engine/finance/payments';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BootErrorScreen, SimErrorSheet } from './screens/Recovery';
 import { logIcon } from './contentIcons';
+import { Celebrations } from './screens/saga/Celebrations';
 
 const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
   { id: 'home', label: 'Inicio', icon: 'home' },
@@ -223,6 +224,7 @@ export function App() {
       <Suspense fallback={null}><SheetHost /></Suspense>
       <AbsenceReport />
       <SimErrorSheet />
+      <Celebrations />
       <Toasts />
     </div>
   );

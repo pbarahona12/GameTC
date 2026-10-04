@@ -9,7 +9,6 @@ import { Icon, IconName } from '../icons';
 import { imageScore, imageLabel } from '../../engine/lifestyle/effects';
 import { unreadNews, TOPIC_NAMES } from '../../engine/world/news';
 import { cardTier } from '../../engine/finance/cardRewards';
-import { PoachCard } from './more/Rivals';
 import { Money, BigAmount, InfoButton, Learn, LineChart, Bar } from '../components/common';
 import { JOB_BY_ID } from '../../content/jobs';
 import { fmtMoney, fmtMoneyFit } from '../../engine/format';
@@ -18,6 +17,8 @@ import { phaseInfo } from '../../engine/economy/economy';
 import { fmtPct } from '../../engine/format';
 import { logIcon, PHASE_ICON, NEWS_TOPIC_ICON } from '../contentIcons';
 import { ExportReminder } from '../components/Slots';
+import { FirstMonthCard, FirstMonthSummary, AgendaCard, StandingCard, GoalsCard } from './saga/SagaCards';
+import { firstMonthActive } from '../../engine/saga/firstMonth';
 
 export function LogRow({ l }: { l: LogItem }) {
   return (
@@ -47,14 +48,14 @@ export function Home() {
   const stage = STAGES[s.progression.stage - 1];
   const prof = professionalLevel(s);
   const job = s.career.job ? JOB_BY_ID[s.career.job.jobId] : null;
-  const tutorialOpen = !s.tutorial.dismissed;
+  // Mientras dura la guía del primer mes, la tarjeta de misiones espera (una sola guía a la vez).
+  const guiding = firstMonthActive(s);
+  const tutorialOpen = !s.tutorial.dismissed && !guiding;
   const { done: tutDone, total: tutTotal } = missionProgress(s);
   const nextStep = nextMission(s);
   const img = imageScore(s);
   const unread = unreadNews(s);
   const openNews = s.world.news.filter((n) => n.status === 'abierta').slice(-2).reverse();
-  const poach = s.world.poach.filter((p) => p.status === 'abierta');
-  const rivalOffers = s.companies.filter((c) => c.saleOffer && c.saleOffer.expires >= s.day && c.saleOffer.from);
 
   const ph = phaseInfo(s);
   const nwLabels = [...hist.map((h) => formatMonth(h.day)), 'Hoy'];
@@ -86,6 +87,8 @@ export function Home() {
         </div>
       )}
       <ExportReminder />
+      <FirstMonthCard />
+      <FirstMonthSummary />
       {tutorialOpen && nextStep && (
         <div className="card next-step">
           <div className="card-head">
@@ -140,17 +143,12 @@ export function Home() {
         </button>
       </div>
 
-      {(poach.length > 0 || rivalOffers.length > 0) && (
-        <div className="stack" style={{ gap: 8 }}>
-          {poach.slice(0, 2).map((p) => <PoachCard key={p.id} p={p} />)}
-          {rivalOffers.map((c) => (
-            <button key={c.id} className="alert opportunity" style={{ textAlign: 'left' }} onClick={() => navStore.go('business', `co:${c.id}:manage`)}>
-              <span className="stripe" />
-              <div className="small" style={{ flex: 1 }}><strong>{c.saleOffer!.from} ofrece {fmtMoney(c.saleOffer!.price, { decimals: false })} por {c.name}.</strong> Vence el {formatDate(c.saleOffer!.expires)}.</div>
-            </button>
-          ))}
-        </div>
-      )}
+      <AgendaCard />
+
+      <div className="saga-pair">
+        <StandingCard />
+        <GoalsCard />
+      </div>
 
       {insights.length > 0 && (
         <div className="stack" style={{ gap: 8 }}>

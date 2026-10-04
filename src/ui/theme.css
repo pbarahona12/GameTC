@@ -650,3 +650,103 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
 /* Red de seguridad: ningún número empuja la pantalla hacia los costados. */
 .num, .amt, .kv dd { overflow-wrap: anywhere; }
 .row .amt { white-space: normal; }
+
+/* ============================================================
+   1.4 · La historia del magnate
+   ============================================================ */
+/* Primer mes */
+.first-month { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+.fm-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; }
+.fm-steps li { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.fm-steps li.done { color: var(--gain); }
+.fm-steps li.now { color: var(--text); font-weight: 700; }
+.fm-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); display: inline-grid; place-items: center; flex: none; }
+.fm-steps li.done .fm-dot { background: var(--gain); border-color: var(--gain); color: #fff; }
+.fm-steps li.now .fm-dot { border-color: var(--accent); }
+.first-summary .fs-row { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+
+/* Agenda */
+.agenda-list { display: flex; flex-direction: column; gap: 6px; }
+.agenda-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 9px 10px; min-height: 48px; border-left-width: 4px; }
+.agenda-row.tone-danger { border-left-color: var(--loss); }
+.agenda-row.tone-warning { border-left-color: var(--warn); }
+.agenda-row.tone-opportunity { border-left-color: var(--gain); }
+.agenda-row.tone-info { border-left-color: var(--info); }
+.agenda-ic { width: 30px; height: 30px; border-radius: 9px; background: var(--surface-2); display: grid; place-items: center; flex: none; color: var(--muted); }
+.agenda-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.agenda-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.agenda-due { white-space: nowrap; color: var(--muted); }
+.agenda-due.soon { color: var(--loss); font-weight: 700; }
+
+/* Tu lugar en el mundo y metas */
+.saga-pair { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.card.standing, .card.goals-cta { flex-direction: row; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; }
+.standing-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.standing-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.standing-rank { font-size: 17px; font-weight: 800; }
+.goals-card { gap: 10px; }
+.goal-mini { display: flex; flex-direction: column; gap: 4px; }
+.goal-title { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.standing-hero .sh-rank { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.standing-hero .sh-rank strong { font-size: 40px; line-height: 1; color: var(--accent); }
+
+/* Listas de fortunas */
+.rank-row { width: 100%; text-align: left; background: transparent; border-left: 0; border-right: 0; border-top: 0; font: inherit; color: inherit; }
+.rank-row .rank-n { width: 30px; text-align: right; font-weight: 700; color: var(--muted); flex: none; }
+.rank-row.me { background: var(--accent-soft); border-radius: 10px; padding-inline: 6px; }
+.rank-row.me .rank-n { color: var(--accent); }
+.rank-row.rival .title { color: var(--text); }
+.rank-detail { padding: 6px 4px 10px 40px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+
+/* Decisiones con plazo */
+.dilemma-head { display: flex; gap: 12px; align-items: center; }
+.dilemma-ic { width: 52px; height: 52px; border-radius: 16px; background: var(--warn-soft); color: var(--warn); display: grid; place-items: center; flex: none; }
+.dilemma-title { font-size: 18px; font-weight: 800; line-height: 1.2; }
+.dilemma-opt { width: 100%; }
+.dilemma-opt:not(:disabled):hover { border-color: var(--accent); }
+.dilemma-opt.blocked { opacity: 0.6; }
+
+/* Crónica */
+.chron-year { display: flex; flex-direction: column; gap: 6px; }
+.chron-y { font-size: 20px; font-weight: 700; color: var(--accent); }
+.chron-list { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.chron-item { position: relative; display: flex; gap: 10px; }
+.chron-dot { position: absolute; left: -27px; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+.chron-item.k-ranking .chron-dot, .chron-item.k-meta .chron-dot, .chron-item.k-etapa .chron-dot { border-color: var(--accent); color: var(--accent); }
+.chron-item.k-anio .chron-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chron-item.k-crisis .chron-dot, .chron-item.k-rival .chron-dot { border-color: var(--warn); color: var(--warn); }
+.chron-body { display: flex; flex-direction: column; gap: 2px; padding-left: 4px; }
+
+/* Festejos */
+.celebrate-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(8, 10, 14, 0.62); display: grid; place-items: center; padding: 24px; animation: fade 0.2s ease; }
+.celebrate-card { position: relative; overflow: hidden; width: 100%; max-width: 380px; background: var(--surface); border-radius: 22px; padding: 28px 22px 20px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.celebrate-card h2 { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+.celebrate-card .btn-row { width: 100%; margin-top: 6px; }
+.celebrate-ic { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 12%, transparent); animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 6%, transparent); } }
+.confetti { position: absolute; inset: 0; pointer-events: none; }
+.confetti i { position: absolute; top: -12px; left: calc(var(--i) * 5.6%); width: 7px; height: 12px; border-radius: 2px; background: var(--accent); opacity: 0.85; animation: confetti 1.6s calc(var(--i) * 0.05s) ease-in forwards; }
+.confetti i:nth-child(3n) { background: var(--gain); }
+.confetti i:nth-child(4n) { background: var(--info); width: 9px; height: 9px; border-radius: 50%; }
+@keyframes confetti { from { transform: translateY(0) rotate(0); opacity: 1; } to { transform: translateY(420px) rotate(540deg); opacity: 0; } }
+.celebrate-banner { position: fixed; left: 50%; transform: translateX(-50%); top: calc(var(--safe-top) + 64px); z-index: 70; width: calc(100% - 32px); max-width: 520px; display: flex; gap: 10px; align-items: center; text-align: left; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--surface); color: var(--text); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); animation: drop 0.3s ease; font: inherit; }
+@keyframes drop { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.cb-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.cb-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+/* La cifra principal cuenta y se ilumina al cambiar mucho */
+.hero .big.flash-up { color: var(--gain); transition: color 0.2s; }
+.hero .big.flash-down { color: var(--loss); transition: color 0.2s; }
+.hero .big { transition: color 0.6s ease; }
+
+/* Escritorio: dos columnas para lo que se compara de un vistazo */
+@media (min-width: 720px) {
+  .saga-pair { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .app { max-width: 760px; }
+  .bottomnav .inner { max-width: 760px; }
+  .area-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (min-width: 420px) { .choice-grid.two { grid-template-columns: 1fr 1fr; } }
+.choice .hook { color: var(--accent); font-weight: 600; font-style: italic; }

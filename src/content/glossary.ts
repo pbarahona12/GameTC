@@ -4,6 +4,7 @@ import { GLOSSARY_WORLD } from './glossaryWorld';
 import { GLOSSARY_ACTIONS3 } from './glossaryActions3';
 import { GLOSSARY_V11 } from './glossaryV11';
 import { GLOSSARY_V12 } from './glossaryV12';
+import { GLOSSARY_V14 } from './glossaryV14';
 /**
  * Glosario financiero y ayuda contextual.
  * Cada entrada sigue la estructura pedida: definición sencilla, para qué sirve,
@@ -513,6 +514,6 @@ const BASE_GLOSSARY: GlossaryEntry[] = [
   },
 ];
 
-export const GLOSSARY: GlossaryEntry[] = [...BASE_GLOSSARY, ...GLOSSARY_BUSINESS, ...GLOSSARY_INVEST, ...GLOSSARY_WORLD, ...GLOSSARY_ACTIONS3, ...GLOSSARY_V11, ...GLOSSARY_V12];
+export const GLOSSARY: GlossaryEntry[] = [...BASE_GLOSSARY, ...GLOSSARY_BUSINESS, ...GLOSSARY_INVEST, ...GLOSSARY_WORLD, ...GLOSSARY_ACTIONS3, ...GLOSSARY_V11, ...GLOSSARY_V12, ...GLOSSARY_V14];
 
 export const GLOSSARY_BY_ID: Record<string, GlossaryEntry> = Object.fromEntries(GLOSSARY.map((g) => [g.id, g]));

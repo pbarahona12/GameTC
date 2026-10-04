@@ -159,7 +159,7 @@ export function updateProgression(state: GameState): void {
     const st = STAGES[current - 1];
     const recommended = sectionsFromStage(current).map((g) => g.name);
     addLog(state, 'success', '🏆', `Nueva etapa: ${st.name}.${recommended.length ? ` Desde ahora se recomienda: ${recommended.join(', ')}.` : ''}`, undefined, 'logros');
-    onStage(state, current, st.name, recommended);
+    onStage(state, current, st.name, recommended, st.description);
   }
   rewardMissions(state);
   sagaProgress(state, m);

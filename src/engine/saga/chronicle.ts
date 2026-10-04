@@ -23,7 +23,8 @@ export function chronicle(state: GameState, kind: ChronicleKind, icon: string, t
   } catch {
     netWorth = undefined;
   }
-  const e: ChronicleEntry = { id: state.meta.nextId++, day: state.day, kind, icon, title, text, netWorth };
+  const cap = title ? title[0].toUpperCase() + title.slice(1) : title;
+  const e: ChronicleEntry = { id: state.meta.nextId++, day: state.day, kind, icon, title: cap, text, netWorth };
   const list = state.saga.chronicle;
   list.push(e);
   if (list.length > MAX_CHRONICLE) {

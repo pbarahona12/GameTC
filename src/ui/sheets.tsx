@@ -31,6 +31,8 @@ import { applyUpdate, checkForUpdate, OTA_REPO, dismissUpdateNotes } from '../pe
 import { useOta } from './useOta';
 import { LogRow } from './screens/Home';
 import { CHAPTER_ICON } from './contentIcons';
+import { GoalsView, DilemmaSheet, AgendaSheet, ChronicleView, ChallengesView } from './screens/saga/sagaSheets';
+import { playTone } from './feedback';
 
 /** Bloque de una ficha del glosario (no se muestra si el campo está vacío). */
 function TermBlock({ t, v }: { t: string; v?: string }) {
@@ -369,6 +371,7 @@ function SettingsView() {
           <Switch checked={st.showAllSections} onChange={() => store.updateSettings({ showAllSections: !st.showAllSections })} label="Mostrar todas las secciones desde el inicio" sub="Sin avisos de «recomendado desde la etapa…». Nada está bloqueado de todos modos." term="secciones_recomendadas" />
           <div className="btn-row">
             <button className="btn sm" onClick={() => { store.run((x) => { x.tutorial.dismissed = false; }, { toast: false }); navStore.open({ kind: 'tutorial' }); }}><Icon name="missions" size={15} /> Ver misiones</button>
+            {s.saga.firstMonth.dismissed && s.day <= 365 && <button className="btn sm" onClick={() => store.run((x) => { x.saga.firstMonth.dismissed = false; }, { toast: false })}><Icon name="rocket" size={15} /> Ver la guía del primer mes</button>}
           </div>
           <ConfirmButton label="Nueva partida" className="btn sm" disabled={!store.canCreateSlot()} confirmLabel="Empezar otra partida" detail={<>Vas a la pantalla de partida nueva. «{s.player.name}» se guarda antes y queda en «Tus partidas» para volver cuando quieras.</>} onConfirm={() => { navStore.closeAll(); void store.requestNewGame(); }} />
           <p className="tiny muted">{store.canCreateSlot() ? 'La partida actual queda guardada: podés volver a ella desde «Tus partidas».' : 'Ya tenés el máximo de partidas: borrá una en «Guardado y copias» para empezar otra.'}</p>
@@ -377,6 +380,8 @@ function SettingsView() {
       <SettingsSection id="look" icon="palette" title="Apariencia" summary={`${st.theme === 'system' ? 'Tema del sistema' : st.theme === 'dark' ? 'Oscuro' : 'Claro'} · aprendizaje ${st.learningMode ? 'activado' : 'desactivado'}`} open={open === 'look'} onToggle={toggle}>
         <Seg items={[{ id: 'system', label: 'Sistema' }, { id: 'light', label: 'Claro' }, { id: 'dark', label: 'Oscuro' }]} value={st.theme} onChange={(v) => store.updateSettings({ theme: v })} />
         <Switch checked={st.learningMode} onChange={() => store.updateSettings({ learningMode: !st.learningMode })} label="Modo aprendizaje" sub="Explicaciones cortas en cada pantalla." />
+        <Switch checked={st.sound} onChange={() => { store.updateSettings({ sound: !st.sound }); if (!st.sound) setTimeout(() => playTone('success'), 50); }} label="Sonidos" sub="Tonos cortos al festejar logros, metas y puestos en la lista." />
+        <Switch checked={st.haptics} onChange={() => store.updateSettings({ haptics: !st.haptics })} label="Vibración" sub="Una vibración breve en los festejos (en teléfonos)." />
       </SettingsSection>
       <SettingsSection id="access" icon="access" title="Accesibilidad" summary={`Texto ${st.fontScale === 1 ? 'normal' : st.fontScale > 1 ? 'grande' : 'chico'} · densidad ${st.density}`} open={open === 'access'} onToggle={toggle}>
         <span className="small">Tamaño del texto <InfoButton term="accion_accesibilidad" /></span>
@@ -680,6 +685,7 @@ function LegalView({ initial }: { initial: 'privacy' | 'terms' | 'licenses' }) {
   );
 }
 
+
 function render(spec: SheetSpec) {
   switch (spec.kind) {
     case 'term': return <TermView key={spec.id} id={spec.id} />;
@@ -693,6 +699,11 @@ function render(spec: SheetSpec) {
     case 'whatsnew': return <WhatsNewSheet />;
     case 'legal': return <LegalView initial={spec.tab ?? 'privacy'} />;
     case 'rewards': return <RewardsView />;
+    case 'goals': return <GoalsView />;
+    case 'dilemma': return <DilemmaSheet key={spec.id} id={spec.id} />;
+    case 'agenda': return <AgendaSheet />;
+    case 'chronicle': return <ChronicleView />;
+    case 'challenges': return <ChallengesView />;
   }
 }
 
