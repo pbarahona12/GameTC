@@ -221,7 +221,7 @@ export function LegalScreen() {
                   <div className="small">{a.label}</div>
                   <div className="tiny faint">{formatDate(a.day)} · {jurisdictionName(a.jurisdiction)} · pruebas {Math.round(a.evidence)}/100 · {a.witnesses} testigo(s) · prescribe {formatDate(a.statuteDay)}</div>
                 </div>
-                {(a.kind === 'evasion' || a.kind === 'evasion_empresa') && <ConfirmButton label="Regularizar" help="accion_regularizar" className="btn sm" detail="Se genera una deuda fiscal con recargo e intereses; el acto queda cerrado sin causa penal." onConfirm={() => store.run((x) => voluntaryDisclosure(x, a.id))} />}
+                {(a.kind === 'evasion' || a.kind === 'evasion_empresa') && <ConfirmButton label="Regularizar" help="accion_regularizar" className="btn sm" detail={`Debés ${fmtMoney(Math.round(a.benefit * (1.2 + Math.max(0, (s.day - a.day) / 365) * 0.06)))} (impuesto omitido + 20 % + intereses), en 60 días. El acto queda cerrado sin causa penal.`} onConfirm={() => store.run((x) => voluntaryDisclosure(x, a.id))} />}
               </div>
             ))}
           </div>

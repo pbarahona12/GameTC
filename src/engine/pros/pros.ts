@@ -50,7 +50,7 @@ export const PRO_INFO: Record<ProKind, { name: string; icon: string; baseFee: nu
   gerente: { name: 'Gerente profesional', icon: '👔', baseFee: 2600, feeUnit: 'de sueldo mensual', specialties: ['Gastronomía', 'Comercio', 'Manufactura', 'Tecnología', 'Servicios'], what: 'Administra una empresa: supervisa empleados, repone inventario y fija precios con su propia habilidad.' },
 };
 
-const SPECIALTY_SECTOR: Record<string, string> = { Gastronomía: 'cafeteria', Comercio: 'minimarket', Manufactura: 'muebles', Tecnología: 'saas', Servicios: 'consultora' };
+export const SPECIALTY_SECTOR: Record<string, string> = { Gastronomía: 'cafeteria', Comercio: 'minimarket', Manufactura: 'muebles', Tecnología: 'saas', Servicios: 'consultora' };
 
 function makePro(state: GameState, kind: ProKind): Professional {
   const info = PRO_INFO[kind];

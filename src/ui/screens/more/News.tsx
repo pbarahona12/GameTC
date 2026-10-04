@@ -74,7 +74,7 @@ function NewsCard({ n }: { n: NewsItem }) {
 export function NewsScreen() {
   const s = useGame();
   useUI();
-  const [filter, setFilter] = useState<'abiertas' | 'todas' | 'hechos'>('abiertas');
+  const [filter, setFilter] = useState<'abiertas' | 'todas' | 'hechos'>('todas');
   const [topic, setTopic] = useState<NewsTopic | 'todos'>('todos');
   useEffect(() => {
     store.run((x) => markNewsRead(x), { toast: false });
@@ -93,7 +93,7 @@ export function NewsScreen() {
       </div>
       <Seg items={[{ id: 'abiertas', label: 'Abiertas' }, { id: 'todas', label: 'Todas' }, { id: 'hechos', label: 'Resueltas' }]} value={filter} onChange={setFilter} />
       <div className="chips">
-        {(['todos', 'economia', 'bolsa', 'empresas', 'inmuebles', 'proveedores'] as Array<NewsTopic | 'todos'>).map((t) => (
+        {(['todos', 'economia', 'bolsa', 'empresas', 'inmuebles', 'proveedores', 'fortunas'] as Array<NewsTopic | 'todos'>).map((t) => (
           <button key={t} className={topic === t ? 'on' : ''} aria-pressed={topic === t} onClick={() => setTopic(t)}>{t === 'todos' ? 'Todos los temas' : TOPIC_NAMES[t]}</button>
         ))}
       </div>

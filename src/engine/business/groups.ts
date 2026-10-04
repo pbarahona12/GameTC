@@ -359,6 +359,7 @@ export function canJoinGroup(co: Company): string | null {
   if (isHolding(co)) return 'Una holding no puede ser subsidiaria de otra en este juego.';
   if (co.parentId) return 'Ya pertenece a un grupo.';
   if (!isOpen(co)) return 'La empresa no está operando.';
+  if (co.listed) return 'Una empresa que cotiza en bolsa no puede pasar a una holding.';
   return null;
 }
 

@@ -1,3 +1,4 @@
+import { fmtMoneyFit } from '../format';
 import type { GameState } from '../state';
 import type { Metrics } from '../reports/metrics';
 import { usd, clamp } from '../money';
@@ -57,12 +58,9 @@ function rankGoal(t: number): GoalDef['check'] {
   };
 }
 
+/** Montos cortos con el mismo formato que el resto del juego ($250.0K, $1.20B). */
 function fmtShort(c: number): string {
-  const v = c / 100;
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)} mil M`;
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)} M`;
-  if (v >= 1e3) return `$${Math.round(v / 1e3)} mil`;
-  return `$${Math.round(v)}`;
+  return fmtMoneyFit(c, { decimals: false, max: 9 });
 }
 
 const RIVAL_GOALS: GoalDef[] = Object.entries(RIVAL_HEADS).map(([rivalId, h]) => ({
@@ -101,7 +99,7 @@ export const GOALS: GoalDef[] = [
     check: (s, m) => {
       const target = usd(250_000 * pi(s));
       const debtFree = m.debt === 0 && m.mortgages === 0 && s.ledger.balances.credit_card === 0;
-      return { progress: debtFree ? pct(m.netWorth / target) : pct(m.netWorth / target) * 0.6, done: debtFree && m.netWorth >= target, label: debtFree ? `Sin deudas · ${Math.round(pct(m.netWorth / target) * 100)} % del patrimonio` : 'Todavía tenés deudas' };
+      return { progress: debtFree ? pct(m.netWorth / target) : pct(m.netWorth / target) * 0.6, done: debtFree && m.netWorth >= target, label: debtFree ? `Sin deudas · ${fmtShort(m.netWorth)} de ${fmtShort(target)}` : 'Todavía tenés deudas (préstamos, hipotecas o tarjeta)' };
     },
   },
   {
@@ -211,11 +209,13 @@ export const GOALS: GoalDef[] = [
   },
   {
     id: 'familia', title: 'Formar una familia', icon: 'sparkles', category: 'vida', stage: 2,
-    description: 'Tener pareja y al menos un hijo. Las propuestas llegan como decisiones con los años.',
+    description: 'Tener pareja y al menos un hijo. La propuesta de pareja llega como una decisión entre los 26 y los 42 años; los hijos, hasta los 45.',
     check: (s) => {
       const l = s.saga.life;
+      const age = l ? (s.day - l.birthDay) / 365.25 : 0;
       const done = !!l?.partner && (l?.children.length ?? 0) > 0;
-      return { progress: done ? 1 : l?.partner ? 0.5 : 0, done, label: done ? 'Tu familia crece' : l?.partner ? `En pareja con ${l.partner}` : 'Todavía sin pareja' };
+      const failed = !done && ((!l?.partner && age > 42) || age > 45);
+      return { progress: done ? 1 : l?.partner ? 0.5 : 0, done, failed, label: done ? 'Tu familia crece' : failed ? 'Ya no es posible en esta generación' : l?.partner ? `En pareja con ${l.partner}` : 'Todavía sin pareja' };
     },
   },
   {
@@ -247,12 +247,12 @@ export const GOALS: GoalDef[] = [
   },
   {
     id: 'millon_rapido', title: 'Tu primer millón en 10 años', icon: 'rocket', category: 'riqueza', stage: 1, styles: ['emprendedor', 'inversionista', 'libre'],
-    description: 'Llegar a $1,000,000 de patrimonio antes de cumplir 10 años de partida.',
+    description: 'Llegar a $1,000,000 de patrimonio (a precios de hoy) antes de cumplir 10 años de partida.',
     check: (s, m) => {
-      const at = s.progression.achievements.nw_1m;
-      const done = at !== undefined && at <= 3650;
-      const failed = !done && s.day > 3650;
-      return { progress: done ? 1 : logPct(Math.max(1, m.netWorth), usd(1_000_000)), done, failed, label: done ? 'Lo lograste' : failed ? 'Pasaron los 10 años' : `Quedan ${Math.max(0, Math.ceil((3650 - s.day) / 365))} años` };
+      const target = usd(1_000_000 * pi(s));
+      const done = s.progression.achievements.fast_million !== undefined || (s.day < 3650 && m.netWorth >= target);
+      const failed = !done && s.day >= 3650;
+      return { progress: done ? 1 : logPct(Math.max(1, m.netWorth), target), done, failed, label: done ? 'Lo lograste' : failed ? 'Pasaron los 10 años' : `Quedan ${Math.max(0, Math.ceil((3650 - s.day) / 365))} años` };
     },
   },
 ];

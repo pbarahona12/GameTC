@@ -71,7 +71,7 @@ export function quoteCoLoan(state: GameState, co: Company, bank: BizBank, amount
   if (co.status === 'insolvent' || co.ledger.balances.arrears > 0) reasons.push('La empresa tiene deudas vencidas.');
   if (state.day - co.foundedDay < bank.minDaysOpen) reasons.push(`Se exigen ${bank.minDaysOpen} días de antigüedad.`);
   if (term > bank.maxTerm) reasons.push(`Plazo máximo: ${bank.maxTerm} meses.`);
-  if (amount < px(state, 1000)) reasons.push('Monto mínimo: $1,000.');
+  if (amount < px(state, 1000)) reasons.push(`Monto mínimo: ${fmtMoney(px(state, 1000))}.`);
   if (amount > maxAmount) reasons.push(`Monto máximo según ${bank.requiresGuarantee ? 'garantías' : 'ganancias (3 × EBITDA anual)'}: ${fmtMoney(maxAmount)}.`);
   if (!bank.requiresGuarantee && (dscr === null || dscr < 1.25)) reasons.push('La empresa no genera suficiente EBITDA para cubrir 1.25 veces las cuotas.');
   if (bank.requiresGuarantee && state.credit.score < 640) reasons.push(`Tu puntaje personal (${state.credit.score}) está por debajo de 640, requerido para garantizar.`);
@@ -104,7 +104,8 @@ export function processCoLoans(state: GameState, co: Company): void {
   for (const l of co.loans) {
     if (l.balance <= 0 || l.nextDueDay !== state.day) continue;
     const interest = roundCents((l.balance * l.apr) / 12);
-    const due = l.bullet ? (l.paymentsMade + 1 >= l.termMonths ? l.balance + interest : interest) : Math.max(interest, Math.min(l.payment, l.balance + interest));
+    // Bonos: el vencimiento llega en su fecha aunque se haya atrasado algún cupón.
+    const due = l.bullet ? (l.paymentsMade + l.missed + 1 >= l.termMonths ? l.balance + interest : interest) : Math.max(interest, Math.min(l.payment, l.balance + interest));
     const principal = due - interest;
     if (co.ledger.balances.cash >= due) {
       coPost(co.ledger, { day: state.day, memo: l.bullet ? (principal > 0 ? 'Vencimiento de bonos (capital e intereses)' : 'Cupón de bonos') : 'Cuota de préstamo', cf: 'financing', tag: 'coloan:payment', lines: [{ account: 'loans', debit: principal }, { account: 'interest', debit: interest }, { account: 'cash', credit: due }] });

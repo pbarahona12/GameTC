@@ -102,7 +102,8 @@ export function coBalanceSheet(co: Company): CoBalanceSheet {
   }
   const equity = totalAssets - totalLiabilities;
   const currentAssets = b.cash + b.receivables + b.inventory + b.in_transit;
-  const loanCurrent = co.loans.reduce((s, l) => s + Math.min(l.balance, l.payment * 12), 0);
+  // Deuda de corto plazo: las cuotas de 12 meses (y un bono entero si vence dentro de un año).
+  const loanCurrent = co.loans.reduce((s, l) => s + (l.bullet ? (l.termMonths - l.paymentsMade - l.missed <= 12 ? l.balance : 0) : Math.min(l.balance, l.payment * 12)), 0);
   const currentLiab = b.payables + b.arrears + b.taxes_payable + loanCurrent;
   return {
     assets, liabilities, totalAssets, totalLiabilities, capital: b.capital, distributions: b.distributions, retained, equity,

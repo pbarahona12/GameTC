@@ -1,3 +1,6 @@
+import { balanceSheet } from '../../../engine/reports/statements';
+import type { GameState } from '../../../engine/state';
+import { JURISDICTION_BY_ID } from '../../../content/jurisdictions';
 import { ageOf } from '../../../engine/saga/life';
 import { useState } from 'react';
 import { useGame, useDerived } from '../../store';
@@ -19,6 +22,8 @@ type View = JurisdictionId | 'global';
  * LISTAS DE FORTUNAS (1.4): las 100 personas más ricas de cada ciudad y el
  * ranking global. Las posiciones se mueven cada mes con el mercado de la partida.
  */
+const balanceSheetNw = (s: GameState) => balanceSheet(s).netWorth;
+
 export function RankingScreen() {
   const s = useGame();
   const pos = useDerived(positionOf);
@@ -39,14 +44,14 @@ export function RankingScreen() {
           <InfoButton term="ranking_fortunas" />
         </div>
         <div className="sh-rank">
-          <strong className="num">{pos.exact ? pos.rank : `~${fmtNumber(pos.rank)}`}</strong>
-          <span className="small muted">{pos.exact ? `de las ${CITY_SIZE} fortunas más grandes` : `de ${fmtNumber(CITY_BY_ID[pos.city].adults)} adultos (estimado)`}</span>
+          <strong className="num">{balanceSheetNw(s) <= 0 ? '—' : pos.exact ? pos.rank : `~${fmtNumber(pos.rank)}`}</strong>
+          <span className="small muted">{balanceSheetNw(s) <= 0 ? 'Sin puesto todavía: tu patrimonio no es positivo' : pos.exact ? `de las ${CITY_SIZE} fortunas más grandes` : `de ${fmtNumber(CITY_BY_ID[pos.city].adults)} adultos (estimado)`}</span>
         </div>
         {!pos.exact && <p className="small">Para entrar en la lista hacen falta <strong>{fmtMoneyFit(pos.floor, { decimals: false })}</strong> (el puesto 100 de hoy). Las fortunas también crecen: es una carrera.</p>}
         {pos.exact && pos.ahead && <p className="small">Adelante: <strong>{pos.ahead.name}</strong> con {fmtMoneyFit(pos.ahead.wealth, { decimals: false })}.{pos.behind ? <> Atrás: {pos.behind.name} con {fmtMoneyFit(pos.behind.wealth, { decimals: false })}.</> : null}</p>}
-        {pos.exact && pos.rank === 1 && <p className="small">Sos el número 1{rk.reignMonths ? ` hace ${rk.reignMonths} mes${rk.reignMonths > 1 ? 'es' : ''}` : ''}. Quien está segundo puede lanzar una ofensiva: si es un grupo rival, se va a notar en tus negocios.</p>}
+        {pos.exact && pos.rank === 1 && <p className="small">Sos el número 1{rk.reignMonths ? ` desde hace ${rk.reignMonths} mes${rk.reignMonths > 1 ? 'es' : ''}` : ''}. Quien está segundo puede lanzar una ofensiva: si es un grupo rival, se va a notar en tus negocios.</p>}
         <div className="btn-row">
-          <span className="tiny muted" style={{ flex: 1 }}>{pos.globalRank ? `Puesto ${pos.globalRank} del mundo.` : 'Todavía fuera del top 100 mundial.'} Tu ciudad es la de tu residencia fiscal.</span>
+          <span className="tiny muted" style={{ flex: 1 }}>{pos.globalRank ? `Puesto ${pos.globalRank} del mundo.` : 'Todavía fuera del top 100 mundial.'} Tu ciudad es la de tu residencia fiscal ({JURISDICTION_BY_ID[s.tax.jurisdiction].name}).</span>
           <button className="btn sm ghost" onClick={() => navStore.open({ kind: 'goals' })}>Metas</button>
         </div>
         {hist.length >= 2 && (
@@ -55,8 +60,8 @@ export function RankingScreen() {
       </div>
 
       <Seg items={items} value={view} onChange={(v) => { setView(v); setOpen(null); }} />
-      {view !== 'global' && <p className="tiny muted">{CITY_BY_ID[view].blurb}</p>}
-      {view === 'global' && <p className="tiny muted">Las 400 fortunas de las cuatro ciudades, juntas.</p>}
+      {view !== 'global' && <p className="tiny muted">{CITY_BY_ID[view].name} es la ciudad principal de {JURISDICTION_BY_ID[view].name}. {CITY_BY_ID[view].blurb}</p>}
+      {view === 'global' && <p className="tiny muted">Las 100 fortunas más grandes de las cuatro ciudades, juntas.</p>}
 
       <div className="card rank-card" style={{ paddingBlock: 4 }}>
         <div className="rows">

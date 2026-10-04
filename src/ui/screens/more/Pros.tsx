@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGame, useUI, store } from '../../store';
 import { CardHead, InfoButton, Learn, Pill, Act, ConfirmButton, Empty } from '../../components/common';
-import { PRO_INFO, hirePro, firePro, commissionAudit, prosSummary, proMarketByKind, nextRefresh, describeQuality, feeLabel, projectPortfolio, trainPro, trainingCost, TRAINING_COOLDOWN_DAYS } from '../../../engine/pros/pros';
+import { PRO_INFO, hirePro, firePro, commissionAudit, prosSummary, proMarketByKind, nextRefresh, describeQuality, feeLabel, projectPortfolio, trainPro, trainingCost, TRAINING_COOLDOWN_DAYS, SPECIALTY_SECTOR } from '../../../engine/pros/pros';
 import { navStore } from '../../nav';
 import { isOpen } from '../../../engine/business/common';
 import { fmtMoney, fmtPct } from '../../../engine/format';
@@ -43,7 +43,11 @@ function ProRow({ p }: { p: Professional }) {
           {p.kind === 'auditor' ? (
             <ConfirmButton label="Encargar auditoría" help="accion_auditoria" className="btn sm" detail={`La empresa paga ${fmtMoney(p.fee)}. Una auditoría limpia mejora la valoración y el crédito durante 12 meses; si hay irregularidades, el auditor debe informarlas.`} onConfirm={() => store.run((x) => commissionAudit(x, Number(scope), p.id))} />
           ) : (
-            <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" onClick={() => store.run((x) => hirePro(x, p.id, scopeVal))} />
+            p.kind === 'gerente' && typeof scopeVal === 'number' ? (() => {
+              const co = s.companies.find((c) => c.id === scopeVal);
+              const fits = !!co && SPECIALTY_SECTOR[p.specialty] === co.sector;
+              return <ConfirmButton label="Contratar" help="accion_contratar_pro" className="btn sm primary" confirmLabel="Contratar gerente" detail={<>La empresa paga {fmtMoney(Math.round(p.fee * 0.5))} de búsqueda y contratación y después {fmtMoney(p.fee)} de sueldo por mes. {fits ? 'Es de su especialidad: rinde con toda su habilidad.' : `Fuera de su especialidad rinde un 15 % menos (habilidad efectiva ≈ ${Math.round(p.quality * 0.85)}).`}</>} onConfirm={() => store.run((x) => hirePro(x, p.id, scopeVal))} />;
+            })() : <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" onClick={() => store.run((x) => hirePro(x, p.id, scopeVal))} />
           )}
         </>
       )}

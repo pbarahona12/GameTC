@@ -3,7 +3,7 @@ import { useGame, store } from '../../store';
 import type { Company } from '../../../engine/business/types';
 import { ipoBlocker, ipoPremium, goPublic, marketCap, buyBackShares, IPO_FEE, bondBlocker, bondCapacity, bondRate, issueBonds, mergeBlocker, mergeCost, mergeCompanies } from '../../../engine/saga/corporate';
 import { execStatus, hireExecTeam, dismissExecTeam } from '../../../engine/saga/executive';
-import { dealsOf, possibleDeals, signDeal, endDeal, DEAL_INFO } from '../../../engine/saga/integration';
+import { dealsOf, possibleDeals, signDeal, endDeal, DEAL_INFO, dealEstimate } from '../../../engine/saga/integration';
 import { valuation, coMetrics } from '../../../engine/business/reports';
 import { daysToBankruptcy } from '../../../engine/business/finance';
 import { isOpen } from '../../../engine/business/common';
@@ -48,7 +48,8 @@ export function IpoCard({ co }: { co: Company }) {
       ) : (
         <>
           <p className="small">Vendés acciones nuevas al público: el dinero entra a la caja de la empresa. En esta fase del ciclo los inversores pagan {ipoPremium(s) >= 1 ? `un ${fmtPct(ipoPremium(s) - 1, 0)} más` : `un ${fmtPct(1 - ipoPremium(s), 0)} menos`} que la valoración.</p>
-          <Seg items={[10, 15, 20, 25, 30].map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
+          <Seg items={[10, 15, 20, 25, 30].filter((x) => co.ownership * (1 - x / 100) >= 0.51).map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
+          <span className="tiny muted">Solo se muestran los porcentajes con los que conservás al menos el 51 % (el control).</span>
           <div className="kv">
             <dt>Entran a la caja</dt><dd>≈ {fmtMoney(money, { decimals: false })} (menos {fmtPct(IPO_FEE, 0)} de comisiones)</dd>
             <dt>Tu participación después</dt><dd>{fmtPct(co.ownership * (1 - pct / 100), 1)}</dd>
@@ -80,7 +81,7 @@ export function DealsCard({ co }: { co: Company }) {
       {options.map((p) => (
         <div key={`${p.kind}-${p.supplier.id}-${p.buyer.id}`} className="row">
           <Icon name="plus" size={16} />
-          <div className="grow"><div className="title small">{DEAL_INFO[p.kind].name}: {p.supplier.name} → {p.buyer.name}</div><div className="meta">{p.buyer.name} obtiene {DEAL_INFO[p.kind].what} y le paga a {p.supplier.name} el {fmtPct(DEAL_INFO[p.kind].fee, 1)} de sus ventas.</div></div>
+          <div className="grow"><div className="title small">{DEAL_INFO[p.kind].name}: {p.supplier.name} → {p.buyer.name}</div><div className="meta">{p.buyer.name} obtiene {DEAL_INFO[p.kind].what} y le paga a {p.supplier.name} el {fmtPct(DEAL_INFO[p.kind].fee, 1)} de sus ventas. {(() => { const e = dealEstimate(s, p.kind, p.buyer); return `Con su último mes: ahorra ≈ ${fmtMoney(e.save, { decimals: false })}/mes y paga ≈ ${fmtMoney(e.pay, { decimals: false })}/mes (queda en tu grupo).`; })()}</div></div>
           <button className="btn sm" onClick={() => store.run((st) => signDeal(st, p.kind, p.supplier.id, p.buyer.id))}>Firmar</button>
         </div>
       ))}
@@ -167,7 +168,7 @@ export function MergeCard({ co }: { co: Company }) {
   const s = useGame();
   const peers = s.companies.filter((c) => c.id !== co.id && c.sector === co.sector && isOpen(c) && !c.npc);
   const [target, setTarget] = useState<number | null>(peers[0]?.id ?? null);
-  if (!peers.length) return null;
+  if (!peers.length || co.sector === 'holding') return null;
   const b = peers.find((c) => c.id === target) ?? peers[0];
   const why = mergeBlocker(s, co, b);
   return (

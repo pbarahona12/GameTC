@@ -239,7 +239,9 @@ export function injectCapital(state: GameState, co: Company, amount: Cents): Act
 }
 
 export function maxDistribution(state: GameState, co: Company): { max: Cents; reserve: Cents; cashLimit: Cents; legalLimit: Cents | null } {
-  const reserve = roundCents(((monthlyPayroll(state, co) + monthlyFixed(state, co)) / 30) * co.dividendPolicy.reserveDays);
+  // Reserva: gastos fijos de los días elegidos, más el capital de los bonos que vencen dentro de 12 meses.
+  const bondsDue = co.loans.filter((l) => l.bullet && l.balance > 0 && l.termMonths - l.paymentsMade - l.missed <= 12).reduce((a, l) => a + l.balance, 0);
+  const reserve = roundCents(((monthlyPayroll(state, co) + monthlyFixed(state, co)) / 30) * co.dividendPolicy.reserveDays) + bondsDue;
   const cashLimit = Math.max(0, co.ledger.balances.cash - reserve - co.ledger.balances.arrears);
   const lf = LEGAL_FORM_BY_ID[co.legalForm];
   const legalLimit = lf.limitedLiability ? Math.max(0, distributableProfit(co)) : null;
@@ -430,6 +432,8 @@ export function buyListing(state: GameState, listingId: number, offer: Cents, bu
     const p = clamp((offer / l.askPrice - 0.75) / 0.25 + state.skills.negotiation.level * 0.004, 0, 0.95);
     practice(state, 'buy_negotiation', 'negotiation', 150);
     if (!chance(state, p)) return FAIL(`El vendedor rechazó ${fmtMoney(offer)} (probabilidad estimada ${Math.round(p * 100)} %). Mantiene ${fmtMoney(l.askPrice)}.`);
+    // Aceptada: el precio acordado queda firme aunque la compra falle después.
+    l.askPrice = offer;
     price = offer;
   }
   const lawyer = hiredPro(state, 'abogado', buyer ? buyer.id : 'personal') ?? hiredPro(state, 'abogado', 'personal');

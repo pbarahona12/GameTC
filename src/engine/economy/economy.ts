@@ -221,7 +221,8 @@ export function monthlyMacro(state: GameState): void {
   }
 
   // 5. Eventos
-  m.events = m.events.filter((e) => e.endDay >= state.day - 400);
+  // Las eras se guardan (pocas): así la próxima no repite la anterior ni se saltea la pausa entre eras.
+  m.events = m.events.filter((e) => e.endDay >= state.day - 400 || e.kind.startsWith('era_'));
   if (!forced && !state.meta.projection && chance(state, 0.07 * diff.events)) {
     const active = new Set(m.events.filter((e) => e.endDay >= state.day).map((e) => e.kind)); // incluye los programados
     const pool = EVENT_CATALOG.filter((e) => !active.has(e.kind) && (!e.phases || e.phases.includes(m.phase)));

@@ -8,13 +8,13 @@ import type { ActionResult } from '../../../engine/result';
 import { SECTOR_BY_ID, LEGAL_FORM_BY_ID, roleDef, allRoles, DEPT_NAMES, DeptId } from '../../../content/sectors';
 import { coIncomeStatement } from '../../../engine/business/reports';
 import { daysToBankruptcy } from '../../../engine/business/finance';
-import { capacity, countRole, hasManager, managerSkill, monthlyPayroll, equipDef } from '../../../engine/business/common';
+import { capacity, countRole, hasManager, managerSkill, monthlyPayroll, equipDef, effectiveManagerSkill } from '../../../engine/business/common';
 import { expectedDemand, refPrice, setPrice, setPlan, toggleProduct, buyEquipment, sellEquipment, setMaintenance } from '../../../engine/business/operations';
 import { itemPlan, placeOrder, supplierAccessible, supplierUnitCost, leadDays, deliveryFee } from '../../../engine/business/inventory';
 import { supplierShockMult } from '../../../engine/world/rivals';
 import { PoachCard } from '../more/Rivals';
 import { generateCandidates, hire, fire, train, setWage, marketWage, hiringFee, severance } from '../../../engine/business/staff';
-import { fmtMoney, fmtPct } from '../../../engine/format';
+import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, GroupedTabs, Pill, Bar, Empty, AmountInput, ConfirmButton, CardHead, Act, Stat, LineChart, Legend, NumInput, Seg, GuardedAct } from '../../components/common';
@@ -140,8 +140,8 @@ function Ops({ co }: { co: Company }) {
           <div className="kv">
             <dt>Suscriptores</dt><dd>{Math.round(co.subscribers)}</dd>
             <dt>Ingreso recurrente mensual (MRR)</dt><dd>{fmtMoney(Math.round(co.subscribers * co.products[0].price))}</dd>
-            <dt>Altas (30 días)</dt><dd>{recent.reduce((a, x) => a + (x.sold.plan ?? 0), 0).toFixed(0)}</dd>
-            <dt>Cancelaciones (30 días)</dt><dd>{recent.reduce((a, x) => a + (x.lost.plan ?? 0), 0).toFixed(0)}</dd>
+            <dt>Altas (30 días)</dt><dd>{fmtNumber(recent.reduce((a, x) => a + (x.sold.plan ?? 0), 0))}</dd>
+            <dt>Cancelaciones (30 días)</dt><dd>{fmtNumber(recent.reduce((a, x) => a + (x.lost.plan ?? 0), 0))}</dd>
           </div>
         )}
         {co.products.map((ps) => {
@@ -154,7 +154,7 @@ function Ops({ co }: { co: Company }) {
           let unitCost = 0;
           for (const r of p.recipe) {
             const sup = sec.suppliers.find((x) => x.id === co.rules.find((y) => y.item === r.item)?.supplierId) ?? sec.suppliers.find((x) => x.itemId === r.item);
-            if (sup) unitCost += supplierUnitCost(s, sup) * r.qty;
+            if (sup) unitCost += supplierUnitCost(s, sup, co) * r.qty;
           }
           unitCost += Math.round(usd(sec.variableCost * s.macro.priceIndex) * (sec.model === 'subscription' ? 1 : 1));
           return (
@@ -167,8 +167,8 @@ function Ops({ co }: { co: Company }) {
                 <dt>Precio actual</dt><dd>{fmtMoney(ps.price)} / {p.unit}</dd>
                 <dt>Referencia del mercado</dt><dd>{fmtMoney(refPrice(s, p))} (rivales ≈ {fmtMoney(Math.round(refPrice(s, p) * avgMult))})</dd>
                 <dt>Costo directo por unidad (estim.)</dt><dd>{fmtMoney(unitCost)}</dd>
-                <dt>Vendido 30 días · perdido</dt><dd>{sold.toFixed(0)} · {lost.toFixed(0)}</dd>
-                <dt>Demanda esperada por día (estim.)</dt><dd>{demandNow.toFixed(1)}</dd>
+                <dt>Vendido 30 días · perdido</dt><dd>{fmtNumber(sold)} · {fmtNumber(lost)}</dd>
+                <dt>Demanda esperada por día (estim.)</dt><dd>{fmtNumber(demandNow, 1)}</dd>
               </div>
               <div className="inline-form">
                 <div style={{ flex: 1, minWidth: 140 }}><AmountInput id={`price-${co.id}-${p.id}`} label={`Precio de ${p.name}`} value={draft} onChange={(v) => setPrices({ ...prices, [p.id]: v })} /></div>
@@ -180,16 +180,16 @@ function Ops({ co }: { co: Company }) {
                   warning={draft > 0 && draft < unitCost
                     ? <>Con {fmtMoney(draft)} cada unidad se vende {fmtMoney(unitCost - draft)} por debajo de su costo directo estimado ({fmtMoney(unitCost)}).</>
                     : draft > 0 && demandNow > 0 && demandDraft < demandNow * 0.25
-                      ? <>Con {fmtMoney(draft)} la demanda esperada cae de {demandNow.toFixed(1)} a {demandDraft.toFixed(1)} por día.</>
+                      ? <>Con {fmtMoney(draft)} la demanda esperada cae de {fmtNumber(demandNow, 1)} a {fmtNumber(demandDraft, 1)} por día.</>
                       : undefined}
                   confirmLabel="Aplicar igual"
                   onConfirm={() => runCo(co.id, (st, c) => setPrice(st, c, p.id, draft))}
                 />
               </div>
-              {draft !== ps.price && <p className="tiny muted">Con {fmtMoney(draft)} la demanda esperada sería {demandDraft.toFixed(1)}/día ({demandDraft >= demandNow ? '+' : ''}{Math.round((demandDraft / Math.max(0.01, demandNow) - 1) * 100)} %). Elasticidad del sector: {p.elasticity}. <InfoButton term="elasticidad" /></p>}
+              {draft !== ps.price && <p className="tiny muted">Con {fmtMoney(draft)} la demanda esperada sería {fmtNumber(demandDraft, 1)}/día ({demandDraft >= demandNow ? '+' : ''}{Math.round((demandDraft / Math.max(0.01, demandNow) - 1) * 100)} %). Elasticidad del sector: {p.elasticity}. <InfoButton term="elasticidad" /></p>}
               {sec.model === 'manufacturing' && (
                 <div className="inline-form">
-                  <span className="small" style={{ flex: 1 }}>Plan de producción diario (stock: {ps.finished.reduce((a, l) => a + l.qty, 0)})</span>
+                  <span className="small" style={{ flex: 1 }}>Plan de producción diario (stock: {fmtNumber(Math.floor(ps.finished.reduce((a, l) => a + l.qty, 0)))})</span>
                   <NumInput id={`plan-${co.id}-${p.id}`} value={ps.plan} onChange={(n) => runCo(co.id, (st, c) => setPlan(st, c, p.id, n))} suffix="u/día" />
                   <InfoButton term="accion_plan" />
                 </div>
@@ -201,9 +201,9 @@ function Ops({ co }: { co: Company }) {
       <div className="card">
         <CardHead title="Capacidad" term="capacidad" />
         <div className="kv">
-          {cap.production > 0 && <><dt>Producción</dt><dd>{cap.production.toFixed(1)} unidades de trabajo/día</dd></>}
-          {cap.service > 0 && <><dt>Atención</dt><dd>{cap.service.toFixed(0)} clientes o artículos/día</dd></>}
-          {cap.hours > 0 && <><dt>Horas facturables</dt><dd>{cap.hours.toFixed(1)} h/día</dd></>}
+          {cap.production > 0 && <><dt>Producción</dt><dd>{fmtNumber(cap.production, 1)} unidades de trabajo/día</dd></>}
+          {cap.service > 0 && <><dt>Atención</dt><dd>{fmtNumber(cap.service)} clientes o artículos/día</dd></>}
+          {cap.hours > 0 && <><dt>Horas facturables</dt><dd>{fmtNumber(cap.hours, 1)} h/día</dd></>}
           {cap.users > 0 && <><dt>Suscriptores soportados</dt><dd>{Math.round(cap.users)}</dd></>}
           <dt>Bono de equipos</dt><dd>+{Math.round(cap.equipmentBonus * 100)} %</dd>
         </div>
@@ -269,9 +269,9 @@ function Inventory({ co }: { co: Company }) {
                 return (
                   <tr key={it.id}>
                     <td>{it.name}<div className="tiny faint">{it.shelfLifeDays ? `vence en ${it.shelfLifeDays} d` : 'no perecedero'}</div></td>
-                    <td className="r">{p.onHand.toFixed(1)}</td>
-                    <td className="r">{p.inTransit.toFixed(0)}</td>
-                    <td className="r">{p.usage.toFixed(1)}</td>
+                    <td className="r">{fmtNumber(p.onHand, 1)}</td>
+                    <td className="r">{fmtNumber(p.inTransit)}</td>
+                    <td className="r">{fmtNumber(p.usage, 1)}</td>
                     <td className="r">{p.coverDays === Infinity ? '—' : `${p.coverDays.toFixed(0)} d`}</td>
                     <td><Pill tone={p.risk === 'alto' ? 'loss' : p.risk === 'medio' ? 'warn' : 'gain'}>{p.risk}</Pill></td>
                   </tr>
@@ -326,7 +326,7 @@ function Inventory({ co }: { co: Company }) {
                   <tr key={x.id} style={{ opacity: ok ? 1 : 0.5 }}>
                     <td><input type="radio" name="sup" aria-label={x.name} checked={sup?.id === x.id} disabled={!ok} onChange={() => { setSupplier(x.id); setQty(0); }} /></td>
                     <td>{x.name}{!ok && <div className="tiny loss">requiere red de contactos {x.networkRequired}</div>}{blocked && <div className="tiny loss">sin crédito (factura impaga)</div>}</td>
-                    <td className="r">{fmtMoney(supplierUnitCost(s, x))}{supplierShockMult(s, x.id) > 1 && <div className="tiny loss">+{Math.round((supplierShockMult(s, x.id) - 1) * 100)} % exclusividad</div>}</td>
+                    <td className="r">{fmtMoney(supplierUnitCost(s, x, co))}{supplierShockMult(s, x.id) > 1 && <div className="tiny loss">+{Math.round((supplierShockMult(s, x.id) - 1) * 100)} % exclusividad</div>}</td>
                     <td className="r">{x.quality}</td>
                     <td className="r">{leadDays(co, x)} d</td>
                     <td className="r">{Math.round(x.reliability * 100)} %</td>
@@ -344,7 +344,7 @@ function Inventory({ co }: { co: Company }) {
               <span className="small">Cantidad</span>
               <NumInput id="po-qty" live value={q} onChange={setQty} min={0} step={1} suffix={sec.items.find((x) => x.id === item)!.unit} />
             </div>
-            <p className="small">Total {fmtMoney(Math.round(supplierUnitCost(s, sup) * q))} + flete {fmtMoney(deliveryFee(s, co, sup))}. Caja: {fmtMoney(co.ledger.balances.cash)}.</p>
+            <p className="small">Total {fmtMoney(Math.round(supplierUnitCost(s, sup, co) * q))} + flete {fmtMoney(deliveryFee(s, co, sup))}. Caja: {fmtMoney(co.ledger.balances.cash)}.</p>
             <Act label="Pedir" help="accion_pedido" className="btn primary" onClick={() => runCo(co.id, (st, c) => placeOrder(st, c, sup.id, q))} />
           </>
         )}
@@ -460,13 +460,14 @@ function Staff({ co }: { co: Company }) {
           <p className="small muted">Contratá un <strong>Gerente general</strong> para delegar la reposición, los precios y el personal. Sin gerente, las decisiones son tuyas (las reglas de reposición siguen funcionando).</p>
         ) : (
           <>
-            <p className="small">Gerente con habilidad {managerSkill(co)}: {managerSkill(co) >= 70 ? 'decisiones precisas' : managerSkill(co) >= 50 ? 'decisiones razonables con algún error' : 'se equivoca con frecuencia al estimar cantidades'}.</p>
+            <p className="small">Gerente con habilidad {managerSkill(co)}{effectiveManagerSkill(s, co) !== managerSkill(co) ? ` (rinde como ${effectiveManagerSkill(s, co)} por ${effectiveManagerSkill(s, co) > managerSkill(co) ? 'tu equipo directivo' : 'la falta de un equipo directivo'})` : ''}: {managerSkill(co) >= 70 ? 'decisiones precisas' : managerSkill(co) >= 50 ? 'decisiones razonables con algún error' : 'se equivoca con frecuencia al estimar cantidades'}.</p>
             {(['autoReorder', 'autoPricing', 'autoStaffing'] as const).map((k) => (
               <label key={k} className="row"><input type="checkbox" checked={co.delegation[k]} onChange={() => runCo(co.id, (_st, c) => { c.delegation[k] = !c.delegation[k]; })} /><span className="grow small">{{ autoReorder: 'Reposición de inventario', autoPricing: 'Precios', autoStaffing: 'Contrataciones y despidos' }[k]}</span></label>
             ))}
-            {co.delegation.autoPricing && (
-              <div className="inline-form small"><span>Margen objetivo sobre el costo</span><NumInput id={`markup-${co.id}`} value={Math.round(co.delegation.targetMarkup * 100)} onChange={(n) => runCo(co.id, (_st, c) => { c.delegation.targetMarkup = Math.max(1, n / 100); })} suffix="%" /></div>
-            )}
+            {co.delegation.autoPricing && (<>
+              <div className="inline-form small"><span>Precio objetivo (% del costo)</span><NumInput id={`markup-${co.id}`} min={100} value={Math.round(co.delegation.targetMarkup * 100)} onChange={(n) => runCo(co.id, (_st, c) => { c.delegation.targetMarkup = Math.max(1, n / 100); })} suffix="%" /></div>
+              <span className="tiny muted">{Math.round(co.delegation.targetMarkup * 100)} % del costo = un margen del {Math.round((co.delegation.targetMarkup - 1) * 100)} % sobre el costo. El gerente lo promedia con el precio de mercado.</span>
+            </>)}
             {co.managerReport && (
               <div className="manager-report">
                 <div className="title small">Resumen semanal del gerente · {formatDate(co.managerReport.day)}</div>

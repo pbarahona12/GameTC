@@ -273,7 +273,7 @@ function Ledger() {
   return (
     <div className="card">
       <div className="card-head"><h2>Libro mayor</h2><InfoButton term="partida_doble" /></div>
-      <p className="tiny muted">{s.ledger.entries.length} asientos. Cada uno cuadra: Debe = Haber.</p>
+      <p className="tiny muted">{s.ledger.entries.length} asientos detallados{s.ledger.archive ? ` (y ${s.ledger.archive.entries} más antiguos resumidos por mes, que no aparecen en la búsqueda)` : ''}. Cada uno cuadra: Debe = Haber.</p>
       <div className="grid2">
         <select aria-label="Filtrar por cuenta" className="input" value={account} onChange={(e) => setAccount(e.target.value as AccountId)}>
           <option value="">Todas las cuentas</option>

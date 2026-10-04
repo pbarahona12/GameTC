@@ -1,3 +1,4 @@
+import { rivalGroupValue } from '../../../engine/saga/ranking';
 import { useEffect } from 'react';
 import { useGame, useUI, store } from '../../store';
 import { navStore } from '../../nav';
@@ -92,9 +93,10 @@ export function RivalsScreen() {
                 <h2>{r.name}</h2>
                 <div className="tiny muted">{r.sectors.map((x) => SECTOR_BY_ID[x].name).join(' · ')}</div>
               </div>
-              {rv?.nemesisId === r.id ? <Pill tone="loss">némesis</Pill> : r.ally && r.ally.until >= s.day ? <Pill tone="gain">aliado</Pill> : <Pill tone={STYLE[r.style].tone}>{STYLE[r.style].label}</Pill>}
+              {r.acquired ? <Pill tone="gain">tuyo</Pill> : rv?.nemesisId === r.id ? <Pill tone="loss">némesis</Pill> : r.ally && r.ally.until >= s.day ? <Pill tone="gain">aliado</Pill> : <Pill tone={STYLE[r.style].tone}>{STYLE[r.style].label}</Pill>}
             </div>
             <p className="small muted">{r.description}</p>
+            {!r.acquired && <>
             <div className="kv"><dt>Capital estimado</dt><dd>~{fmtMoney(est, { decimals: false })}</dd><dt>Controla</dt><dd>{r.holdings.length ? `${r.holdings.length} negocio${r.holdings.length > 1 ? 's' : ''} o inmueble${r.holdings.length > 1 ? 's' : ''}` : '—'}</dd>{head && <><dt>Dueño</dt><dd>{head.name} · {RIVAL_HEADS[r.id] ? cityName(RIVAL_HEADS[r.id].city) : ''}</dd></>}</div>
             <div className="stack" style={{ gap: 4 }}>
               <span className="small" style={{ display: 'flex', gap: 6 }}><strong style={{ flex: 1 }}>Actitud hacia vos <InfoButton term="rencor_rivales" /></strong><span className="num">{attitudeLabel(r.attitude ?? 0)}</span></span>
@@ -106,13 +108,14 @@ export function RivalsScreen() {
               {wars.filter((w) => w.rivalId === r.id).map((w) => <span key={w.id} className="tiny loss"><Icon name="rivals" size={12} /> Guerra de precios en {SECTOR_BY_ID[w.sector].name.toLowerCase()} hasta el {formatDate(w.until)}.</span>)}
               {(r.memory ?? []).slice(-3).reverse().map((m, i) => <span key={i} className="tiny muted">· {m.text} ({formatDate(m.day)})</span>)}
             </div>
+            </>}
             {r.acquired ? (
               <p className="small gain"><Icon name="deal" size={13} /> Lo compraste el {formatDate(r.acquired.day)} por {fmtMoney(r.acquired.price, { decimals: false })}. Ya no compite con vos.</p>
             ) : (
               <div className="stack" style={{ gap: 4 }}>
                 <span className="tiny muted">Comprar el grupo: {fmtMoney(rivalPrice(r), { decimals: false })} (su valor + {Math.round(CONTROL_PREMIUM * 100)} % de prima de control). <InfoButton term="adquisicion_rival" /></span>
                 {rivalBlocker(s, r) ? <span className="tiny faint">{rivalBlocker(s, r)}</span> : (
-                  <ConfirmButton label={`Comprar ${r.name}`} className="btn sm" confirmLabel="Comprar el grupo" detail={<>Pagás {fmtMoney(rivalPrice(r), { decimals: false })} de tu dinero. Recibís una holding con la caja del grupo, sus locales dejan de competir con vos y nunca más te ataca. La prima de control ({Math.round(CONTROL_PREMIUM * 100)} %) es el costo de quitarte un rival.</>} onConfirm={() => store.run((st) => acquireRival(st, r.id))} />
+                  <ConfirmButton label={`Comprar ${r.name}`} className="btn sm" confirmLabel="Comprar el grupo" detail={<>Pagás {fmtMoney(rivalPrice(r), { decimals: false })} de tu dinero. Recibís una holding con {fmtMoney(rivalGroupValue(r), { decimals: false })} de caja (el valor del grupo); sus locales dejan de competir con vos y nunca más te ataca. La prima de control ({Math.round(CONTROL_PREMIUM * 100)} %) queda como plusvalía de la holding: se pierde si después la liquidás.</>} onConfirm={() => store.run((st) => acquireRival(st, r.id))} />
                 )}
               </div>
             )}

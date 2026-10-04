@@ -152,7 +152,7 @@ export function ChronicleView() {
   }
   const share = async () => {
     const lines = [`La crónica de ${s.player.name} (Ultimate Realistic Tycoon)`, ''];
-    for (const c of s.saga.chronicle.filter((x) => ['inicio', 'etapa', 'meta', 'ranking', 'rival', 'anio', 'desafio', 'crisis'].includes(x.kind))) lines.push(`${formatDate(c.day)} · ${c.title}${c.kind === 'anio' ? `: ${c.text}` : ''}`);
+    for (const c of s.saga.chronicle.filter((x) => ['inicio', 'etapa', 'meta', 'ranking', 'rival', 'anio', 'desafio', 'crisis', 'vida'].includes(x.kind))) lines.push(`${formatDate(c.day)} · ${c.title}${c.kind === 'anio' ? `: ${c.text}` : ''}`);
     const text = lines.join('\n');
     try {
       if (navigator.share) await navigator.share({ title: `La crónica de ${s.player.name}`, text });
@@ -205,7 +205,7 @@ export function ChallengesView() {
   const cur = run ? CHALLENGE_BY_ID[run.id] : null;
   const checked = code.trim() ? verifyCode(code) : null;
   const medalText = (c: (typeof CHALLENGES)[number]) => {
-    const f = (v: number) => (c.metric === 'days' ? `${Math.round((v / 365) * 10) / 10} años` : fmtMoney(v * 100, { decimals: false }));
+    const f = (v: number) => (c.metric === 'days' ? (v < 365 ? `${Math.round(v / 30)} meses` : `${Math.round((v / 365) * 10) / 10} años`) : fmtMoney(v * 100, { decimals: false }));
     const cmp = c.metric === 'days' ? '≤' : '≥';
     return `🥇 ${cmp} ${f(c.medals[0])} · 🥈 ${cmp} ${f(c.medals[1])} · 🥉 ${cmp} ${f(c.medals[2])}`;
   };
@@ -216,13 +216,13 @@ export function ChallengesView() {
       {cur && run && (
         <div className="card">
           <div className="card-head"><h2><Icon name={iconOf(cur.icon, 'rocket')} size={17} /> Estás jugando: {cur.title}</h2>{run.medal && <Pill tone="accent">{MEDAL_LABEL[run.medal]}</Pill>}</div>
-          <p className="small">{cur.goal}. {run.completedDay !== null ? <strong className="gain">¡Cumplido!</strong> : run.failed ? <span className="loss">Se terminó el plazo.</span> : `Plazo: ${Math.ceil((cur.limitDays - s.day) / 365)} años más.`}</p>
+          <p className="small">{cur.goal}. {run.completedDay !== null ? <strong className="gain">¡Cumplido!</strong> : run.failed ? <span className="loss">Se terminó el plazo.</span> : (() => { const left = cur.limitDays - s.day; return left >= 365 ? `Plazo: ${Math.ceil(left / 365)} año${Math.ceil(left / 365) === 1 ? '' : 's'} más.` : `Plazo: ${Math.max(1, Math.ceil(left / 30))} mes${Math.ceil(left / 30) === 1 ? '' : 'es'} más.`; })()}</p>
           <span className="tiny muted">Medallas: {medalText(cur)}</span>
           {run.code && <p className="small">Tu código: <strong className="num">{run.code}</strong> <button className="btn sm ghost" onClick={() => { void navigator.clipboard?.writeText(run.code!); store.toast('Código copiado.', 'ok'); }}><Icon name="copy" size={13} /> Copiar</button></p>}
         </div>
       )}
       <Seg items={[{ id: 'todos' as const, label: 'Todos' }, { id: 'clase' as const, label: 'Para clase' }]} value={mode} onChange={setMode} />
-      {mode === 'clase' && <p className="small">Escenarios cortos de finanzas personales. Toda la clase juega el mismo mundo, así que los resultados se pueden comparar y discutir. Cada estudiante comparte su código al terminar; el código no se puede inventar sin que la verificación lo note.</p>}
+      {mode === 'clase' && <p className="small">Escenarios cortos de finanzas personales. Toda la clase juega el mismo mundo, así que los resultados se pueden comparar y discutir. Cada estudiante comparte su código al terminar; la verificación detecta errores de copia (no es una firma a prueba de trampas).</p>}
       {list.map((c) => (
         <div key={c.id} className="card">
           <div className="card-head"><h2><Icon name={iconOf(c.icon, 'rocket')} size={17} /> {c.title}</h2><Pill tone="neutral">{c.metric === 'days' ? 'gana el más rápido' : 'gana el más rico'}</Pill></div>

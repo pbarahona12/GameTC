@@ -1,3 +1,4 @@
+import { hiredPro } from '../../engine/pros/lookup';
 import { useState } from 'react';
 import { useGame, useUI, useDerived, store } from '../store';
 import { businessesOf } from '../derived';
@@ -288,7 +289,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               help="accion_comprar_empresa"
               disabled={!(offer > 0)}
               confirmLabel="Confirmar"
-              detail={<>Pagarías {fmtMoney(offer)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}</>}
+              detail={<>Pagarías {fmtMoney(offer)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
               onConfirm={() => {
                 const r = store.run((st) => {
                   const res = buyListing(st, l.id, offer, buyer);

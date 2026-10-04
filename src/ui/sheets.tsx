@@ -65,12 +65,14 @@ function GlossaryView() {
   const [q, setQ] = useState('');
   const ui = useUI();
   const seen = ui.state?.meta.seenTerms ?? [];
-  const list = GLOSSARY.filter((g) => !q || (g.term + ' ' + g.short).toLowerCase().includes(q.toLowerCase()));
+  // Sin distinguir tildes ni mayúsculas: «deduccion» encuentra «deducción».
+  const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const list = GLOSSARY.filter((g) => !q || norm(g.term + ' ' + g.short).includes(norm(q)));
   const groups = new Map<string, GlossaryEntry[]>();
   for (const g of list) groups.set(g.category, [...(groups.get(g.category) ?? []), g]);
   return (
     <Sheet title="Glosario financiero">
-      <input className="input" id="glossary-q" placeholder="Buscar término (ej.: liquidez, deducción)" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      <input className="input" id="glossary-q" placeholder="Buscar término (ej.: liquidez, deducción)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar en el glosario" />
       <p className="tiny muted">{GLOSSARY.length} términos · {seen.length} consultados</p>
       {[...groups.entries()].map(([cat, items]) => (
         <div key={cat} className="stack" style={{ gap: 4 }}>

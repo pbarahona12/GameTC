@@ -44,6 +44,11 @@ export function dismissExecTeam(state: GameState): ActionResult {
 /** Día 1 de cada mes: se paga el equipo; si no alcanza, se va. */
 export function execMonth(state: GameState): void {
   if (!state.saga?.exec?.hired) return;
+  if (operatingCompanies(state) < 2) {
+    state.saga.exec = null;
+    addLog(state, 'info', '🧭', 'Con menos de dos empresas operando ya no hace falta un equipo directivo: se desarmó y no se cobra más.');
+    return;
+  }
   const cost = execCost(state);
   const r = payExpense(state, 'other_expense', cost, { memo: 'Equipo directivo (sueldos)', tag: 'saga:exec', method: 'checking', allowArrears: false });
   if (!r.ok) {

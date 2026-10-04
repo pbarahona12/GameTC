@@ -42,7 +42,7 @@ export function EconomyScreen() {
         <Stat label="Crecimiento del PIB" term="pib" value={fmtPct(m.gdpGrowth, 1)} sub="Anualizado" />
         <Stat label="Desempleo" term="desempleo" value={fmtPct(m.unemployment, 1)} sub="Afecta búsqueda de empleo, despidos y morosidad" />
         <Stat label="Inflación anual" term="inflacion" value={fmtPct(m.inflation, 1)} sub={`Índice de precios ${m.priceIndex.toFixed(3)}`} />
-        <Stat label="Tasa de política" term="interes" value={fmtPct(m.policyRate, 2)} sub={`Diferencial de crédito +${fmtPct(creditSpread(s), 1)}`} />
+        <Stat label="Tasa de política" term="interes" value={fmtPct(m.policyRate, 2)} sub={`Diferencial de crédito ${creditSpread(s) >= 0 ? "+" : ""}${fmtPct(creditSpread(s), 1)}`} />
         <Stat label="Confianza del consumidor" term="confianza_consumidor" value={m.confidence.toFixed(2)} sub="1.00 = normal" />
         <Stat label="Costos de proveedores" term="costo_proveedores" value={m.supplierCost.toFixed(2)} sub="Multiplica el costo de insumos" />
       </div>
