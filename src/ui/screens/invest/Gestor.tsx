@@ -43,7 +43,7 @@ function MandateCard({ h }: { h: ProHire }) {
       {m && sum ? (
         <>
           <div className="grid2">
-            <Stat label="Valor de tu cuenta" term="gestor_inversiones" value={<Money c={sum.value} />} sub={<>Aportado neto {fmtMoney(sum.cost, { decimals: false })}</>} />
+            <Stat label="Valor de tu cuenta" term="gestor_inversiones" value={<Money c={sum.value} />} sub={<>Aportaste {fmtMoney(m.contributed - m.withdrawn, { decimals: false })} netos (lo depositado menos lo retirado)</>} />
             <Stat label="Ganancia" term="ganancia_no_realizada" value={<Money c={sum.gain} colored sign />} sub={`Desde el inicio ${fmtPct(sum.totalReturn, 1)} · índice ${fmtPct(sum.benchReturn, 1)}`} />
           </div>
           {m.history.length > 1 && (
@@ -92,12 +92,16 @@ function MandateCard({ h }: { h: ProHire }) {
             <ConfirmButton label="Retirar todo y cerrar" help="accion_gestor_retirar" className="btn ghost" detail="Vende todo, cobra la comisión de éxito pendiente y te devuelve el dinero. La ganancia tributa como ganancia de capital." onConfirm={() => store.run((x) => withdrawMandate(x, m.id, 'todo'))} />
           </div>
           <span className="small">Perfil de riesgo <InfoButton term="accion_gestor_perfil" /></span>
-          <Seg items={PROFILES} value={m.profile} onChange={(v) => store.run((x) => setMandateProfile(x, m.id, v))} />
-          <p className="tiny muted">{PROFILE_INFO[m.profile].description}</p>
+          <p className="tiny muted">Actual: <strong>{PROFILE_INFO[m.profile].name}</strong>. {PROFILE_INFO[m.profile].description}</p>
+          <div className="btn-row">
+            {PROFILES.filter((p) => p.id !== m.profile).map((p) => (
+              <ConfirmButton key={p.id} label={`Pasar a ${p.label.toLowerCase()}`} className="btn sm ghost" confirmLabel="Cambiar y rebalancear" detail={<>{PROFILE_INFO[p.id].description} El gestor vende y compra hoy para adaptar la cartera: se pagan comisiones de compraventa y, si hay ganancias, impuesto a las ganancias de capital.</>} onConfirm={() => store.run((x) => setMandateProfile(x, m.id, p.id))} />
+            ))}
+          </div>
         </>
       ) : (
         <>
-          <p className="small">Todavía no le diste dinero. Elegí cuánto y con qué perfil de riesgo: lo invertirá en acciones y fondos del mercado del juego.</p>
+          <p className="small">{s.managed.mandates.some((x) => x.hireId === h.id) ? 'Cerraste la cuenta anterior. Podés abrir una nueva:' : 'Todavía no le diste dinero.'} Elegí cuánto y con qué perfil de riesgo: lo invertirá en acciones y fondos del mercado del juego.</p>
           <div className="field">
             <label htmlFor={`open-${h.id}`}>Monto a entregar (mínimo {fmtMoney(minMandate(s), { decimals: false })})</label>
             <AmountInput id={`open-${h.id}`} value={amount} onChange={setAmount} max={spendable(s)} />
@@ -131,6 +135,7 @@ export function GestorScreen() {
       {hires.map((h) => <MandateCard key={h.id} h={h} />)}
       <div className="card">
         <CardHead title={hires.length ? 'Otros gestores disponibles' : 'Gestores disponibles'} right={<span className="tiny muted">Nuevos el {formatDate(nextRefresh(s))}</span>} />
+        {hires.length > 0 && <p className="small muted">Podés tener un solo gestor personal. Para cambiarlo, despedí al actual en su tarjeta (arriba): vende lo que administra y el dinero vuelve a tu cuenta.</p>}
         {market.length === 0 && <Empty icon="gestor">No hay gestores disponibles ahora. El mercado de profesionales se renueva cada 60 días.</Empty>}
         {market.map((p) => (
           <div className="card flat" key={p.id} style={{ padding: 12, gap: 6 }}>
@@ -143,7 +148,7 @@ export function GestorScreen() {
             </div>
             <span className="small">{feeLabel(p)}</span>
             <span className="tiny muted">La reputación estima su calidad con error; la experiencia sí es un dato. Los más reconocidos cobran más.</span>
-            <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" onClick={() => store.run((x) => hirePro(x, p.id, 'personal'))} />
+            <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" disabled={hires.length > 0} onClick={() => store.run((x) => hirePro(x, p.id, 'personal'))} />
           </div>
         ))}
       </div>

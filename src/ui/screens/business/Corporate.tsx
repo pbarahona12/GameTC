@@ -3,7 +3,7 @@ import { useGame, store } from '../../store';
 import type { Company } from '../../../engine/business/types';
 import { ipoBlocker, ipoPremium, goPublic, marketCap, buyBackShares, IPO_FEE, bondBlocker, bondCapacity, bondRate, issueBonds, mergeBlocker, mergeCost, mergeCompanies } from '../../../engine/saga/corporate';
 import { execStatus, hireExecTeam, dismissExecTeam } from '../../../engine/saga/executive';
-import { dealsOf, possibleDeals, signDeal, endDeal, DEAL_INFO } from '../../../engine/saga/integration';
+import { dealsOf, possibleDeals, signDeal, endDeal, DEAL_INFO, dealEstimate } from '../../../engine/saga/integration';
 import { valuation, coMetrics } from '../../../engine/business/reports';
 import { daysToBankruptcy } from '../../../engine/business/finance';
 import { isOpen } from '../../../engine/business/common';
@@ -16,7 +16,7 @@ import { Icon } from '../../icons';
 /** SALIR A BOLSA: requisitos, precio según el ciclo y, si ya cotiza, su valor de mercado. */
 export function IpoCard({ co }: { co: Company }) {
   const s = useGame();
-  const [pct, setPct] = useState(20);
+  const [pctPick, setPct] = useState(20);
   if (co.listed) {
     const cap = marketCap(s, co);
     const caps = co.listed.caps;
@@ -39,6 +39,9 @@ export function IpoCard({ co }: { co: Company }) {
   }
   const why = ipoBlocker(s, co);
   const v = valuation(s, co).value * ipoPremium(s);
+  // Solo los porcentajes que conservan el control; si el elegido no está, el mayor posible.
+  const options = [10, 15, 20, 25, 30].filter((x) => co.ownership * (1 - x / 100) >= 0.51);
+  const pct = options.includes(pctPick) ? pctPick : options[options.length - 1] ?? 10;
   const money = Math.round((v * pct) / 100 / (1 - pct / 100));
   return (
     <div className="card">
@@ -48,7 +51,8 @@ export function IpoCard({ co }: { co: Company }) {
       ) : (
         <>
           <p className="small">Vendés acciones nuevas al público: el dinero entra a la caja de la empresa. En esta fase del ciclo los inversores pagan {ipoPremium(s) >= 1 ? `un ${fmtPct(ipoPremium(s) - 1, 0)} más` : `un ${fmtPct(1 - ipoPremium(s), 0)} menos`} que la valoración.</p>
-          <Seg items={[10, 15, 20, 25, 30].map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
+          <Seg items={options.map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
+          <span className="tiny muted">Solo se muestran los porcentajes con los que conservás al menos el 51 % (el control).</span>
           <div className="kv">
             <dt>Entran a la caja</dt><dd>≈ {fmtMoney(money, { decimals: false })} (menos {fmtPct(IPO_FEE, 0)} de comisiones)</dd>
             <dt>Tu participación después</dt><dd>{fmtPct(co.ownership * (1 - pct / 100), 1)}</dd>
@@ -56,6 +60,37 @@ export function IpoCard({ co }: { co: Company }) {
           <ConfirmButton label="Salir a bolsa" className="btn primary" confirmLabel={`Ofrecer el ${pct} %`} detail="Es permanente: los nuevos accionistas cobran su parte de los dividendos y de una futura venta. Suma reputación (+8)." onConfirm={() => store.run((st) => goPublic(st, co.id, pct / 100))} />
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * BOLSA Y BONOS: mientras ninguna de las dos se pueda usar, una sola tarjeta corta con lo
+ * que falta (en vez de dos tarjetas que dicen "todavía no"). Cuando una se habilita, se
+ * muestran las completas.
+ */
+export function CapitalMarketsCards({ co }: { co: Company }) {
+  const s = useGame();
+  const ipoWhy = co.parentId ? null : ipoBlocker(s, co);
+  const bondWhy = bondBlocker(s, co);
+  const hasBonds = co.loans.some((l) => l.bullet && l.balance > 0);
+  const ipoUsable = !co.parentId && (!!co.listed || !ipoWhy);
+  if (ipoUsable || !bondWhy || hasBonds) {
+    return (
+      <>
+        {!co.parentId && <IpoCard co={co} />}
+        <BondsCard co={co} />
+      </>
+    );
+  }
+  return (
+    <div className="card">
+      <CardHead title="Más adelante: bolsa y bonos" term="salida_bolsa" />
+      <p className="small">Una corporación con historia y ganancias puede conseguir capital del mercado: vender acciones al público o pedir prestado con bonos.</p>
+      <ul className="reqs small">
+        {!co.parentId && ipoWhy && <li><strong>Salir a bolsa:</strong> {ipoWhy} <InfoButton term="salida_bolsa" /></li>}
+        <li><strong>Emitir bonos:</strong> {bondWhy} <InfoButton term="bonos_corporativos" /></li>
+      </ul>
     </div>
   );
 }
@@ -80,7 +115,7 @@ export function DealsCard({ co }: { co: Company }) {
       {options.map((p) => (
         <div key={`${p.kind}-${p.supplier.id}-${p.buyer.id}`} className="row">
           <Icon name="plus" size={16} />
-          <div className="grow"><div className="title small">{DEAL_INFO[p.kind].name}: {p.supplier.name} → {p.buyer.name}</div><div className="meta">{p.buyer.name} obtiene {DEAL_INFO[p.kind].what} y le paga a {p.supplier.name} el {fmtPct(DEAL_INFO[p.kind].fee, 1)} de sus ventas.</div></div>
+          <div className="grow"><div className="title small">{DEAL_INFO[p.kind].name}: {p.supplier.name} → {p.buyer.name}</div><div className="meta">{p.buyer.name} obtiene {DEAL_INFO[p.kind].what} y le paga a {p.supplier.name} el {fmtPct(DEAL_INFO[p.kind].fee, 1)} de sus ventas. {(() => { const e = dealEstimate(s, p.kind, p.buyer); return `Con su último mes: ahorra ≈ ${fmtMoney(e.save, { decimals: false })}/mes y paga ≈ ${fmtMoney(e.pay, { decimals: false })}/mes (queda en tu grupo).`; })()}</div></div>
           <button className="btn sm" onClick={() => store.run((st) => signDeal(st, p.kind, p.supplier.id, p.buyer.id))}>Firmar</button>
         </div>
       ))}
@@ -131,7 +166,7 @@ export function ExecCard() {
       )}
       {st.hired
         ? <button className="btn sm ghost" onClick={() => store.run((x) => dismissExecTeam(x))}>Despedir al equipo</button>
-        : <ConfirmButton label="Contratar equipo directivo" className="btn sm primary" confirmLabel="Contratar" detail={<>Se paga el día 1 de cada mes desde tu cuenta. Si no alcanza, renuncian.</>} onConfirm={() => store.run((x) => hireExecTeam(x))} />}
+        : <ConfirmButton label="Contratar equipo directivo" className="btn sm primary" confirmLabel="Contratar" detail={<>Hoy pagás lo que queda de este mes; después, el día 1 de cada mes desde tu cuenta (nunca con la tarjeta). Si no alcanza, renuncian.</>} onConfirm={() => store.run((x) => hireExecTeam(x))} />}
     </div>
   );
 }
@@ -167,7 +202,7 @@ export function MergeCard({ co }: { co: Company }) {
   const s = useGame();
   const peers = s.companies.filter((c) => c.id !== co.id && c.sector === co.sector && isOpen(c) && !c.npc);
   const [target, setTarget] = useState<number | null>(peers[0]?.id ?? null);
-  if (!peers.length) return null;
+  if (!peers.length || co.sector === 'holding') return null;
   const b = peers.find((c) => c.id === target) ?? peers[0];
   const why = mergeBlocker(s, co, b);
   return (

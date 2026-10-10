@@ -1,7 +1,8 @@
 import type { GameState } from '../state';
 import type { Company } from '../business/types';
 import type { BizSectorId } from '../../content/sectors';
-import { roundCents } from '../money';
+import { roundCents, usd, Cents } from '../money';
+import { LEGAL_FORM_BY_ID, SECTOR_BY_ID } from '../../content/sectors';
 import { ActionResult, FAIL, OK } from '../result';
 import { coPost } from '../business/companyLedger';
 import { fmtPct } from '../format';
@@ -31,7 +32,7 @@ export interface Deal {
 
 export const DEAL_INFO: Record<DealKind, { name: string; supplier: BizSectorId[]; buyer: BizSectorId[] | 'any'; discount: number; fee: number; what: string }> = {
   insumos: { name: 'Insumos propios', supplier: ['minimarket'], buyer: ['cafeteria'], discount: 0.08, fee: 0.03, what: '8 % menos en insumos' },
-  gestion: { name: 'Gestión compartida', supplier: ['consultora'], buyer: 'any', discount: 0.3, fee: 0.015, what: '30 % menos de gastos administrativos' },
+  gestion: { name: 'Gestión compartida', supplier: ['consultora'], buyer: 'any', discount: 0.3, fee: 0.002, what: '30 % menos en la cuota de administración legal' },
   equipamiento: { name: 'Equipamiento propio', supplier: ['muebles'], buyer: ['cafeteria', 'minimarket'], discount: 0.25, fee: 0.01, what: '25 % menos de mantenimiento' },
 };
 
@@ -41,6 +42,7 @@ function deals(state: GameState): Deal[] {
   return state.saga.deals;
 }
 
+const sectorEquip = (co: Company, id: string) => SECTOR_BY_ID[co.sector]?.equipment.find((e) => e.id === id);
 const open = (c?: Company) => !!c && (c.status === 'active' || c.status === 'insolvent') && !c.npc;
 
 /** Descuento vigente para una empresa compradora (0 si no tiene un acuerdo de ese tipo). */
@@ -50,6 +52,25 @@ export function dealDiscount(state: GameState, co: Company | undefined, kind: De
   if (!d) return 0;
   const sup = state.companies.find((c) => c.id === d.supplierId);
   return open(sup) ? DEAL_INFO[kind].discount : 0;
+}
+
+/**
+ * Estimación mensual de un acuerdo para la empresa compradora: cuánto ahorra y
+ * cuánto le paga a tu proveedor (con las cifras de su último mes). El pago queda
+ * dentro de tu grupo; el ahorro es lo que gana el grupo de verdad.
+ */
+export function dealEstimate(state: GameState, kind: DealKind, buyer: Company): { save: Cents; pay: Cents } {
+  const last = buyer.history[buyer.history.length - 1];
+  const info = DEAL_INFO[kind];
+  const pay = roundCents((last?.revenue ?? 0) * info.fee);
+  let save: Cents;
+  if (kind === 'insumos') save = roundCents(Math.max(0, (last?.revenue ?? 0) - (last?.grossProfit ?? 0)) * info.discount);
+  else if (kind === 'gestion') save = roundCents(usd(LEGAL_FORM_BY_ID[buyer.legalForm].monthlyAdmin * state.macro.priceIndex) * info.discount);
+  else {
+    const mult = buyer.maintenance === 'none' ? 0 : buyer.maintenance === 'basic' ? 0.6 : 1;
+    save = roundCents(buyer.assets.reduce((a, x) => a + usd((sectorEquip(buyer, x.equipId)?.maintenance ?? 0) * mult * state.macro.priceIndex), 0) * info.discount);
+  }
+  return { save, pay };
 }
 
 export function dealsOf(state: GameState, coId: number): Deal[] {

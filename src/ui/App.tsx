@@ -1,3 +1,4 @@
+import { ageOf, monthlyDeathRisk } from '../engine/saga/life';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { store, useUI, useDerived, NEXT_SPEED } from './store';
 import { insightsOf } from './derived';
@@ -62,10 +63,19 @@ function TopBar() {
     <header className="topbar">
       <div className="topbar-row">
         <div className="date-block">
-          <div className="d">{formatDateShort(s.day)}</div>
-          <div className="tiny muted">
-            Disponible <Money c={spendable(s)} fit />
+          <div className="d">
+            {formatDateShort(s.day)}
+            {s.saga && (
+              <button type="button" className={`age-chip ${monthlyDeathRisk(s) > 0 ? 'risk' : ''}`} onClick={() => navStore.open({ kind: 'life' })} aria-label={`${s.player.name} tiene ${Math.floor(ageOf(s))} años${monthlyDeathRisk(s) > 0 ? ', con riesgo de fallecer por edad' : ''}. Abrir Tu vida y legado`}>
+                {Math.floor(ageOf(s))} años
+              </button>
+            )}
           </div>
+          <button type="button" className="tiny muted avail-btn" onClick={() => navStore.go('finance', 'accounts')}
+            title={s.bank.overdraftSweep ? 'Lo que podés pagar ya: cuenta corriente + ahorro (sin el efectivo en mano). Tocá para ver tus cuentas.' : 'Lo que podés pagar ya: tu cuenta corriente (el ahorro y el efectivo en mano no se usan solos). Tocá para ver tus cuentas.'}
+            aria-label={`Disponible para pagar: ${fmtMoney(spendable(s), { decimals: false })}. Ver tus cuentas`}>
+            Disponible <Money c={spendable(s)} fit />
+          </button>
         </div>
         <button className={`time-btn ${running ? 'on' : ''}`} aria-label={running ? 'Pausar el tiempo' : `Reanudar el tiempo a ${speed}×`} aria-pressed={running} onClick={() => store.togglePlay()}>
           <Icon name={running ? 'pause' : 'play'} size={18} />
@@ -136,7 +146,7 @@ function AbsenceReport() {
   const important = r.logs.filter((l) => l.kind !== 'info').slice(-12).reverse();
   return (
     <Sheet title="Mientras no estabas" onClose={() => store.dismissAbsence()}>
-      <p className="muted small">Pasaron {days} días de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes).</p>
+      <p className="muted small">Pasaron {days} día{days === 1 ? '' : 's'} de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes).</p>
       <dl className="kv">
         <dt>Patrimonio neto</dt>
         <dd>{fmtMoney(r.netWorthBefore)} → {fmtMoney(r.netWorthAfter)}</dd>
@@ -151,7 +161,7 @@ function AbsenceReport() {
           <div className="row" key={l.id}>
             <span className="log-ic" aria-hidden><Icon name={logIcon(l)} size={16} /></span>
             <div className="grow small">{l.text}</div>
-            {l.amount !== undefined && <span className="amt small">{fmtMoney(l.amount)}</span>}
+            {l.amount !== undefined && <span className={`amt small ${l.kind === 'income' || l.kind === 'success' ? 'gain' : l.kind === 'danger' || l.kind === 'expense' ? 'loss' : ''}`}>{fmtMoney(l.amount)}</span>}
           </div>
         ))}
       </div>
@@ -212,7 +222,7 @@ export function App() {
         {nav.tab === 'more' && <More />}
         {nav.tab === 'reports' && (
           <>
-            <button className="btn sm ghost" style={{ alignSelf: 'flex-start' }} onClick={() => navStore.go('more')}>← Más</button>
+            <button className="btn sm ghost" style={{ alignSelf: 'flex-start' }} onClick={() => navStore.go('more', 'menu')}>← Más</button>
             <Reports />
           </>
         )}

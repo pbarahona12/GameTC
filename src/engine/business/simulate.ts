@@ -2,8 +2,8 @@ import { forecastMonthEnd } from '../advisor/businessForecast';
 import { compactCompany, NPC_KEEP_MONTHS } from '../ledger/compaction';
 import type { GameState } from '../state';
 import type { Company, Listing } from './types';
-import { SECTORS, BizSectorId, LegalForm, LEGAL_FORM_BY_ID } from '../../content/sectors';
-import { isOpen, sectorOf, px, maintenanceCost, coEquity, hasManager } from './common';
+import { SECTORS, BizSectorId, LegalForm } from '../../content/sectors';
+import { isOpen, sectorOf, px, maintenanceCost, coEquity, hasManager, adminFee } from './common';
 import { dailyOperations, monthStartCosts, monthlyStorage, monthlyAssets } from './operations';
 import { runPayroll, monthlyStaff, generateCandidates, hire } from './staff';
 import { processCoLoans, processCoTaxes, insolvencyCheck, closeCompanyYear } from './finance';
@@ -18,8 +18,6 @@ import { coPost } from './companyLedger';
 import { dateOf, startOfMonth } from '../time/calendar';
 import { randInt, randRange, nextRandom } from '../rng';
 import { roundCents } from '../money';
-import { jurisdictionById } from '../../content/jurisdictions';
-import { dealDiscount } from '../saga/integration';
 
 /** Día de todas las empresas del jugador. */
 export function companiesDay(state: GameState): void {
@@ -28,11 +26,7 @@ export function companiesDay(state: GameState): void {
 }
 
 /** Administración mensual: forma legal + agente residente si la empresa está registrada fuera de tu residencia. */
-export function adminFee(state: GameState, co: Company): number {
-  const base = roundCents(px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin) * (1 - dealDiscount(state, co, 'gestion')));
-  const foreign = !co.npc && co.jurisdiction !== state.tax.jurisdiction ? px(state, jurisdictionById(co.jurisdiction).foreignCompanyAdmin) : 0;
-  return base + foreign;
-}
+export { adminFee } from './common';
 
 export function companyDay(state: GameState, co: Company, monthStart: boolean): void {
   if (!isOpen(co)) return;
@@ -76,18 +70,28 @@ function dailyOperationsSetup(state: GameState, co: Company): void {
  */
 export function companiesMonthEnd(state: GameState): void {
   const byDepth = () => [...state.companies].sort((a, b) => depthOf(state, b) - depthOf(state, a));
-  for (const co of byDepth()) if (state.companies.includes(co)) companyMonthEnd(state, co);
+  // 1) Lo que se paga en el mes (nóminas, activos, depósito, personal)…
+  for (const co of byDepth()) if (state.companies.includes(co) && isOpen(co)) companyMonthOps(state, co);
+  // 2) …honorarios de gestión e intereses intragrupo del mismo mes…
   groupMonthEnd(state, (sub, amount) => {
     const a = Math.min(amount, maxDistribution(state, sub).max);
     if (a > 0) distribute(state, sub, a, true);
   });
   icLoansMonthEnd(state);
+  // 3) …y recién entonces la foto del mes, los dividendos automáticos y la revaluación.
+  for (const co of byDepth()) if (state.companies.includes(co) && isOpen(co)) companyMonthClose(state, co);
   for (const co of byDepth()) if (!co.npc && isOpen(co)) revalue(state, co);
   monthlyMarkets(state);
 }
 
+/** Cierre de mes de una empresa suelta (mercado de compraventa, Mogul). */
 export function companyMonthEnd(state: GameState, co: Company): void {
   if (!isOpen(co)) return;
+  companyMonthOps(state, co);
+  companyMonthClose(state, co);
+}
+
+function companyMonthOps(state: GameState, co: Company): void {
   // Las empresas simuladas (mercado de compraventa, Mogul) reemplazan a su gerente si renuncia.
   if (co.npc && !hasManager(co) && co.ledger.balances.cash > px(state, 2400) * 2) {
     const c = generateCandidates(state, co, 'gerente').sort((a, b) => b.skill - a.skill)[0];
@@ -99,6 +103,9 @@ export function companyMonthEnd(state: GameState, co: Company): void {
   const recent = co.stats.slice(-30);
   const util = recent.length ? recent.reduce((s, x) => s + (x.capacity > 0 ? x.capacityUsed / x.capacity : 0), 0) / recent.length : 0;
   monthlyStaff(state, co, util);
+}
+
+function companyMonthClose(state: GameState, co: Company): void {
   snapshot(state, co);
   autoDividends(state, co, dateOf(state.day).m);
   if (!co.npc) revalue(state, co);
@@ -116,7 +123,7 @@ export function snapshot(state: GameState, co: Company): void {
   if (co.history.length > 120) co.history.shift();
 }
 
-/** 1 de enero: impuestos empresariales y resultado de empresas transparentes (antes de la declaración personal). */
+/** 1 de enero: impuestos empresariales y resultado de empresas transparentes del año que terminó (antes de la declaración personal). */
 export function companiesYearStart(state: GameState): void {
   const year = dateOf(state.day).y - 1;
   for (const co of state.companies) if (isOpen(co)) closeCompanyYear(state, co, year);

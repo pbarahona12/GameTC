@@ -9,14 +9,15 @@ import { post } from '../ledger/ledger';
 import { coPost, CO_ACCOUNT_IDS, CO_CHART, CoAccountId } from '../business/companyLedger';
 import { valuation, coIncomeStatement } from '../business/reports';
 import { creditSpread } from '../economy/economy';
-import { addMonths, dateOf, dayOf } from '../time/calendar';
+import { addMonths, dateOf, dayOf, formatDate } from '../time/calendar';
 import { buildCompany, revalue } from '../business/ownership';
-import { coEquity, isOpen } from '../business/common';
+import { coEquity, isOpen, distributableProfit } from '../business/common';
 import { LEGAL_FORM_BY_ID } from '../../content/sectors';
 import { canPayFromChecking } from '../finance/payments';
 import { publish } from '../world/news';
 import { chronicle, celebrate } from './chronicle';
 import { rivalGroupValue, rememberRival } from './ranking';
+import { endWar } from './rivalry';
 
 /**
  * SALIDA A BOLSA Y ADQUISICIONES (1.4): el techo estratégico de las empresas.
@@ -51,7 +52,7 @@ export function ipoBlocker(state: GameState, co: Company): string | null {
   if (last12 <= 0) return 'Tiene que haber ganado dinero en los últimos 12 meses.';
   const v = valuation(state, co).value;
   if (v < usd(IPO_MIN_USD * state.macro.priceIndex)) return `Su valoración (${fmtMoney(v, { decimals: false })}) tiene que superar ${fmtMoney(usd(IPO_MIN_USD * state.macro.priceIndex), { decimals: false })}.`;
-  if (co.ownership < 0.7) return 'Necesitás al menos el 70 % para conservar el control después de salir a bolsa.';
+  if (co.ownership * 0.9 < 0.51) return 'Para conservar el control (51 %) después de ofrecer al menos el 10 %, necesitás tener hoy más del 57 %.';
   return null;
 }
 
@@ -69,6 +70,7 @@ export function goPublic(state: GameState, coId: number, pct: number): ActionRes
   const why = ipoBlocker(state, co);
   if (why) return FAIL(why);
   if (!(pct >= 0.1 && pct <= 0.3)) return FAIL('Se puede ofrecer entre el 10 % y el 30 % de la empresa.');
+  if (co.ownership * (1 - pct) < 0.51) return FAIL(`Ofreciendo el ${fmtPct(pct, 0)} te quedarías con menos del 51 %: perderías el control.`);
   const v = roundCents(valuation(state, co).value * ipoPremium(state));
   const money = roundCents((v * pct) / (1 - pct));
   const fee = roundCents(money * IPO_FEE);
@@ -114,6 +116,7 @@ export function listedMonth(state: GameState, month: number): void {
 /** Recomprar acciones en el mercado (para defenderte de una compra hostil). */
 export function buyBackShares(state: GameState, co: Company, pct: number, premium = 1.15): ActionResult {
   if (!co.listed) return FAIL('La empresa no cotiza.');
+  if (co.parentId) return FAIL('Las acciones de una subsidiaria las compra su holding, no vos.');
   const free = 1 - co.ownership;
   const take = Math.min(pct, free);
   if (take <= 0) return FAIL('Ya tenés todas las acciones.');
@@ -179,6 +182,11 @@ export function acquireRival(state: GameState, rivalId: string): ActionResult {
   r.truce = null;
   r.acquired = { day: state.day, price };
   state.world.intents = state.world.intents.filter((i) => i.rivalId !== r.id);
+  // Lo que el grupo tenía en marcha contra vos también termina.
+  state.world.supplierShocks = state.world.supplierShocks.filter((x) => x.rivalId !== r.id);
+  for (const p of state.world.poach) if (p.rivalId === r.id && p.status === 'abierta') p.status = 'se_quedo';
+  for (const c of state.companies) if (c.saleOffer?.from === r.name) c.saleOffer = null;
+  for (const w of [...(state.saga.rivalry?.wars ?? [])]) if (w.rivalId === r.id) endWar(state, w, true);
   const head = state.saga.ranking.magnates.find((m) => m.rivalId === r.id);
   if (head) head.wealth += price;
   rememberRival(state, r, 0, 'Lo compraste');
@@ -246,7 +254,10 @@ export function issueBonds(state: GameState, coId: number, amount: Cents, years:
 export function mergeBlocker(state: GameState, a: Company, b: Company): string | null {
   if (a.id === b.id) return 'Elegí dos empresas distintas.';
   if (!isOpen(a) || !isOpen(b) || a.status !== 'active' || b.status !== 'active') return 'Las dos empresas tienen que estar operando y sanas.';
-  if (a.sector !== b.sector || a.sector === 'holding') return 'Solo se fusionan empresas del mismo rubro.';
+  if (a.sector === 'holding' || b.sector === 'holding') return 'Las holdings no se fusionan (podés pasar empresas de una a otra).';
+  if (a.sector !== b.sector) return 'Solo se fusionan empresas del mismo rubro.';
+  const stopped = [a, b].find((c) => (c.suspendedUntil ?? -1) > state.day);
+  if (stopped) return `${stopped.name} no está operando hasta el ${formatDate(stopped.suspendedUntil!)} (suspensión, huelga o ataque informático): no se puede fusionar hasta entonces.`;
   if (a.jurisdiction !== b.jurisdiction) return 'Tienen que estar registradas en la misma jurisdicción.';
   if (a.parentId || b.parentId) return 'Por ahora solo se fusionan empresas que tenés directamente.';
   if (a.ownership < 0.9999 || b.ownership < 0.9999) return 'Tienen que ser 100 % tuyas (sin socios ni accionistas).';
@@ -299,9 +310,16 @@ export function mergeCompanies(state: GameState, absorberId: number, targetId: n
     }
   }
   tLines.push(net >= 0 ? { account: 'distributions', debit: net } : { account: 'capital', credit: -net });
-  const capPart = net - ytd;
-  aLines.push(capPart >= 0 ? { account: 'capital', credit: capPart } : { account: 'capital', debit: -capPart });
-  if (ytd) aLines.push(ytd > 0 ? { account: 'other_income', credit: ytd } : { account: 'other_income', debit: -ytd });
+  // El patrimonio de b se reparte en: capital aportado, ganancias de años anteriores (siguen siendo
+  // distribuibles) y el resultado de este año (tributa en a; sin contar lo que b ya repartió).
+  const dpB = distributableProfit(b);
+  const ytdPart = ytd > 0 ? Math.min(ytd, Math.max(0, dpB)) : ytd;
+  const priorPart = dpB - ytdPart;
+  const capPart = net - dpB;
+  const signed = (account: CoAccountId, v: Cents) => (v >= 0 ? { account, credit: v } : { account, debit: -v });
+  if (capPart) aLines.push(signed('capital', capPart));
+  if (priorPart) aLines.push(signed('distributions', priorPart));
+  if (ytdPart) aLines.push(signed('other_income', ytdPart));
   coPost(b.ledger, { day: state.day, memo: `Fusión con ${a.name}: traspaso de activos y deudas`, cf: 'internal', tag: 'merge', lines: tLines });
   coPost(a.ledger, { day: state.day, memo: `Fusión: se incorpora ${b.name}${ytd ? ' (incluye su resultado del año)' : ''}`, cf: 'internal', tag: 'merge', lines: aLines });
   // 2 · Subregistros.

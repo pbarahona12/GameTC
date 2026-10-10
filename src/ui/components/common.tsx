@@ -145,10 +145,10 @@ export function Stat({ label, term, value, sub, learn }: { label: string; term?:
   );
 }
 
-export function Bar({ value, tone }: { value: number; tone?: 'gain' | 'loss' | 'warn' }) {
+export function Bar({ value, tone, label }: { value: number; tone?: 'gain' | 'loss' | 'warn'; label?: string }) {
   const w = Math.max(0, Math.min(1, value)) * 100;
   return (
-    <div className={`bar ${tone ?? ''}`} role="progressbar" aria-valuenow={Math.round(w)} aria-valuemin={0} aria-valuemax={100}>
+    <div className={`bar ${tone ?? ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(w)} aria-valuemin={0} aria-valuemax={100}>
       <span style={{ width: `${w}%` }} />
     </div>
   );
@@ -247,7 +247,7 @@ export function Seg<T extends string | number>({ items, value, onChange }: { ite
   return (
     <div className="seg">
       {items.map((it) => (
-        <button key={String(it.id)} className={value === it.id ? 'on' : ''} onClick={() => onChange(it.id)} type="button">
+        <button key={String(it.id)} className={value === it.id ? 'on' : ''} aria-pressed={value === it.id} onClick={() => onChange(it.id)} type="button">
           {it.label}
         </button>
       ))}
@@ -370,10 +370,11 @@ export function AmountInput({ id, value, onChange, max, placeholder, label }: { 
       {max !== undefined && max > 0 && (
         <div className="chips">
           {[0.25, 0.5, 1].map((f) => {
-            const amt = Math.floor((max * f) / 100) * 100 || max;
+            // «Todo» es exacto, con centavos (pagar $123 de $123.45 deja saldo y cobra intereses).
+            const amt = f === 1 ? max : Math.floor((max * f) / 100) * 100 || max;
             return (
               <button key={f} type="button" onClick={() => change(fmtAmountInput(amt))}>
-                {f === 1 ? 'Todo' : `${f * 100} %`} · {fmtMoney(amt, { decimals: false })}
+                {f === 1 ? 'Todo' : `${f * 100} %`} · {fmtMoney(amt, { decimals: f === 1 && amt % 100 !== 0 })}
               </button>
             );
           })}

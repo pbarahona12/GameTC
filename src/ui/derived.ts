@@ -5,7 +5,7 @@ import { computeMetrics } from '../engine/reports/metrics';
 import { analyze } from '../engine/advisor/advisor';
 import { evaluateStage } from '../engine/progression/progression';
 import { incomeStatement, cashFlowStatement } from '../engine/reports/statements';
-import { startOfMonth } from '../engine/time/calendar';
+import { startOfMonth, last30Start } from '../engine/time/calendar';
 import { consolidated, coIncomeStatement, coCashFlow, coMetrics, valuation } from '../engine/business/reports';
 import { analyzeCompany } from '../engine/business/advisor';
 import { consolidateGroup, groupRisks } from '../engine/business/groups';
@@ -54,11 +54,11 @@ export const taxProjectionOf = (s: GameState) => projectCurrentYear(s);
 export const loanOffersOf = (s: GameState, amount: number, term: number) => quoteAll(s, amount, term);
 
 /** Consolidado de las empresas de los últimos 30 días. */
-export const businessesOf = (s: GameState) => consolidated(s, s.day - 29, s.day);
+export const businessesOf = (s: GameState) => consolidated(s, last30Start(s.day), s.day);
 
 export const groupOf = (s: GameState, rootId: number) => {
   const root = company(s, rootId);
-  return consolidateGroup(s, root, Math.max(root.foundedDay, s.day - 29), s.day);
+  return consolidateGroup(s, root, Math.max(root.foundedDay, last30Start(s.day)), s.day);
 };
 export const groupRisksOf = (s: GameState, rootId: number) => groupRisks(s, company(s, rootId));
 

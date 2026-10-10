@@ -5,7 +5,7 @@ import { coPost, CO_ACCOUNT_IDS, CO_CHART, CoAccountId, coPeriodTotals } from '.
 import { coEquity, isOpen, monthlyFixed, monthlyPayroll } from './common';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
-import { addMonths, startOfMonth } from '../time/calendar';
+import { addMonths, startOfMonth, last90Start } from '../time/calendar';
 import { LEGAL_FORM_BY_ID } from '../../content/sectors';
 import { coIncomeStatement, coMetrics } from './reports';
 
@@ -340,7 +340,7 @@ export function groupRisks(state: GameState, root: Company): { members: GroupRis
     const liab = CO_ACCOUNT_IDS.filter((id) => CO_CHART[id].type === 'liability').reduce((s, id) => s + b[id], 0);
     return { company: co, runwayDays: m.runwayDays, arrears: b.arrears, debtRatio: assets > 0 ? liab / assets : 0, netIncome30: m.net30, exposure: b.ic_receivable };
   });
-  const c = consolidateGroup(state, root, Math.max(root.foundedDay, state.day - 89), state.day);
+  const c = consolidateGroup(state, root, Math.max(root.foundedDay, last90Start(state.day)), state.day);
   const burn = members.reduce((s, x) => s + (x.runwayDays !== null ? x.company.ledger.balances.cash / Math.max(1, x.runwayDays) : 0), 0);
   const guaranteed = groupMembers(state, root).reduce((s, co) => s + co.loans.filter((l) => l.guaranteed).reduce((a, l) => a + l.balance, 0), 0);
   const warnings: string[] = [];
@@ -359,6 +359,7 @@ export function canJoinGroup(co: Company): string | null {
   if (isHolding(co)) return 'Una holding no puede ser subsidiaria de otra en este juego.';
   if (co.parentId) return 'Ya pertenece a un grupo.';
   if (!isOpen(co)) return 'La empresa no está operando.';
+  if (co.listed) return 'Una empresa que cotiza en bolsa no puede pasar a una holding.';
   return null;
 }
 

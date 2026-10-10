@@ -1,3 +1,5 @@
+import { ageOf } from '../../../engine/saga/life';
+import { livingIndex } from '../../../engine/finance/budget';
 import { useState } from 'react';
 import { useGame, useUI, store } from '../../store';
 import { navStore } from '../../nav';
@@ -29,6 +31,7 @@ export function WardrobeScreen() {
         <div className="wh-info">
           <span className="eyebrow">Imagen personal <InfoButton term="imagen_personal" /></span>
           <div className="wh-score"><strong className="num">{b.total}</strong><span className="small muted">/100 · {imageLabel(b.total)}</span></div>
+          <button type="button" className="link tiny" onClick={() => navStore.open({ kind: 'life' })}>{s.player.name} · {Math.floor(ageOf(s))} años · salud {Math.round(s.player.attributes.health)}/100</button>
           {([['Ropa puesta', b.outfit, 50], ['Reloj y accesorio', b.accessories, 22], ['Vehículo', b.vehicle, 20], ['Reputación', b.reputation, 8]] as Array<[string, number, number]>).map(([l, val, max]) => (
             <div key={l} className="wh-bar"><span className="tiny muted">{l}</span><span className="tiny num">{val}/{max}</span><Bar value={val / max} /></div>
           ))}
@@ -96,7 +99,7 @@ export function WardrobeScreen() {
               <div className="row" key={o.uid} style={{ flexWrap: 'wrap' }}>
                 <div className="grow">
                   <div className="title small">{d.name} {v?.uid === o.uid && <Pill tone="accent">En uso</Pill>}</div>
-                  <div className="meta">Valor {fmtMoney(o.carrying)} (pagaste {fmtMoney(o.price)}) · {effectsLine(d, s.macro.priceIndex)}</div>
+                  <div className="meta">Valor {fmtMoney(o.carrying)} (pagaste {fmtMoney(o.price)}) · {effectsLine(d, livingIndex(s))}</div>
                 </div>
                 <ConfirmButton label="Vender" className="btn sm ghost" help="accion_vender_bien" confirmLabel={`Vender por ${fmtMoney(resaleValue(o))}`} detail={<>Te pagan {fmtMoney(resaleValue(o))} ({Math.round((d.resale ?? 0.5) * 100)} % de su valor actual). La diferencia con el valor contable se registra como pérdida.</>} onConfirm={() => store.run((st) => sellItem(st, o.uid))} />
               </div>
@@ -121,11 +124,11 @@ export function WardrobeScreen() {
       <div className="card">
         <CardHead title="Apariencia" term="apariencia" />
         <span className="small muted">Tono de piel</span>
-        <div className="swatches">{SKIN_TONES.map((c, i) => <button key={c} className={`swatch ${p.look.skin === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Tono ${i + 1}`} onClick={() => store.run((st) => setLook(st, { skin: i }), { toast: false })} />)}</div>
+        <div className="swatches">{SKIN_TONES.map((c, i) => <button key={c} className={`swatch ${p.look.skin === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Tono ${i + 1}`} aria-pressed={p.look.skin === i} onClick={() => store.run((st) => setLook(st, { skin: i }), { toast: false })} />)}</div>
         <span className="small muted">Peinado</span>
-        <div className="chips">{HAIR_STYLES.map((h) => <button key={h} className={p.look.hair === h ? 'on' : ''} onClick={() => store.run((st) => setLook(st, { hair: h }), { toast: false })}>{HAIR_STYLE_NAMES[h]}</button>)}</div>
+        <div className="chips">{HAIR_STYLES.map((h) => <button key={h} className={p.look.hair === h ? 'on' : ''} aria-pressed={p.look.hair === h} onClick={() => store.run((st) => setLook(st, { hair: h }), { toast: false })}>{HAIR_STYLE_NAMES[h]}</button>)}</div>
         <span className="small muted">Color de pelo</span>
-        <div className="swatches">{HAIR_COLORS.map((c, i) => <button key={c} className={`swatch ${p.look.hairColor === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Color ${i + 1}`} onClick={() => store.run((st) => setLook(st, { hairColor: i }), { toast: false })} />)}</div>
+        <div className="swatches">{HAIR_COLORS.map((c, i) => <button key={c} className={`swatch ${p.look.hairColor === i ? 'on' : ''}`} style={{ background: c }} aria-label={`Color de pelo ${i + 1}`} aria-pressed={p.look.hairColor === i} onClick={() => store.run((st) => setLook(st, { hairColor: i }), { toast: false })} />)}</div>
         <span className="tiny muted">La apariencia es solo visual: la imagen depende de la ropa, no de tu físico.</span>
       </div>
     </>

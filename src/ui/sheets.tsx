@@ -1,3 +1,4 @@
+import { ageOf } from '../engine/saga/life';
 import { Fragment, ReactNode, useEffect, useState } from 'react';
 import { navStore, useNav, SheetSpec } from './nav';
 import { store, useUI, useGame, useDerived } from './store';
@@ -29,6 +30,7 @@ import { COURSE_BY_ID } from '../content/courses';
 import { showRewardedAd, todayKey, ADS_LIVE } from './ads';
 import { applyUpdate, checkForUpdate, OTA_REPO, dismissUpdateNotes } from '../persistence/ota';
 import { useOta } from './useOta';
+import { goToMission } from './missions';
 import { LogRow } from './screens/Home';
 import { CHAPTER_ICON } from './contentIcons';
 import { GoalsView, DilemmaSheet, AgendaSheet, ChronicleView, ChallengesView, ExplainView, LifeView } from './screens/saga/sagaSheets';
@@ -64,12 +66,14 @@ function GlossaryView() {
   const [q, setQ] = useState('');
   const ui = useUI();
   const seen = ui.state?.meta.seenTerms ?? [];
-  const list = GLOSSARY.filter((g) => !q || (g.term + ' ' + g.short).toLowerCase().includes(q.toLowerCase()));
+  // Sin distinguir tildes ni mayúsculas: «deduccion» encuentra «deducción».
+  const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const list = GLOSSARY.filter((g) => !q || norm(g.term + ' ' + g.short).includes(norm(q)));
   const groups = new Map<string, GlossaryEntry[]>();
   for (const g of list) groups.set(g.category, [...(groups.get(g.category) ?? []), g]);
   return (
     <Sheet title="Glosario financiero">
-      <input className="input" id="glossary-q" placeholder="Buscar término (ej.: liquidez, deducción)" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      <input className="input" id="glossary-q" placeholder="Buscar término (ej.: liquidez, deducción)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar en el glosario" />
       <p className="tiny muted">{GLOSSARY.length} términos · {seen.length} consultados</p>
       {[...groups.entries()].map(([cat, items]) => (
         <div key={cat} className="stack" style={{ gap: 4 }}>
@@ -178,7 +182,7 @@ function Scenarios() {
         <option value="rate_shock">Suben (o bajan) las tasas de interés</option>
         <option value="market_crash">Caída de la bolsa</option>
         <option value="buy_property">Comprar un inmueble con hipoteca (60 %)</option>
-        <option value="sell_portfolio">Vender toda mi cartera financiera hoy</option>
+        <option value="sell_portfolio">Vender hoy mis acciones, fondos y bonos</option>
       </select>
       {kind === 'rate_shock' && <Seg items={[{ id: -20, label: '−2 pp' }, { id: 10, label: '+1 pp' }, { id: 20, label: '+2 pp' }, { id: 40, label: '+4 pp' }]} value={pct} onChange={setPct} />}
       {kind === 'market_crash' && <Seg items={[{ id: 15, label: '−15 %' }, { id: 30, label: '−30 %' }, { id: 50, label: '−50 %' }]} value={pct} onChange={setPct} />}
@@ -357,7 +361,7 @@ function SettingsView() {
           <Avatar data={avatarOf(s)} size={46} bust />
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong>{s.player.name}</strong>
-            <div className="tiny muted">{formatDate(s.day)} · dificultad {DIFFICULTY_BY_ID[s.options.difficulty].name.toLowerCase()} · <SavedAgo className="" /></div>
+            <div className="tiny muted">{Math.floor(ageOf(s))} años · {formatDate(s.day)} · dificultad {DIFFICULTY_BY_ID[s.options.difficulty].name.toLowerCase()} · <SavedAgo className="" /></div>
           </div>
           <span className="act"><button className="btn sm dark" onClick={async () => { if (await store.save()) store.toast('Partida guardada.', 'ok'); }}><Icon name="save" size={15} /> Guardar</button><InfoButton term="accion_guardar" /></span>
         </div>
@@ -456,7 +460,7 @@ function ProgressView() {
   const a = s.player.attributes;
   const attrs: Array<[string, number, string, string?]> = [
     ['Estrés', a.stress, 'Más de 60 reduce el desempeño; más de 50 desgasta la salud.', 'estres'],
-    ['Salud', a.health, 'Por debajo de 60 aumenta la probabilidad de imprevistos médicos.'],
+    ['Salud', a.health, `Por debajo de 60 aumenta la probabilidad de imprevistos médicos. Desde los 50 años tiende a bajar; desde los 68, una salud baja aumenta el riesgo de fallecer. Tenés ${Math.floor(ageOf(s))} años.`],
     ['Reputación', a.reputation, 'Mejora la probabilidad de recibir ofertas. Sube con el nivel de tu puesto y certificados.'],
     ['Red de contactos', a.network, 'Mejora la probabilidad de ofertas. Sube con estudios formales y puestos de nivel alto.'],
   ];
@@ -554,7 +558,7 @@ function TutorialView() {
                         {!ok && <div className="meta">{t.body}</div>}
                         {t.reward && <div className="tiny faint">+{t.reward.xp} XP en {SKILL_BY_ID[t.reward.skill].name}</div>}
                       </div>
-                      {!ok && <button className="btn sm" onClick={() => navStore.go(t.tab, t.sub)}>Ir</button>}
+                      {!ok && <button className="btn sm" onClick={() => goToMission(t)}>Ir</button>}
                     </div>
                   );
                 })}

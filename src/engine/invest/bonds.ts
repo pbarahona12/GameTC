@@ -34,7 +34,7 @@ interface BondSpec {
   years: number;
 }
 
-const GOV_SPREAD: Record<JurisdictionId, number> = { valdoria: 0.003, norvalia: 0, meridia: 0.002, isla_coral: 0.025 };
+export const GOV_SPREAD: Record<JurisdictionId, number> = { valdoria: 0.003, norvalia: 0, meridia: 0.002, isla_coral: 0.025 };
 const GOV_RATING: Record<JurisdictionId, string> = { valdoria: 'AA', norvalia: 'AAA', meridia: 'AA+', isla_coral: 'BB+' };
 
 const INITIAL: BondSpec[] = [

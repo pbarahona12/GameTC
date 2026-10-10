@@ -3,7 +3,7 @@ import { useGame, useUI, store } from '../../store';
 import { InfoButton, CardHead, Pill, NumInput, Act, Learn, LineChart, AmountInput, Money } from '../../components/common';
 import { buyFund, sellFund, fundReturn } from '../../../engine/invest/funds';
 import { FUND_DEFS } from '../../../content/funds';
-import { fmtMoney, fmtPct } from '../../../engine/format';
+import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { spendable } from '../../../engine/finance/payments';
 import { usd } from '../../../engine/money';
 
@@ -31,7 +31,7 @@ function FundCard({ id }: { id: string }) {
           <Pill tone={riskTone}>Riesgo {d.risk}/5</Pill>
         </div>
       </button>
-      {h && <p className="small">Tenés {h.qty.toFixed(2)} participaciones · valor {fmtMoney(Math.round(h.qty * f.nav))} (<Money c={Math.round(h.qty * f.nav) - h.cost} colored sign />)</p>}
+      {h && <p className="small">Tenés {fmtNumber(h.qty, 2)} participaciones · valor {fmtMoney(Math.round(h.qty * f.nav))} (<Money c={Math.round(h.qty * f.nav) - h.cost} colored sign />)</p>}
       {open && (
         <>
           <LineChart series={[{ name: d.id, values: f.history.slice(-180).map((x) => x.v), color: 'var(--accent)' }]} height={110} />
@@ -40,8 +40,8 @@ function FundCard({ id }: { id: string }) {
             <dt>Rendimiento 3 meses</dt><dd>{r3 === null ? '—' : fmtPct(r3, 1)}</dd>
             <dt>Rendimiento 12 meses</dt><dd>{r1 === null ? '—' : fmtPct(r1, 1)}</dd>
             <dt>Comisión anual <InfoButton term="comision" /></dt><dd>{fmtPct(d.fee, 1)}</dd>
-            <dt>Comisión de entrada</dt><dd>{d.entryFee ? fmtPct(d.entryFee, 1) : 'Sin comisión'}</dd>
-            <dt>Reparte rendimientos</dt><dd>{d.distributes ? 'Sí, cada trimestre' : 'No, los reinvierte'}</dd>
+            <dt>Comisión de entrada</dt><dd className={d.entryFee ? undefined : 'txt'}>{d.entryFee ? fmtPct(d.entryFee, 1) : 'Sin comisión'}</dd>
+            <dt>Reparte rendimientos</dt><dd className="txt">{d.distributes ? 'Sí, cada trimestre' : 'No, los reinvierte'}</dd>
           </div>
           <p className="small"><strong>Cómo funciona:</strong> {d.howItWorks}</p>
           <p className="small"><strong>Riesgos:</strong> {d.risks}</p>
@@ -52,7 +52,7 @@ function FundCard({ id }: { id: string }) {
           <Act label="Invertir" help="accion_invertir_fondo" className="btn primary" onClick={() => store.run((x) => buyFund(x, id, amount))} />
           {h && (
             <div className="field">
-              <label htmlFor={`fund-u-${id}`}>Participaciones a rescatar (tenés {h.qty.toFixed(2)})</label>
+              <label htmlFor={`fund-u-${id}`}>Participaciones a rescatar (tenés {fmtNumber(h.qty, 2)})</label>
               <NumInput id={`fund-u-${id}`} live value={units} onChange={setUnits} step={0.01} />
               <div className="btn-row">
                 <button className="btn sm ghost" onClick={() => setUnits(Math.floor(h.qty * 100) / 100)}>Todo</button>

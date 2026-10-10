@@ -148,6 +148,8 @@ export interface Employment {
   lastRaisePct: number;
   monthsInRole: number;
   lowPerfMonths: number;
+  /** Día en que entraste a la empresa (no cambia con un ascenso). */
+  employedSince?: number;
 }
 
 export interface Application {

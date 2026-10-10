@@ -14,7 +14,8 @@ import { isOpen } from '../business/common';
  */
 export type AgendaTarget =
   | { kind: 'tab'; tab: 'home' | 'career' | 'finance' | 'invest' | 'business' | 'more' | 'reports'; sub?: string }
-  | { kind: 'dilemma'; id: number };
+  | { kind: 'dilemma'; id: number }
+  | { kind: 'life' };
 
 export interface AgendaItem {
   key: string;
@@ -38,7 +39,7 @@ export function agenda(s: GameState): AgendaItem[] {
   for (const a of s.career.applications) {
     if (a.status !== 'offer' || a.offerExpiresDay === undefined) continue;
     const job = JOB_BY_ID[a.jobId];
-    out.push({ key: `job:${a.id}`, icon: 'mail', title: `Oferta: ${job?.title ?? 'empleo'}`, detail: `${job?.employer ?? ''} · ${fmtMoney(a.offerSalary ?? 0, { decimals: false })}/mes`, due: a.offerExpiresDay, tone: 'opportunity', target: { kind: 'tab', tab: 'career', sub: 'job' } });
+    out.push({ key: `job:${a.id}`, icon: 'mail', title: `Oferta: ${job?.title ?? 'empleo'}`, detail: `${job?.employer ?? ''} · ${fmtMoney(a.offerSalary ?? 0, { decimals: false })}/mes bruto`, due: a.offerExpiresDay, tone: 'opportunity', target: { kind: 'tab', tab: 'career', sub: 'job' } });
   }
   // Rivales: tentaciones a tus empleados y ofertas por tus empresas.
   for (const p of s.world.poach) {
@@ -81,6 +82,14 @@ export function agenda(s: GameState): AgendaItem[] {
   for (const l of s.realEstate.listings) {
     if (!l.note.startsWith('Remate judicial')) continue;
     out.push({ key: `remate:${l.id}`, icon: 'realestate', title: `Remate: ${l.property.name}`, detail: `Base ${fmtMoney(l.askPrice, { decimals: false })}`, due: l.expiresDay, tone: 'opportunity', target: { kind: 'tab', tab: 'invest', sub: 'realestate' } });
+  }
+  // Sucesión: desde los 65 (o con riesgo de fallecer), hasta que elijas heredero o lo apagues.
+  const l = s.saga?.life;
+  if (l && l.mortal !== false) {
+    const age = (s.day - l.birthDay) / 365.25;
+    if (age >= 65 && (l.heirId === undefined || l.heirId === null)) {
+      out.push({ key: 'heir', icon: 'crown', title: age >= 68 ? 'Elegí tu heredero: ya hay riesgo de fallecer por edad' : 'Planificá tu sucesión', detail: `${Math.floor(age)} años · el riesgo de fallecer empieza a los 68`, due: null, tone: age >= 68 ? 'danger' : 'warning', target: { kind: 'life' } });
+    }
   }
   return out.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
 }

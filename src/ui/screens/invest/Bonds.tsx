@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useGame, useUI, store } from '../../store';
 import { InfoButton, CardHead, Pill, NumInput, Act, Learn, LineChart, Seg, Money } from '../../components/common';
-import { bondQuote, buyBond, sellBond, bondYields, bondDescription, duration } from '../../../engine/invest/bonds';
+import { bondQuote, buyBond, sellBond, bondYields, bondDescription, duration, GOV_SPREAD } from '../../../engine/invest/bonds';
+import type { JurisdictionId } from '../../../content/jurisdictions';
 import { fmtMoney, fmtPct } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import type { BondIssue } from '../../../engine/invest/types';
@@ -35,11 +36,14 @@ function BondDetail({ b, onClose }: { b: BondIssue; onClose: () => void }) {
         <dt>Rendimiento al vencimiento <InfoButton term="rendimiento_vencimiento" /></dt><dd>{fmtPct(y.ytm, 2)}</dd>
         <dt>Rendimiento corriente <InfoButton term="cupon" /></dt><dd>{fmtPct(y.current, 2)}</dd>
         <dt>Duración <InfoButton term="duracion" /></dt><dd>{dur.toFixed(2)} años</dd>
-        <dt>Próximo cupón</dt><dd>{y.nextCoupon !== null ? `${formatDate(y.nextCoupon)} · ${fmtMoney(Math.round((b.face * b.coupon) / 2))} por bono` : '—'}</dd>
-        <dt>Calificación <InfoButton term="calificacion" /></dt><dd>{b.rating}</dd>
+        {b.status === 'impago'
+          ? <><dt>Situación</dt><dd className="loss">En impago · liquidación el {formatDate(b.maturityDay)} · recupero {fmtPct(b.recovery ?? 0.4, 0)} del nominal</dd></>
+          : <><dt>Próximo cupón</dt><dd>{y.nextCoupon !== null ? `${formatDate(y.nextCoupon)} · ${fmtMoney(Math.round((b.face * b.coupon) / 2))} por bono` : '—'}</dd></>}
+        <dt>Calificación <InfoButton term="calificacion" /></dt><dd>{b.status === 'impago' ? 'D' : b.rating}</dd>
       </div>
       <p className="tiny muted">
-        Si las tasas suben 1 punto, el precio caería aproximadamente {fmtPct(dur / (1 + y.ytm) / 100, 1)}. Si el emisor entra en impago, se recupera en promedio el 40 % del nominal.
+        Si las tasas suben 1 punto, el precio caería aproximadamente {fmtPct(dur / 100, 1)}.{' '}
+        {b.issuerKind === 'empresa' ? 'Si la empresa quiebra, se recupera alrededor del 40 % del nominal.' : GOV_SPREAD[b.issuer as JurisdictionId] > 0.02 ? 'Este gobierno podría entrar en impago en una recesión profunda: se recuperaría alrededor del 55 % del nominal.' : 'El riesgo de impago de este gobierno es prácticamente nulo.'}
         {b.issuerKind === 'empresa' ? ' Un bono corporativo paga más porque la empresa puede quebrar.' : ''}
       </p>
       {h && <p className="small">Tenés <strong>{h.qty}</strong> bonos · costo {fmtMoney(h.cost)} · valor {fmtMoney(Math.round(h.qty * b.price))} (<Money c={Math.round(h.qty * b.price) - h.cost} colored sign />)</p>}
@@ -88,7 +92,7 @@ export function BondsScreen() {
               <button key={x.id} className="row clickable" style={{ border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', width: '100%' }} onClick={() => { setSel(x.id); window.scrollTo({ top: 0 }); }}>
                 <div className="grow">
                   <div className="title small">{x.name}</div>
-                  <div className="meta">Cupón {fmtPct(x.coupon, 2)} · vence {formatDate(x.maturityDay)} ({y.years.toFixed(1)} a){s.bonds.holdings[x.id] ? ` · tenés ${s.bonds.holdings[x.id].qty}` : ''}</div>
+                  <div className="meta">Cupón {fmtPct(x.coupon, 3)} · vence {formatDate(x.maturityDay)} ({y.years.toFixed(1)} a){s.bonds.holdings[x.id] ? ` · tenés ${s.bonds.holdings[x.id].qty}` : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="amt small">{fmtPct(x.yield, 2)}</div>

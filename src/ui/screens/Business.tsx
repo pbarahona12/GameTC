@@ -1,3 +1,4 @@
+import { hiredPro } from '../../engine/pros/lookup';
 import { useState } from 'react';
 import { useGame, useUI, useDerived, store } from '../store';
 import { businessesOf } from '../derived';
@@ -11,13 +12,14 @@ import { daysToBankruptcy } from '../../engine/business/finance';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { attachForecast, type BusinessForecast } from '../../engine/advisor/businessForecast';
 import { isOpen } from '../../engine/business/common';
-import { formatDate } from '../../engine/time/calendar';
+import { formatDate, last90Start } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../engine/format';
 import { spendable } from '../../engine/finance/payments';
 import { usd, Cents } from '../../engine/money';
 import { Money, InfoButton, Pill, Empty, AmountInput, ConfirmButton, LineChart, CardHead, Act, Stat, Learn, Seg, ScreenIntro } from '../components/common';
 import { CompanyView } from './business/CompanyView';
 import { SoftGate } from '../components/Gate';
+import { truceRivalIn } from '../../engine/world/rivals';
 import type { Company } from '../../engine/business/types';
 import { SECTOR_ICON } from '../contentIcons';
 import { Icon } from '../icons';
@@ -195,7 +197,8 @@ function Found({ parentId }: { parentId: number | null }) {
         <p className="small">
           Costos fijos del primer mes ≈ <strong>{fmtMoney(monthly)}</strong> (alquiler, servicios, administración y sueldos). {working > 0 ? <>El capital de trabajo cubre ≈ <strong>{(working / monthly).toFixed(1)} meses</strong> sin ventas.</> : <span className="loss">No alcanza para instalarse.</span>} Capital recomendado para este sector: {fmtMoney(costs.recommended, { decimals: false })}.
         </p>
-        {total < costs.recommended && total >= costs.total && <p className="small warn">Por debajo de lo recomendado: la empresa puede quedarse sin caja antes de ganar clientes.</p>}
+        {total >= costs.total && (total < costs.recommended || working < monthly * 6) && <p className="small warn">{working < monthly * 3 ? 'Con menos de 3 meses de caja, casi todas las empresas quiebran antes de ganar suficientes clientes.' : 'Por debajo de lo recomendado: la empresa puede quedarse sin caja antes de ganar clientes.'} Lo prudente es cubrir al menos 6 meses de costos sin ventas.</p>}
+        {truceRivalIn(s, sector) && <p className="small loss">Tenés una tregua con {truceRivalIn(s, sector)!.name} en {sec.name.toLowerCase()}: abrir esta empresa la rompe (te atacan con todo y tu reputación baja 5).</p>}
         <ForecastPanel target={{ kind: 'nueva', sector, legalForm: form, capital, jurisdiction: jur }} title="¿Cómo le iría? Proyección a 12 meses" onResult={(f) => setFc({ key: `${sector}|${form}|${capital}|${jur}`, f })} />
         <ConfirmButton
           label="Fundar empresa"
@@ -203,7 +206,7 @@ function Found({ parentId }: { parentId: number | null }) {
           disabled={!!req && !req.met}
           confirmLabel="Fundar"
           help="accion_fundar"
-          detail={<>Se transferirán {fmtMoney(capital)} {parent ? `de la caja de ${parent.name}` : 'de tu cuenta corriente'} a {name || sec.name} (registrada en {JURISDICTION_BY_ID[jur].name}). Abrirá al público en 7 días.</>}
+          detail={<>Se transferirán {fmtMoney(capital)} {parent ? `de la caja de ${parent.name}` : 'de tu cuenta corriente'} a {name || sec.name} (registrada en {JURISDICTION_BY_ID[jur].name}). Abrirá al público en 7 días.{truceRivalIn(s, sector) ? ` Rompe la tregua con ${truceRivalIn(s, sector)!.name}.` : ''}</>}
           onConfirm={() => {
             const r = store.run((st) => {
               const res = foundCompany(st, { sector, name: name || `${sec.name} ${st.player.name.split(' ')[0]}`, legalForm: form, capital, color, jurisdiction: jur, parentId: parent?.id ?? null });
@@ -237,8 +240,8 @@ function Market({ buyerId }: { buyerId: number | null }) {
           <div className="field">
             <label>Comprador</label>
             <div className="chips">
-              <button onClick={() => setBuyer(null)} style={buyer === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Vos (personal)</button>
-              {holdings.map((h) => <button key={h.id} onClick={() => setBuyer(h.id)} style={buyer === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.name} (caja {fmtMoney(h.ledger.balances.cash, { decimals: false })})</button>)}
+              <button aria-pressed={buyer === null} onClick={() => setBuyer(null)} style={buyer === null ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>Vos (personal)</button>
+              {holdings.map((h) => <button key={h.id} aria-pressed={buyer === h.id} onClick={() => setBuyer(h.id)} style={buyer === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.name} (caja {fmtMoney(h.ledger.balances.cash, { decimals: false })})</button>)}
             </div>
           </div>
         )}
@@ -248,10 +251,11 @@ function Market({ buyerId }: { buyerId: number | null }) {
         const co = l.company;
         const sec = SECTOR_BY_ID[co.sector];
         const v = valuation(s, co);
-        const is = coIncomeStatement(co, Math.max(co.openDay, s.day - 89), s.day);
+        const is = coIncomeStatement(co, Math.max(co.openDay, last90Start(s.day)), s.day);
         const b = co.ledger.balances;
         const offer = offers[l.id] ?? l.askPrice;
-        const fee = Math.round(offer * 0.03);
+        const pay = Math.min(offer, l.askPrice); // ofrecer más que lo pedido no sube el precio
+        const fee = Math.round(pay * 0.03);
         return (
           <div className="card" key={l.id}>
             <div className="co-head">
@@ -269,7 +273,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               <dt>Patrimonio contable</dt><dd>{fmtMoney(v.book)}</dd>
               <dt>Ventas anualizadas</dt><dd>{fmtMoney(v.revenueAnnual)}</dd>
               <dt>EBITDA anualizado <InfoButton term="ebitda" /></dt><dd className={v.ebitdaAnnual >= 0 ? '' : 'loss'}>{fmtMoney(v.ebitdaAnnual)}</dd>
-              <dt>Resultado neto 90 días</dt><dd className={is.netIncome >= 0 ? 'gain' : 'loss'}>{fmtMoney(is.netIncome)}</dd>
+              <dt>Resultado neto (últimos 3 meses)</dt><dd className={is.netIncome >= 0 ? 'gain' : 'loss'}>{fmtMoney(is.netIncome)}</dd>
               <dt>Caja · deudas</dt><dd>{fmtMoney(b.cash)} · {fmtMoney(b.loans + b.payables + b.arrears + b.taxes_payable)}</dd>
               <dt>Empleados · reputación</dt><dd>{co.employees.length} · {Math.round(co.reputation)}/100</dd>
             </div>
@@ -288,7 +292,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               help="accion_comprar_empresa"
               disabled={!(offer > 0)}
               confirmLabel="Confirmar"
-              detail={<>Pagarías {fmtMoney(offer)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}</>}
+              detail={<>Pagarías {fmtMoney(pay)} + {fmtMoney(fee)} de costos legales (3 %).{truceRivalIn(s, co.sector) ? ` Rompe tu tregua con ${truceRivalIn(s, co.sector)!.name} en ${sec.name.toLowerCase()}.` : ''} {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
               onConfirm={() => {
                 const r = store.run((st) => {
                   const res = buyListing(st, l.id, offer, buyer);

@@ -4,11 +4,12 @@ import type { GameState } from '../src/engine/state';
 import { post } from '../src/engine/ledger/ledger';
 import { usd } from '../src/engine/money';
 import { advanceDay, simulateDays } from '../src/engine/simulation';
-import { isLastDayOfMonth } from '../src/engine/time/calendar';
+import { isLastDayOfMonth, startOfMonth } from '../src/engine/time/calendar';
 import { balanceSheet } from '../src/engine/reports/statements';
 import { foundCompany } from '../src/engine/business/ownership';
 import { SECTOR_BY_ID } from '../src/content/sectors';
-import { life, ageOf, monthlyDeathRisk, heirs, estateTax, succession, retire, createFoundation, donateToFoundation, foundationReputation, lifeMonth, ageHealthPenalty, RETIRE_AGE } from '../src/engine/saga/life';
+import { life, ageOf, monthlyDeathRisk, heirs, estateTax, succession, retire, createFoundation, donateToFoundation, foundationReputation, lifeMonth, ageHealthPenalty, RETIRE_AGE, setHeir, designatedHeir, setMortality } from '../src/engine/saga/life';
+import { agenda } from '../src/engine/saga/agenda';
 import { ipoBlocker, goPublic, marketCap, listedMonth, acquireRival, rivalBlocker, rivalPrice, activeRivals, buyBackShares } from '../src/engine/saga/corporate';
 import { erasMonth, currentEra } from '../src/engine/saga/eras';
 import { signDeal, possibleDeals, dealDiscount, dealsMonth, endDeal } from '../src/engine/saga/integration';
@@ -318,5 +319,67 @@ describe('1.4 · Desafíos para aprender y dilemas urgentes', () => {
     expect(out.ledger.balances.inheritance_tax).toBe(0);
     expect(out.saga.life).toBeTruthy();
     expectConsistent(out);
+  });
+});
+
+describe('1.4 · La edad se ve y avisa antes de que pese', () => {
+  it('cumpleaños: aviso cada año y advertencias a los 65 y 68 (peligro)', () => {
+    const s = makeGame('egresado', 'bday-1');
+    life(s).birthDay = s.day - Math.ceil(65 * 365.25); // cumple este mes
+    lifeMonth(s);
+    expect(s.log.some((l) => /cumplió 65 años/.test(l.text) && l.cat === 'peligro')).toBe(true);
+    life(s).birthDay = s.day - Math.ceil(68 * 365.25);
+    lifeMonth(s);
+    expect(s.log.some((l) => /cumplió 68 años.*riesgo real de fallecer/.test(l.text))).toBe(true);
+  });
+
+  it('cada cumpleaños cae en exactamente un cierre de mes, para cualquier fecha de nacimiento', () => {
+    const s = makeGame('egresado', 'bday-2');
+    for (let b = 0; b < 400; b += 7) {
+      const birth = -Math.round(20 * 365.25) - b;
+      const seen = new Map<number, number>();
+      for (let d = 30; d < 365 * 12; d++) {
+        if (startOfMonth(d + 1) !== d + 1) continue; // d = último día del mes
+        const age = (d - birth) / 365.25;
+        const prev = (startOfMonth(d) - 1 - birth) / 365.25;
+        if (Math.floor(age) > Math.floor(prev)) seen.set(Math.floor(age), (seen.get(Math.floor(age)) ?? 0) + 1);
+      }
+      for (let a = 23; a <= 31; a++) expect(seen.get(a), `nacido ${birth}, ${a} años`).toBe(1);
+    }
+    expect(s).toBeTruthy();
+  });
+
+  it('con el fallecimiento apagado no hay avisos de riesgo de muerte al cumplir 68', () => {
+    const s = makeGame('egresado', 'bday-3');
+    setMortality(s, false);
+    life(s).birthDay = s.day - Math.ceil(68 * 365.25);
+    lifeMonth(s);
+    expect(s.log.some((l) => /cumplió 68 años\.$/.test(l.text))).toBe(true);
+    expect(s.log.some((l) => /riesgo real de fallecer/.test(l.text))).toBe(false);
+  });
+
+  it('si fallece, hereda el heredero elegido; el ajuste de fallecimiento se conserva', () => {
+    const s = makeGame('egresado', 'heir-2');
+    gift(s, 10_000);
+    life(s).birthDay = s.day - Math.round(70 * 365.25);
+    life(s).children.push({ id: 9001, name: 'Ana Tester', born: s.day - Math.round(40 * 365.25) }, { id: 9002, name: 'Beto Tester', born: s.day - Math.round(35 * 365.25) });
+    expect(setHeir(s, 9002).ok).toBe(true);
+    expect(designatedHeir(s).id).toBe(9002);
+    succession(s, designatedHeir(s).id, 'fallecimiento');
+    expect(s.player.name).toBe('Beto Tester');
+    expect(s.saga.celebrations.some((c) => c.icon === 'history' && /murió a los 70 años/.test(c.title))).toBe(true);
+    const t = makeGame('egresado', 'mort-2');
+    life(t).birthDay = t.day - Math.round(62 * 365.25);
+    setMortality(t, false);
+    succession(t, 'sobrino', 'retiro');
+    expect(life(t).mortal).toBe(false);
+  });
+
+  it('la agenda pide elegir heredero desde los 65', () => {
+    const s = makeGame('egresado', 'agenda-heir');
+    life(s).birthDay = s.day - Math.round(66 * 365.25);
+    expect(agenda(s).some((a) => a.key === 'heir')).toBe(true);
+    setHeir(s, heirs(s)[0].id);
+    expect(agenda(s).some((a) => a.key === 'heir')).toBe(false);
   });
 });

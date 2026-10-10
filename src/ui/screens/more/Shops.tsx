@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { livingIndex } from '../../../engine/finance/budget';
 import { useGame, useUI, store } from '../../store';
 import { navStore, useNav } from '../../nav';
 import { STORES, STORE_BY_ID, ITEMS, CATEGORY_INFO, TIER_NAMES, TIER_IMAGE_REQ, SLOT_NAMES, ShopCategory, ItemDef, StoreDef } from '../../../content/shops';
@@ -20,7 +21,8 @@ const TREAT: Record<string, { tone: 'gain' | 'info' | 'warn'; label: string }> =
   frio: { tone: 'warn', label: 'Te atienden con desgano' },
 };
 
-export function effectsLine(it: ItemDef, priceIndex = 1): string {
+/** Efectos de un bien. `costIndex`: precios × costo de vida (lo que usa el presupuesto). */
+export function effectsLine(it: ItemDef, costIndex = 1): string {
   const e = it.effects ?? {};
   const parts: string[] = [];
   if (it.style) parts.push(`+${it.style} de imagen${it.slot ? ` (${SLOT_NAMES[it.slot].toLowerCase()})` : ''}`);
@@ -29,7 +31,7 @@ export function effectsLine(it: ItemDef, priceIndex = 1): string {
   if (e.health) parts.push(`salud +${e.health}/mes`);
   if (e.stress) parts.push(`estrés ${e.stress}/mes`);
   if (e.food) parts.push(`−${Math.round(e.food * 100)} % en comida`);
-  if (e.running) parts.push(`reemplaza el transporte: ~${fmtMoney(Math.round(e.running * 100 * priceIndex), { decimals: false })}/mes`);
+  if (e.running) parts.push(`reemplaza tu gasto de transporte y cuesta ~${fmtMoney(Math.round(e.running * 100 * costIndex), { decimals: false })}/mes (combustible, seguro, mantenimiento)`);
   if (it.durable) parts.push(`se deprecia ${fmtPct(it.depreciation ?? 0, 0)} al año · reventa ${fmtPct(it.resale ?? 0, 0)}`);
   else parts.push('se gasta con el uso');
   return parts.join(' · ');
@@ -85,7 +87,7 @@ function ItemRow({ item }: { item: ItemDef }) {
         <div className="grow">
           <div className="title small">{item.name} {item.exclusive && <Pill tone="accent">Exclusivo</Pill>} {owned > 0 && <Pill tone="neutral">Tenés {owned}</Pill>}</div>
           <div className="meta">{item.description}</div>
-          <div className="meta">{effectsLine(item, s.macro.priceIndex)}</div>
+          <div className="meta">{effectsLine(item, livingIndex(s))}</div>
         </div>
         <div className="shop-price">
           {q.discount > 0 && <s className="tiny faint num">{fmtMoney(q.list, { decimals: false })}</s>}

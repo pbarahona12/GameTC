@@ -110,13 +110,18 @@ export function startPriceWar(state: GameState, r: RivalGroup, sector: BizSector
   return war;
 }
 
-function endWar(state: GameState, w: PriceWar): void {
+/**
+ * Termina una guerra de precios. Los precios del rival se recuperan desde donde
+ * están hoy (deshaciendo solo el recorte), así no se borran meses de mercado.
+ * `silent`: termina por una compra o una alianza (sin festejo ni «resististe»).
+ */
+export function endWar(state: GameState, w: PriceWar, silent = false): void {
   const m = state.markets[w.sector];
   const r = state.world.rivals.find((x) => x.id === w.rivalId);
   if (m) {
     for (const x of w.cut) {
       const c = m.competitors.find((y) => y.id === x.id);
-      if (c) c.priceMult = x.mult;
+      if (c) c.priceMult = clamp(Math.round((c.priceMult / 0.85) * 100) / 100, 0.6, 1.8);
     }
     if (w.battleId !== null) {
       const c = m.competitors.find((y) => y.id === w.battleId);
@@ -124,7 +129,7 @@ function endWar(state: GameState, w: PriceWar): void {
     }
   }
   rivalry(state).wars = rivalry(state).wars.filter((x) => x !== w);
-  if (!r) return;
+  if (!r || silent || r.acquired || isAlly(state, r)) return;
   rememberRival(state, r, -10, 'Terminó la guerra de precios');
   const sec = SECTOR_BY_ID[w.sector].name.toLowerCase();
   const stillHere = state.companies.some((c) => isOpen(c) && !c.npc && c.sector === w.sector);
@@ -163,7 +168,7 @@ function nemesisStep(state: GameState): void {
   if (!cand) return;
   rv.nemesisId = cand.id;
   rv.nemesisSince = state.day;
-  const why = cand.memory?.slice(-2).map((m) => m.text.toLowerCase()).join(' y ') ?? 'todo lo que pasó entre ustedes';
+  const why = cand.memory?.slice(-2).map((m) => m.text.toLowerCase()).join(' y ') || 'todo lo que pasó entre ustedes';
   const text = `${cand.name} te declaró la guerra (${why}). Va a atacarte más seguido hasta que lo venzas: comprarlo o que tu fortuna duplique la de su dueño.`;
   news(state, cand, cand.icon, `${cand.name} declara la guerra a ${state.player.name}`, text);
   chronicle(state, 'rival', 'rivals', `${cand.name} es tu némesis`, text);

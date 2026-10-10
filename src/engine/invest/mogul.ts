@@ -239,7 +239,12 @@ function monthEndAsset(state: GameState, a: MogulAsset): void {
     distributable = income;
     const lifeLeft = r.years * 12 - (state.day - a.createdDay) / 30.4;
     a.nav = royaltyNav(state, a);
-    if (lifeLeft <= 0) liquidateAsset(state, a, 'Se extinguieron los derechos.');
+    if (lifeLeft <= 0) {
+      // El último mes también se reparte antes de extinguir los derechos.
+      if (distributable > 0) payDistribution(state, a, distributable);
+      distributable = 0;
+      liquidateAsset(state, a, 'Se extinguieron los derechos.');
+    }
   }
   if (distributable > 0 && a.status === 'activo') payDistribution(state, a, distributable);
   a.history.push({ d: state.day, v: Math.round(a.nav * 100) / 100 });

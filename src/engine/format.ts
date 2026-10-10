@@ -136,7 +136,7 @@ export function fmtCompact(c: Cents, opts: { sign?: boolean } = {}): string {
   if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(2)}B`;
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
   if (a >= 1e4) return `${s}$${(a / 1e3).toFixed(1)}K`;
-  return fmtMoney(c, { decimals: a < 1000, sign: opts.sign });
+  return fmtMoney(c, { decimals: a > 0 && a < 1000, sign: opts.sign });
 }
 
 /**
@@ -148,9 +148,12 @@ export function fmtMoneyFit(c: Cents, opts: { decimals?: boolean; sign?: boolean
   return full.length <= (opts.max ?? 12) ? full : fmtCompact(c, { sign: opts.sign });
 }
 
+/** Porcentaje con espacio duro antes del «%» (nunca queda solo en otro renglón). */
 export function fmtPct(rate: number, digits = 1): string {
   const v = rate * 100;
   // Porcentajes enormes (una inversión que se multiplicó 100 veces) con separador de miles y sin decimales.
-  if (Math.abs(v) >= 1000) return `${grouper(0).format(Math.round(v))} %`;
-  return `${v.toFixed(digits).replace(/\.0+$/, '')} %`;
+  if (Math.abs(v) >= 1000) return `${grouper(0).format(Math.round(v)).replace('-', '−')}\u00a0%`;
+  // Sin ceros de más ("4.50 %" → "4.5 %", "3.0 %" → "3 %") y con el mismo signo menos que el dinero.
+  const txt = v.toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  return `${txt === '-0' ? '0' : txt.replace('-', '−')}\u00a0%`;
 }

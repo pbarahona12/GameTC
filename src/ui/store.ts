@@ -485,6 +485,18 @@ export class GameStore {
     return r;
   }
 
+  /**
+   * Cambio liviano de la partida que solo afecta a la interfaz (cerrar un festejo,
+   * marcar un paso de la guía): sin recalcular progreso ni etapas.
+   */
+  quick(fn: (s: GameState) => void): void {
+    const s = this.ui.state;
+    if (!s) return;
+    fn(s);
+    this.touch();
+    this.emit();
+  }
+
   markSeen(term: string) {
     const s = this.ui.state;
     if (!s || s.meta.seenTerms.includes(term)) return;

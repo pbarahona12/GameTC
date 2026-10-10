@@ -5,7 +5,7 @@ import type { GameState } from '../state';
 import { balanceSheet } from './statements';
 import { payroll } from '../tax/incomeTax';
 import { residence } from '../tax/taxEngine';
-import { monthlyRecurring, insuranceCost } from '../finance/budget';
+import { monthlyRecurring } from '../finance/budget';
 import { monthlyDebtPayments } from '../finance/loans';
 import { savingsRate, depositInterest } from '../finance/banking';
 import { tuition } from '../skills/education';
@@ -58,7 +58,7 @@ export function computeMetrics(state: GameState): Metrics {
   const pr = job ? payroll(residence(state), job.salary, state.bank.pensionRate) : null;
   const commission = job && JOB_BY_ID[job.jobId].commission ? roundCents(job.salary * JOB_BY_ID[job.jobId].commission! * (job.performance / 50) * 0.75) : 0;
   const expectedNetPay = pr ? pr.net + commission : 0;
-  const essentialMonthly = monthlyRecurring(state, true) + (state.budget.privateInsurance ? insuranceCost(state) : 0);
+  const essentialMonthly = monthlyRecurring(state, true); // ya incluye el seguro médico privado
   const recurringMonthly = monthlyRecurring(state);
   const mortgagePayments = state.realEstate.mortgages.filter((mm) => mm.status === 'activa' && mm.owner.kind === 'personal').reduce((s, mm) => s + mm.payment, 0);
   const debtPayments = monthlyDebtPayments(state) + mortgagePayments;

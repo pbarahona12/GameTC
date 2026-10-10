@@ -52,6 +52,13 @@ export const SOURCE_INFO: Record<FortuneSource, { label: string; sector?: StockS
 };
 
 /** Nombres ficticios para las fortunas del mundo (cualquier parecido es casual). */
+/** Nombres femeninos de la lista que no terminan en «a» (para decir «hija», «sobrina»…). */
+const FEMALE_EXCEPTIONS = new Set(['Amparo', 'Carmen', 'Inés', 'Irene', 'Isabel', 'Matilde', 'Mercedes', 'Raquel', 'Rocío', 'Rosario']);
+export function isFemaleName(fullName: string): boolean {
+  const first = fullName.trim().split(/\s+/)[0] ?? '';
+  return FEMALE_EXCEPTIONS.has(first) || /a$/.test(first);
+}
+
 export const FIRST_NAMES = [
   'Adrián', 'Agustina', 'Alba', 'Alejandro', 'Amparo', 'Andrés', 'Antonella', 'Aurora', 'Benjamín', 'Bruno', 'Camila', 'Carmen', 'Catalina', 'Cecilia',
   'Clara', 'Cristóbal', 'Daniela', 'Diego', 'Elena', 'Emilia', 'Emilio', 'Esteban', 'Federico', 'Fernanda', 'Gabriel', 'Gonzalo', 'Graciela', 'Héctor',

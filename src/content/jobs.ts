@@ -110,7 +110,7 @@ export const JOBS: JobDef[] = [
   { id: 'tec_dev_jr', title: 'Desarrollador junior', employer: 'NubeClara', sector: 'tecnologia', level: 2, baseSalary: 2400, hoursPerWeek: 42, stress: 5,
     requires: { skills: { cybersecurity: 20 }, expSectorMonths: 6 }, keySkills: ['cybersecurity', 'discipline'], skillXp: { cybersecurity: 650 }, bonusTarget: 0.05, pensionMatch: 0.04, healthInsurance: true, promotesTo: 'tec_dev' },
   { id: 'tec_dev', title: 'Desarrollador de software', employer: 'Códice Labs', sector: 'tecnologia', level: 3, baseSalary: 4200, hoursPerWeek: 44, stress: 6,
-    requires: { expSectorMonths: 24, skills: { cybersecurity: 30 } }, keySkills: ['cybersecurity', 'discipline'], skillXp: { cybersecurity: 700, management: 150 }, bonusTarget: 0.08, pensionMatch: 0.05, healthInsurance: true, promotesTo: 'tec_ciso' },
+    requires: { expSectorMonths: 24, skills: { cybersecurity: 30 } }, keySkills: ['cybersecurity', 'discipline'], skillXp: { cybersecurity: 700, management: 150, law: 100 }, bonusTarget: 0.08, pensionMatch: 0.05, healthInsurance: true, promotesTo: 'tec_ciso' },
   { id: 'tec_ciso', title: 'Director de ciberseguridad', employer: 'Códice Labs', sector: 'tecnologia', level: 5, baseSalary: 11000, hoursPerWeek: 50, stress: 9,
     requires: { expSectorMonths: 72, skills: { cybersecurity: 65, management: 35, law: 20 } }, keySkills: ['cybersecurity', 'management', 'law'], skillXp: { cybersecurity: 400, management: 500, law: 300 }, bonusTarget: 0.2, pensionMatch: 0.06, healthInsurance: true },
   // MARKETING

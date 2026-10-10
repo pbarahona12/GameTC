@@ -302,6 +302,8 @@ export interface CoTaxFiling {
   dueDay: number;
   outstanding: Cents;
   passThrough: boolean;
+  /** No se pudo pagar al vencer: pasó a deudas vencidas con multa. */
+  late?: boolean;
 }
 
 export interface CompetitorState {

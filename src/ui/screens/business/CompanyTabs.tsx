@@ -6,18 +6,18 @@ import { SECTOR_BY_ID, LEGAL_FORM_BY_ID } from '../../../content/sectors';
 import { CHANNELS, CHANNEL_BY_ID, AUDIENCES, startCampaign, stopCampaign, buyResearch, hasResearch, RESEARCH_COST, activeCampaigns } from '../../../engine/business/marketing';
 import { coIncomeStatement, coBalanceSheet, coMetrics, valuation } from '../../../engine/business/reports';
 import { BIZ_BANKS, quoteCoLoan, takeCoLoan, prepayCoLoan, payCoArrearsNow, coTaxRateLabel } from '../../../engine/business/finance';
-import { injectCapital, distribute, maxDistribution, requestSaleOffer, acceptSale, liquidate, raiseEquity, SALE_FEE } from '../../../engine/business/ownership';
+import { injectCapital, distribute, maxDistribution, companyTaxRates, requestSaleOffer, acceptSale, liquidate, raiseEquity, SALE_FEE } from '../../../engine/business/ownership';
 import { rivalsAttraction } from '../../../engine/business/market';
 import { expectedShare, refPrice, companyAttraction, effectivePrice } from '../../../engine/business/operations';
 import { distributableProfit, isOpen } from '../../../engine/business/common';
 import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { spendable } from '../../../engine/finance/payments';
-import { formatDate, startOfMonth, startOfYear, addMonths } from '../../../engine/time/calendar';
+import { formatDate, startOfMonth, startOfYear, addMonths, last30Start } from '../../../engine/time/calendar';
 import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, Pill, AmountInput, ConfirmButton, CardHead, Act, Seg, NumInput, Learn } from '../../components/common';
 import { runCo } from './CompanyView';
 import { navStore } from '../../nav';
-import { IpoCard, DealsCard, BondsCard, MergeCard } from './Corporate';
+import { CapitalMarketsCards, DealsCard, MergeCard } from './Corporate';
 
 export function MarketingTab({ co }: { co: Company }) {
   const s = useGame();
@@ -27,7 +27,7 @@ export function MarketingTab({ co }: { co: Company }) {
   const [budget, setBudget] = useState<Cents>(usd(30 * s.macro.priceIndex));
   const [days, setDays] = useState(30);
   const ch = CHANNEL_BY_ID[channel];
-  const revenue30 = coIncomeStatement(co, Math.max(co.openDay, s.day - 29), s.day).revenue;
+  const revenue30 = coIncomeStatement(co, Math.max(co.openDay, last30Start(s.day)), s.day).revenue;
   return (
     <>
       <div className="card">
@@ -102,7 +102,7 @@ export function MarketTab({ co }: { co: Company }) {
     <>
       <div className="card">
         <CardHead title="Competencia" term="cuota_mercado" />
-        <p className="small muted">{exact ? 'Datos exactos del estudio de mercado.' : 'Sin estudio de mercado, los datos de los rivales son aproximados (±5). Contratá uno en Marketing.'}</p>
+        <p className="small muted">{exact ? 'Datos exactos del estudio de mercado.' : 'Sin estudio de mercado, los datos de los rivales son aproximados (unos ±7 puntos). Contratá uno en Marketing.'}</p>
         <div className="hscroll">
           <table className="table">
             <thead><tr><th>Empresa</th><th className="r">Precio vs ref.</th><th className="r">Calidad</th><th className="r">Reputación</th><th className="r">Marca</th><th className="r">Cuota ({p.name})</th></tr></thead>
@@ -233,8 +233,17 @@ export function FinanceTab({ co }: { co: Company }) {
       </div>
       <div className="card">
         <CardHead title="Aportar capital" term="accion_aportar" />
-        <AmountInput id={`inj-${co.id}`} value={inject} onChange={setInject} max={spendable(s)} />
-        <ConfirmButton label="Aportar" className="btn dark" help="accion_aportar" disabled={inject <= 0} confirmLabel="Transferir" detail={<>Pasan {fmtMoney(inject)} de tu cuenta corriente a la caja de {co.name}.</>} onConfirm={() => { const r = runCo(co.id, (st, c) => injectCapital(st, c, inject)); if (r.ok) setInject(0); }} />
+        {(() => {
+          const parent = co.parentId ? s.companies.find((x) => x.id === co.parentId) : undefined;
+          const max = parent ? parent.ledger.balances.cash : spendable(s);
+          const from = parent ? `la caja de ${parent.name}` : 'tu cuenta corriente';
+          return (
+            <>
+              <AmountInput id={`inj-${co.id}`} label={`Monto (sale de ${from})`} value={inject} onChange={setInject} max={max} />
+              <ConfirmButton label="Aportar" className="btn dark" help="accion_aportar" disabled={inject <= 0} confirmLabel="Transferir" detail={<>Pasan {fmtMoney(inject)} de {from} a la caja de {co.name}.</>} onConfirm={() => { const r = runCo(co.id, (st, c) => injectCapital(st, c, inject)); if (r.ok) setInject(0); }} />
+            </>
+          );
+        })()}
       </div>
       <div className="card">
         <CardHead title={lf.passThrough ? 'Retiros del dueño' : 'Dividendos'} term="dividendos_empresa" />
@@ -242,7 +251,7 @@ export function FinanceTab({ co }: { co: Company }) {
           <dt>Caja menos reserva ({co.dividendPolicy.reserveDays} días)</dt><dd>{fmtMoney(lim.cashLimit)}</dd>
           {lim.legalLimit !== null && <><dt>Beneficio distribuible</dt><dd>{fmtMoney(Math.max(0, distributableProfit(co)))}</dd></>}
           <dt>Máximo a repartir hoy</dt><dd><strong>{fmtMoney(lim.max)}</strong></dd>
-          <dt>Tu parte</dt><dd>{fmtPct(co.ownership, 1)}{lf.dividendTaxRate ? ` · retención ${fmtPct(lf.dividendTaxRate, 0)}` : ''}</dd>
+          <dt>Tu parte</dt><dd>{fmtPct(co.ownership, 1)}{!co.parentId && !lf.passThrough && companyTaxRates(co).dividend ? ` · retención ${fmtPct(companyTaxRates(co).dividend, 0)}` : ''}</dd>
         </div>
         <AmountInput id={`div-${co.id}`} value={div} onChange={setDiv} max={lim.max} />
         <Act label={lf.passThrough ? 'Retirar' : 'Repartir dividendos'} help="accion_dividendos" className="btn primary" disabled={div <= 0} onClick={() => { const r = runCo(co.id, (st, c) => distribute(st, c, div)); if (r.ok) setDiv(0); }} />
@@ -260,7 +269,10 @@ export function FinanceTab({ co }: { co: Company }) {
         {co.loans.filter((l) => l.balance > 0).map((l) => (
           <div key={l.id} className="row" style={{ flexWrap: 'wrap' }}>
             <div className="grow"><div className="title small">{BIZ_BANKS.find((b) => b.id === l.bankId)?.name ?? (l.bullet ? 'Bonos corporativos' : l.bankId)}{l.guaranteed && <Pill tone="warn">con tu garantía</Pill>}</div><div className="meta">Saldo {fmtMoney(l.balance)} · {l.bullet ? 'cupón' : 'cuota'} {fmtMoney(l.payment)} · {fmtPct(l.apr, 2)} · próxima {formatDate(l.nextDueDay)}</div></div>
-            <button className="btn sm ghost" onClick={() => runCo(co.id, (st, c) => prepayCoLoan(st, c, l.id, Math.min(l.balance, c.ledger.balances.cash)))}>Amortizar con caja</button>
+            {(() => {
+              const room = Math.max(0, Math.min(l.balance, co.ledger.balances.cash - maxDistribution(s, co).reserve));
+              return <ConfirmButton label="Amortizar con caja" className="btn sm ghost" disabled={room <= 0} confirmLabel={`Amortizar ${fmtMoney(room, { decimals: false })}`} detail={<>Se paga con la caja de la empresa, dejando la reserva para sueldos y gastos fijos ({fmtMoney(maxDistribution(s, co).reserve, { decimals: false })}).</>} onConfirm={() => runCo(co.id, (st, c) => prepayCoLoan(st, c, l.id, room))} />;
+            })()}
           </div>
         ))}
         <div className="field"><label htmlFor={`la-${co.id}`}>Monto</label><AmountInput id={`la-${co.id}`} value={loanAmt} onChange={setLoanAmt} /></div>
@@ -292,7 +304,7 @@ export function FinanceTab({ co }: { co: Company }) {
             <dt>Año {f.year}: resultado</dt><dd>{fmtMoney(f.profit)}</dd>
             {f.passThrough ? <><dt>A tu declaración personal</dt><dd>{fmtMoney(f.taxable)}</dd></> : <>
               <dt>Pérdidas compensadas</dt><dd>{fmtMoney(f.carryUsed)}</dd>
-              <dt>Impuesto (vence {formatDate(f.dueDay)})</dt><dd>{fmtMoney(f.tax)}{f.outstanding ? ' · pendiente' : ' · pagado'}</dd>
+              <dt>Impuesto (vence {formatDate(f.dueDay)})</dt><dd>{fmtMoney(f.tax)}{f.outstanding ? ' · pendiente' : f.late ? <span className="loss"> · no se pagó: está en deudas vencidas con 5 % de multa</span> : f.tax > 0 ? ' · pagado' : ''}</dd>
             </>}
           </div>
         ))}
@@ -315,8 +327,8 @@ export function ManageTab({ co }: { co: Company }) {
       <div className="card">
         <CardHead title="Propiedad y forma legal" term="forma_legal" />
         <div className="kv">
-          <dt>Forma legal</dt><dd>{lf.name}</dd>
-          <dt>Responsabilidad</dt><dd>{lf.limitedLiability ? 'Limitada' : 'Ilimitada'}</dd>
+          <dt>Forma legal</dt><dd className="txt">{lf.name}</dd>
+          <dt>Responsabilidad</dt><dd className="txt">{lf.limitedLiability ? 'Limitada' : 'Ilimitada'}</dd>
           <dt>Tu participación</dt><dd>{fmtPct(co.ownership, 1)}</dd>
           <dt>Aportado por vos</dt><dd>{fmtMoney(co.investedByOwner)}</dd>
           <dt>Recibido por vos</dt><dd>{fmtMoney(co.receivedByOwner)}</dd>
@@ -330,9 +342,9 @@ export function ManageTab({ co }: { co: Company }) {
         <CardHead title="Valoración" term="valoracion" />
         <div className="kv">
           <dt>Valoración estimada</dt><dd><strong>{fmtMoney(v.value)}</strong></dd>
-          <dt>Método</dt><dd>{v.method}</dd>
+          <dt>Método</dt><dd className="txt">{v.method}</dd>
           <dt>EBITDA anualizado ({v.monthsOfData.toFixed(1)} meses de datos)</dt><dd>{fmtMoney(v.ebitdaAnnual)}</dd>
-          <dt>Múltiplo del sector</dt><dd>{v.multiple}×</dd>
+          <dt>Múltiplo del sector</dt><dd>{v.multiple.toFixed(1)}×</dd>
           <dt>Valor por ganancias</dt><dd>{fmtMoney(v.earningsValue)}</dd>
           <dt>Valor de activos</dt><dd>{fmtMoney(v.assetValue)}</dd>
           {v.recurringValue !== null && <><dt>Valor por ingresos recurrentes</dt><dd>{fmtMoney(v.recurringValue)}</dd></>}
@@ -352,14 +364,14 @@ export function ManageTab({ co }: { co: Company }) {
           <Act label="Pedir ofertas a compradores" help="accion_vender_empresa" className="btn" onClick={() => runCo(co.id, (st, c) => requestSaleOffer(st, c))} />
         )}
       </div>
-      {lf.canRaiseEquity && !co.parentId && <IpoCard co={co} />}
-      {lf.canRaiseEquity && <BondsCard co={co} />}
+      {lf.canRaiseEquity && <CapitalMarketsCards co={co} />}
       <DealsCard co={co} />
       {!co.parentId && <MergeCard co={co} />}
       {lf.canRaiseEquity && (
         <div className="card">
           <CardHead title="Vender acciones a inversionistas" term="accion_emitir" />
-          <div className="inline-form small"><span>Porcentaje a vender</span><NumInput id={`raise-${co.id}`} live value={pct} onChange={setPct} suffix="%" /></div>
+          <div className="inline-form small"><span>Porcentaje a vender</span><NumInput id={`raise-${co.id}`} live min={5} max={30} value={pct} onChange={setPct} suffix="%" /></div>
+          <span className="tiny muted">Entre 5 % y 30 % por ronda, conservando al menos el 51 %.</span>
           <p className="small">Ingresarían ≈ {fmtMoney(Math.round((v.value * pct) / 100 / (1 - pct / 100)))} a la caja. Tu participación pasaría a {fmtPct(co.ownership * (1 - pct / 100), 1)}.</p>
           <ConfirmButton label="Emitir acciones" className="btn" confirmLabel="Emitir" detail="La dilución es permanente: los inversionistas recibirán su parte de los dividendos y de una futura venta." onConfirm={() => runCo(co.id, (st, c) => raiseEquity(st, c, pct / 100))} />
         </div>

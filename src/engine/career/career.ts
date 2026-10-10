@@ -5,7 +5,7 @@ import { post } from '../ledger/ledger';
 import { Cents, clamp, roundCents, usd } from '../money';
 import type { Application, GameState } from '../state';
 import { nextId } from '../state';
-import { addMonths, dateOf, dayOf, daysInMonth } from '../time/calendar';
+import { addMonths, formatDate, dateOf, dayOf, daysInMonth } from '../time/calendar';
 import { addLog } from '../log';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
@@ -46,7 +46,8 @@ export function checkRequirements(state: GameState, job: JobDef): RequirementChe
     items.push({ label: `Título en ${r.fields.map((f) => FIELD_NAMES[f]).join(' o ')}`, met });
   }
   if (r.expSectorMonths) {
-    const have = state.career.experience[job.sector] ?? 0;
+    // El mes en curso cuenta si ya llevás 15 días trabajados en ese sector (así un ascenso a los 12 meses no falla por la fecha de ingreso).
+    const have = (state.career.experience[job.sector] ?? 0) + (currentMonthCounts(state, job.sector) ? 1 : 0);
     items.push({ label: `${r.expSectorMonths} meses de experiencia en ${SECTOR_NAMES[job.sector]} (tenés ${have})`, met: have >= r.expSectorMonths });
   }
   for (const [sk, lvl] of Object.entries(r.skills ?? {})) {
@@ -54,6 +55,15 @@ export function checkRequirements(state: GameState, job: JobDef): RequirementChe
     items.push({ label: `${SKILL_BY_ID[sk as keyof typeof SKILL_BY_ID].name} nivel ${lvl} (tenés ${have})`, met: have >= (lvl as number) });
   }
   return { ok: items.every((i) => i.met), items };
+}
+
+/** ¿El mes en curso ya suma un mes de experiencia en ese sector (15 días o más trabajados)? */
+function currentMonthCounts(state: GameState, sector: string): boolean {
+  const e = state.career.job;
+  if (!e || JOB_BY_ID[e.jobId].sector !== sector) return false;
+  const g = dateOf(state.day);
+  const since = Math.max(e.employedSince ?? e.startDay, dayOf(g.y, g.m, 1));
+  return state.day - since + 1 >= 15;
 }
 
 /** Probabilidad de recibir oferta. Transparente: cada factor está documentado. */
@@ -117,7 +127,9 @@ export function processApplications(state: GameState): void {
       } else {
         a.status = 'rejected';
         a.message = REJECTIONS[randInt(state, 0, REJECTIONS.length - 1)];
-        addLog(state, 'warning', '📭', `${job.employer} rechazó tu postulación a ${job.title}. ${a.message}`);
+        // Sin empleo y sin otras postulaciones abiertas, hay que actuar: se avisa (y pausa) como una oferta.
+        const stuck = !state.career.job && !state.career.applications.some((x) => x !== a && (x.status === 'pending' || x.status === 'offer'));
+        addLog(state, 'warning', '📭', `${job.employer} rechazó tu postulación a ${job.title}. ${a.message}${stuck ? ' No te quedan postulaciones abiertas: postulate a otros puestos en Carrera → Vacantes.' : ''}`, undefined, stuck ? 'ofertas' : undefined);
       }
     } else if (a.status === 'offer' && a.offerExpiresDay !== undefined && a.offerExpiresDay < state.day) {
       a.status = 'expired';
@@ -154,6 +166,15 @@ export function negotiateOffer(state: GameState, appId: number, pct: number): Ac
   return FAIL(`No aceptaron el aumento (probabilidad estimada ${Math.round(p * 100)} %). La oferta original sigue en pie.`);
 }
 
+/** Por qué no podés postularte hoy a un puesto (null = podés). */
+export function applyBlocker(state: GameState, job: JobDef): string | null {
+  const apps = state.career.applications;
+  const recentReject = apps.find((a) => a.jobId === job.id && a.status === 'rejected' && state.day - a.resolveDay < 30);
+  if (recentReject) return `Podés volver a postularte el ${formatDate(recentReject.resolveDay + 30)}`;
+  if (apps.filter((a) => a.status === 'pending').length >= MAX_PENDING_APPLICATIONS) return `Máximo ${MAX_PENDING_APPLICATIONS} postulaciones en curso`;
+  return null;
+}
+
 /** Pérdida del empleo al ingresar a prisión (sin indemnización). */
 export function endEmploymentForPrison(state: GameState): void {
   if (!state.career.job) return;
@@ -176,6 +197,7 @@ export function acceptOffer(state: GameState, appId: number): ActionResult {
   if (!a || a.status !== 'offer' || a.offerSalary === undefined) return FAIL('Oferta no disponible.');
   if (state.legal?.prison) return FAIL('Desde prisión no podés aceptar un empleo.');
   const job = JOB_BY_ID[a.jobId];
+  const hadInsurance = state.career.job ? JOB_BY_ID[state.career.job.jobId].healthInsurance : false;
   if (state.career.job) endEmployment(state, 'cambio');
   a.status = 'accepted';
   state.career.job = {
@@ -187,6 +209,7 @@ export function acceptOffer(state: GameState, appId: number): ActionResult {
     state.budget.privateInsurance = false;
     addLog(state, 'info', '🩺', 'Tu nuevo empleo incluye seguro médico: se canceló el seguro privado.');
   }
+  if (hadInsurance && !job.healthInsurance && !state.budget.privateInsurance) addLog(state, 'warning', '🩺', 'Tu nuevo empleo no incluye seguro médico: quedaste sin cobertura. Podés contratar un seguro privado en Finanzas → Presupuesto.');
   addLog(state, 'success', '💼', `Empezaste a trabajar como ${job.title} en ${job.employer}.`);
   return OK(`¡Contratado! Salario bruto: ${fmtMoney(a.offerSalary)}/mes.`);
 }
@@ -304,7 +327,8 @@ export function monthEndCareer(state: GameState): void {
   const job = JOB_BY_ID[e.jobId];
   const g = dateOf(state.day);
   const dim = daysInMonth(g.y, g.m);
-  const worked = Math.min(dim, state.day - Math.max(e.startDay, state.day - dim + 1) + 1);
+  // Un ascenso no corta la antigüedad: se cuenta desde que entraste a la empresa.
+  const worked = Math.min(dim, state.day - Math.max(e.employedSince ?? e.startDay, state.day - dim + 1) + 1);
   paySalaryThrough(state, state.day);
   // Desempeño
   const target = performanceTarget(state);
@@ -357,6 +381,12 @@ export function reviewRaisePct(perf: number): number {
   return 0;
 }
 
+/** Aumento de la evaluación anual: por desempeño, ajustado por el ciclo y la inflación. */
+export function projectedRaisePct(state: GameState, perf: number): number {
+  const cycle = state.macro.phase === 'recesion' ? -0.015 : state.macro.phase === 'auge' ? 0.01 : 0;
+  return Math.max(0, reviewRaisePct(perf) + cycle + Math.max(0, state.macro.inflation - 0.03) * 0.5);
+}
+
 /** Evaluación anual: aumento, bono y posible ascenso. */
 export function processReview(state: GameState): void {
   const e = state.career.job;
@@ -373,6 +403,7 @@ export function processReview(state: GameState): void {
     if (reqs.ok) {
       const newSalary = Math.max(roundCents(e.salary * 1.08), jobSalary(state, next));
       state.career.history.push({ jobId: job.id, startDay: e.startDay, endDay: state.day, finalSalary: e.salary, reason: 'ascenso' });
+      e.employedSince = e.employedSince ?? e.startDay;
       e.jobId = next.id;
       e.salary = newSalary;
       e.startDay = state.day;
@@ -386,8 +417,7 @@ export function processReview(state: GameState): void {
     }
     addLog(state, 'info', '🪜', `Tu desempeño alcanza para ascender a ${next.title}, pero te faltan requisitos: ${reqs.items.filter((i) => !i.met).map((i) => i.label).join('; ')}.`);
   }
-  const cycle = state.macro.phase === 'recesion' ? -0.015 : state.macro.phase === 'auge' ? 0.01 : 0;
-  const raise = Math.max(0, reviewRaisePct(perf) + cycle + Math.max(0, state.macro.inflation - 0.03) * 0.5);
+  const raise = projectedRaisePct(state, perf);
   e.salary = roundCents(e.salary * (1 + raise) / 100) * 100;
   e.lastRaisePct = raise;
   e.nextReviewDay = addMonths(state.day, 12);

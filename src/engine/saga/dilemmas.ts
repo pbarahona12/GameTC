@@ -18,11 +18,12 @@ import { srng, rememberRival, playerCity, cityName } from './ranking';
 import { newProperty } from '../realestate/realestate';
 import { ZONES } from '../../content/realestate';
 import { formatDate } from '../time/calendar';
-import { ageOf, life, retire, succession, heirs, RETIRE_AGE } from './life';
+import { ageOf, life, retire, succession, designatedHeir, RETIRE_AGE } from './life';
 import { buyBackShares, marketCap } from './corporate';
 import { setPrivateInsurance, insuranceCost, monthlyRecurring } from '../finance/budget';
 import { valuation } from '../business/reports';
 import { companyShareEstimate } from '../business/market';
+import { fire } from '../business/staff';
 import { revalue } from '../business/ownership';
 import { LEGAL_FORM_BY_ID } from '../../content/sectors';
 import { isAlly, nemesisOf, warsIn, registerWarDilemma } from './rivalry';
@@ -81,6 +82,11 @@ const attr = (s: GameState, k: 'stress' | 'health' | 'reputation' | 'network', d
 };
 const myCompanies = (s: GameState) => s.companies.filter((c) => isOpen(c) && !c.npc && c.sector !== 'holding');
 const companyOf = (s: GameState, d: Dilemma | PendingOutcome) => s.companies.find((c) => c.id === num(d, 'companyId') && isOpen(c));
+/** Lo que costaría hoy recomprar acciones en la OPA hostil (mismo cálculo que buyBackShares). */
+function buybackCost(s: GameState, d: Dilemma): Cents {
+  const co = companyOf(s, d);
+  return co && co.listed ? roundCents(marketCap(s, co) * Math.min(0.1, 1 - co.ownership) * 1.15) : num(d, 'cost');
+}
 const randomName = (g: RngHolder) => `${FIRST_NAMES[Math.floor(nextRandom(g) * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(nextRandom(g) * LAST_NAMES.length)]}`;
 const pick = <T>(g: RngHolder, xs: T[]): T => xs[Math.floor(nextRandom(g) * xs.length)];
 
@@ -252,7 +258,7 @@ const TEMPLATES: Template[] = [
     title: () => 'Te ofrecen un ascenso… con mudanza',
     body: (_s, d) => `Tu jefe te propone dirigir ${str(d, 'city')}: más sueldo y más horas. La mudanza cuesta medio sueldo.`,
     options: [
-      { id: 'aceptar', label: 'Aceptar', detail: (_s, d) => `Sueldo +16 % (${money(roundCents(num(d, 'salary') * 1.16))}/mes), estrés +10, mudanza ${money(roundCents(num(d, 'salary') / 2))}.`, blocked: (s, d) => cantPay(roundCents(num(d, 'salary') / 2))(s) },
+      { id: 'aceptar', label: 'Aceptar', detail: (s, d) => { const sal = s.career.job?.salary ?? num(d, 'salary'); return `Sueldo +16 % (${money(roundCents(sal * 1.16))}/mes), estrés +10, mudanza ${money(roundCents(sal / 2))}.`; }, blocked: (s, d) => cantPay(roundCents((s.career.job?.salary ?? num(d, 'salary')) / 2))(s) },
       { id: 'rechazar', label: 'Rechazar', detail: () => 'Seguís como estás. Tu jefe toma nota (desempeño −3).' },
     ],
     fallback: 'rechazar',
@@ -433,7 +439,7 @@ const TEMPLATES: Template[] = [
     options: [
       { id: 'capacitar', label: 'Pagarle una capacitación', detail: (_s, d) => `La empresa paga ${money(num(d, 'cost'))}. Su habilidad sube y el equipo lo valora.`, blocked: (s, d) => ((companyOf(s, d)?.ledger.balances.cash ?? 0) < num(d, 'cost') ? 'La empresa no tiene caja suficiente' : null) },
       { id: 'perdonar', label: 'Dejarlo pasar', detail: () => 'Moral del equipo +4. Puede volver a pasar.' },
-      { id: 'despedir', label: 'Despedirlo', detail: () => 'Mensaje firme, pero el resto del equipo se asusta (moral −6).' },
+      { id: 'despedir', label: 'Despedirlo', detail: () => 'Mensaje firme: la empresa paga su indemnización y el resto del equipo se asusta (moral −6).' },
     ],
     fallback: 'perdonar',
     apply: (s, d, choice, g) => {
@@ -447,9 +453,9 @@ const TEMPLATES: Template[] = [
         return `${e.name} hizo la capacitación (habilidad +8).`;
       }
       if (choice === 'despedir') {
-        co.employees = co.employees.filter((x) => x !== e);
-        for (const x of co.employees) x.morale = clamp(x.morale - 6, 0, 100);
-        return `Despediste a ${e.name}.`;
+        const r = fire(s, co, e.id, true); // el despido ya baja 4 la moral de los demás
+        for (const x of co.employees) x.morale = clamp(x.morale - 2, 0, 100);
+        return r.ok ? `Despediste a ${e.name} (con su indemnización).` : r.error;
       }
       for (const x of co.employees) x.morale = clamp(x.morale + 4, 0, 100);
       if (chance(g, 0.25)) schedule(s, d, choice, randInt(g, 30, 90));
@@ -504,18 +510,20 @@ const TEMPLATES: Template[] = [
     title: (_s, d) => `La recesión golpea a ${str(d, 'company')}`,
     body: (_s, d) => `Las ventas cayeron. Tu gerente propone despedir a ${num(d, 'n')} persona(s) para aguantar.`,
     options: [
-      { id: 'recortar', label: 'Despedir', detail: (_s, d) => `Bajás la nómina (${num(d, 'n')} menos), pero el resto queda con miedo (moral −15).` },
+      { id: 'recortar', label: 'Despedir', detail: (_s, d) => `Bajás la nómina (${num(d, 'n')} menos) pagando sus indemnizaciones, pero el resto queda con miedo (moral −${Math.max(15, 4 * num(d, 'n'))}).` },
       { id: 'mantener', label: 'No despedir a nadie', detail: () => 'Más costos durante la crisis, equipo leal (moral +10) y reputación +2.' },
     ],
-    fallback: 'recortar',
+    fallback: 'mantener',
     apply: (s, d, choice) => {
       const co = companyOf(s, d);
       if (!co) return 'La empresa ya no opera.';
       if (choice === 'recortar') {
         const out = [...co.employees].sort((a, b) => a.skill - b.skill).slice(0, num(d, 'n'));
-        co.employees = co.employees.filter((e) => !out.includes(e));
-        for (const e of co.employees) e.morale = clamp(e.morale - 15, 0, 100);
-        return `Despediste a ${out.length} persona(s) en ${co.name}.`;
+        let fired = 0;
+        for (const e of out) if (fire(s, co, e.id, true).ok) fired++;
+        // Cada despido ya baja 4 la moral del resto: en total, −15 (o −4 por persona si son más).
+        for (const e of co.employees) e.morale = clamp(e.morale - Math.max(0, 15 - 4 * fired), 0, 100);
+        return `Despediste a ${fired} persona(s) en ${co.name} (con sus indemnizaciones).`;
       }
       for (const e of co.employees) e.morale = clamp(e.morale + 10, 0, 100);
       attr(s, 'reputation', 2);
@@ -533,9 +541,9 @@ const TEMPLATES: Template[] = [
       return { params: { rivalId: r.id, rival: r.name, sector: co.sector, sectorName: SECTOR_BY_ID[co.sector].name }, days: 12 };
     },
     title: (_s, d) => `${str(d, 'rival')} propone una tregua`,
-    body: (_s, d) => `Te ofrecen dejar de atacarte por dos años si no abrís ni comprás empresas nuevas en ${str(d, 'sectorName').toLowerCase()}. Si rompés el pacto, no lo van a olvidar.`,
+    body: (_s, d) => `Te ofrecen dejar de atacarte en ${str(d, 'sectorName').toLowerCase()} por dos años si no abrís ni comprás empresas nuevas en ese rubro. En sus otros rubros siguen compitiendo. Si rompés el pacto, no lo van a olvidar.`,
     options: [
-      { id: 'aceptar', label: 'Aceptar la tregua', detail: () => 'Dos años sin competidores nuevos, exclusividades ni intentos de llevarse a tu gente de parte de ellos.' },
+      { id: 'aceptar', label: 'Aceptar la tregua', detail: (_s, d) => `Dos años sin competidores nuevos, exclusividades ni intentos de llevarse a tu gente de parte de ellos en ${str(d, 'sectorName').toLowerCase()}.` },
       { id: 'rechazar', label: 'Rechazarla', detail: () => 'Seguís libre, pero el grupo se enoja más.' },
     ],
     fallback: 'rechazar',
@@ -563,12 +571,12 @@ const TEMPLATES: Template[] = [
       if (ask > budget * 1.6 || ask <= 0) return null;
       const listingId = s.meta.nextId++;
       s.realEstate.listings.push({ id: listingId, property: p, askPrice: ask, expiresDay: s.day + 12, negotiated: true, note: `Remate judicial: se vende por debajo de la tasación (${money(p.appraisal)}). Puede tener defectos ocultos: conviene inspeccionarlo.` });
-      return { params: { listingId, name: p.name, ask, appraisal: p.appraisal, zone: z.name }, days: 11 };
+      return { params: { listingId, name: p.name, ask, appraisal: p.appraisal, zone: z.name }, days: 12 };
     },
     title: (_s, d) => `Remate judicial: ${str(d, 'name')}`,
     body: (_s, d) => `En ${str(d, 'zone')}. Base ${money(num(d, 'ask'))}, tasación ${money(num(d, 'appraisal'))}. Hay que decidir rápido: el remate cierra en pocos días y los rivales también miran.`,
     options: [
-      { id: 'ver', label: 'Lo voy a mirar', detail: () => 'Queda en tu agenda: comprálo desde Invertir → Inmuebles antes de que cierre.' },
+      { id: 'ver', label: 'Lo voy a mirar', detail: () => 'Queda en tu agenda: compralo desde Invertir → Inmuebles antes de que cierre.' },
       { id: 'pasar', label: 'Pasar', detail: () => 'No te interesa.' },
     ],
     fallback: 'pasar',
@@ -577,7 +585,8 @@ const TEMPLATES: Template[] = [
         s.realEstate.listings = s.realEstate.listings.filter((l) => l.id !== num(d, 'listingId'));
         return 'Dejaste pasar el remate.';
       }
-      return `El remate de ${str(d, 'name')} está en Invertir → Inmuebles hasta el ${formatDate(s.day + 10)}.`;
+      const l = s.realEstate.listings.find((x) => x.id === num(d, 'listingId'));
+      return l ? `El remate de ${str(d, 'name')} está en Invertir → Inmuebles hasta el ${formatDate(l.expiresDay)}.` : 'El remate ya cerró.';
     },
   },
   {
@@ -654,13 +663,13 @@ const TEMPLATES: Template[] = [
   {
     id: 'retiro', icon: 'sun', weight: 4, cooldown: 1095,
     eligible: (s) => ageOf(s) >= RETIRE_AGE + 3 && !life(s).retired,
-    create: (s) => ({ params: { age: Math.floor(ageOf(s)), heir: heirs(s)[0]?.name ?? '' }, days: 30 }),
+    create: (s) => ({ params: { age: Math.floor(ageOf(s)), heir: designatedHeir(s)?.name ?? '' }, days: 30 }),
     title: (_s, d) => `Tenés ${num(d, 'age')} años: ¿es hora de pensar en el retiro?`,
-    body: (_s, d) => `Tu salud ya no es la de antes. Podés jubilarte (seguís dueño de todo), pasarle la posta a ${str(d, 'heir')} o seguir como siempre.`,
+    body: (s, d) => `${s.player.attributes.health < 60 ? 'Tu salud ya no es la de antes. ' : 'Muchos a tu edad empiezan a pensar en el retiro. '}Podés jubilarte (seguís dueño de todo), pasarle la posta a ${str(d, 'heir')} o seguir como siempre.`,
     options: [
-      { id: 'jubilarse', label: 'Jubilarme', detail: () => 'Dejás el empleo (si tenés), bajás el estrés. Tus negocios siguen.' },
+      { id: 'jubilarse', label: 'Jubilarme', detail: () => 'Dejás el empleo (si tenés) y bajás el estrés. Tus negocios siguen. Sin empleo, tu reputación tiende a bajar.' },
       { id: 'posta', label: 'Pasar la posta', detail: (_s, d) => `${str(d, 'heir')} toma el control de la fortuna familiar. Se paga el impuesto a la herencia.` },
-      { id: 'seguir', label: 'Seguir como siempre', detail: () => 'El riesgo para tu salud crece con los años.' },
+      { id: 'seguir', label: 'Seguir como siempre', detail: (s) => s.saga.life?.mortal === false ? 'Desde los 50 la salud tiende a bajar (el fallecimiento por edad está apagado).' : 'Desde los 50 la salud tiende a bajar y desde los 68 hay riesgo de fallecer.' },
     ],
     fallback: 'seguir',
     apply: (s, _d, choice) => {
@@ -669,8 +678,7 @@ const TEMPLATES: Template[] = [
         return r.ok ? r.message ?? 'Te jubilaste.' : r.error;
       }
       if (choice === 'posta') {
-        const h = heirs(s)[0];
-        const r = succession(s, h.id, 'retiro');
+        const r = succession(s, designatedHeir(s).id, 'retiro');
         return r.ok ? r.message ?? 'Pasaste la posta.' : r.error;
       }
       return 'Seguís al frente de todo.';
@@ -772,7 +780,7 @@ const TEMPLATES: Template[] = [
     eligible: (s) => s.progression.stage >= 6,
     create: (_s, g) => ({ params: { who: randomName(g) }, days: 14 }),
     title: (_s, d) => `${str(d, 'who')} te pide que seas su mentor`,
-    body: () => 'Una emprendedora joven admira tu historia y quiere aprender de vos. Te llevaría algunas horas por semana.',
+    body: () => 'Alguien que recién empieza a emprender admira tu historia y quiere aprender de vos. Te llevaría algunas horas por semana.',
     options: [
       { id: 'aceptar', label: 'Aceptar', detail: () => 'Estrés +3, contactos +5, reputación +2. Quizás algún día te ofrezca entrar en su empresa.' },
       { id: 'no', label: 'No tengo tiempo', detail: () => 'Sin cambios.' },
@@ -794,7 +802,7 @@ const TEMPLATES: Template[] = [
     title: (_s, d) => `${str(d, 'outlet')} investiga tu fortuna`,
     body: (s) => `Estar entre las 10 fortunas de ${cityName(playerCity(s))} trae preguntas: de dónde salió tu dinero y cuántos impuestos pagás.`,
     options: [
-      { id: 'transparencia', label: 'Abrir tus cuentas', detail: (s) => `Una auditoría externa cuesta ${money(usd(25_000 * pi(s)))}. ${s.legal.acts.length ? 'Puede salir a la luz algo que hiciste.' : 'Reputación +4.'}`, blocked: (s) => cantPay(usd(25_000 * pi(s)))(s) },
+      { id: 'transparencia', label: 'Abrir tus cuentas', detail: (s) => `Una auditoría externa cuesta ${money(usd(25_000 * pi(s)))}. ${s.legal.acts.some((a) => a.status === 'oculto') ? 'Puede salir a la luz algo que hiciste.' : 'Reputación +4.'}`, blocked: (s) => cantPay(usd(25_000 * pi(s)))(s) },
       { id: 'abogados', label: 'Responder con abogados', detail: (s) => `${money(usd(10_000 * pi(s)))}. La nota sale igual, más suave.`, blocked: (s) => cantPay(usd(10_000 * pi(s)))(s) },
       { id: 'ignorar', label: 'No responder', detail: () => 'La nota sale como la escriban.' },
     ],
@@ -823,16 +831,16 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'opa_hostil', icon: 'rivals', weight: 4, cooldown: 600,
-    eligible: (s) => myCompanies(s).some((c) => c.listed && c.ownership < 0.9) && s.world.rivals.some((r) => !r.acquired && (r.attitude ?? 0) >= 25),
+    eligible: (s) => myCompanies(s).some((c) => c.listed && !c.parentId && c.ownership < 0.9) && s.world.rivals.some((r) => !r.acquired && (r.attitude ?? 0) >= 25),
     create: (s, g) => {
-      const co = pick(g, myCompanies(s).filter((c) => c.listed && c.ownership < 0.9));
+      const co = pick(g, myCompanies(s).filter((c) => c.listed && !c.parentId && c.ownership < 0.9));
       const r = pick(g, s.world.rivals.filter((x) => !x.acquired && (x.attitude ?? 0) >= 25));
       return { params: { companyId: co.id, company: co.name, rivalId: r.id, rival: r.name, cost: roundCents(marketCap(s, co) * Math.min(0.1, 1 - co.ownership) * 1.15) }, days: 14 };
     },
     title: (_s, d) => `${str(d, 'rival')} compra acciones de ${str(d, 'company')}`,
     body: () => `Ya tiene una parte de las acciones que cotizan y quiere más: busca un lugar en el directorio y, si puede, quedarse con la empresa.`,
     options: [
-      { id: 'recomprar', label: 'Recomprar acciones', detail: (_s, d) => `Cuesta ${money(num(d, 'cost'))}. Subís tu participación y los dejás afuera.`, blocked: (s, d) => cantPay(num(d, 'cost'))(s) },
+      { id: 'recomprar', label: 'Recomprar acciones', detail: (s, d) => `Cuesta ≈ ${money(buybackCost(s, d))} al precio de hoy (sigue a la bolsa). Subís tu participación y los dejás afuera.`, blocked: (s, d) => cantPay(buybackCost(s, d))(s) },
       { id: 'directorio', label: 'Darles un asiento', detail: () => 'Baja la tensión con el grupo, pero los inversores lo ven como debilidad (reputación −2).' },
       { id: 'ignorar', label: 'Esperar', detail: () => 'Puede que desistan… o que te hagan una oferta por toda la empresa.' },
     ],
@@ -1122,7 +1130,7 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
     title: (_s, d) => `Escándalo: el gerente de ${str(d, 'company')}`,
     body: (_s, d) => `Un video muestra a ${str(d, 'manager')} ${str(d, 'what')}. La prensa pregunta qué vas a hacer.`,
     options: [
-      { id: 'despedir', label: 'Despedirlo', detail: () => 'La empresa se queda sin gerente (y paga la indemnización). Reputación de la empresa protegida.' },
+      { id: 'despedir', label: 'Despedirlo', detail: () => 'La empresa se queda sin gerente (y paga la indemnización). Reputación de la empresa protegida; el equipo se inquieta (moral −4).' },
       { id: 'disculpa', label: 'Disculpa pública y capacitación', detail: (s) => `${money(usd(2500 * pi(s)))} de la empresa. Reputación de la empresa −4.` , blocked: (s, d) => { const co = companyOf(s, d); return co && co.ledger.balances.cash < usd(2500 * pi(s)) ? 'La empresa no tiene esa caja.' : null; } },
       { id: 'ignorar', label: 'No decir nada', detail: () => 'Reputación de la empresa −10 y tuya −3.' },
     ],
@@ -1132,11 +1140,7 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
       if (!co) return 'La empresa ya no opera.';
       if (choice === 'despedir') {
         const e = co.employees.find((x) => x.id === num(d, 'employeeId'));
-        if (e) {
-          const severance = roundCents(e.wage * 2);
-          companyCost(co, Math.min(severance, co.ledger.balances.cash), `Indemnización de ${e.name}`, 'wages', s.day);
-          co.employees = co.employees.filter((x) => x !== e);
-        }
+        if (e) fire(s, co, e.id, true);
         return `${str(d, 'manager')} ya no trabaja en ${co.name}. Contratá otro gerente si querés seguir delegando.`;
       }
       if (choice === 'disculpa') {

@@ -42,6 +42,8 @@ export function advanceDay(state: GameState): void {
   state.day++;
   const g = dateOf(state.day);
   if (g.m === 1 && g.d === 1) {
+    // El cierre fiscal del año que terminó se hace al empezar el 1 de enero, antes de cualquier
+    // movimiento nuevo: así entra todo lo del 31 de diciembre (también lo que hagas ese día).
     companiesYearStart(state); // antes de la declaración personal (empresas transparentes)
     fileAnnualReturn(state);
     yearStartMacro(state);

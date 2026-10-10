@@ -88,13 +88,14 @@ function startEvents(state: GameState): void {
   for (const e of state.macro.events) {
     if (e.startDay !== state.day) continue;
     const months = Math.round((e.endDay - e.startDay) / 30);
-    addLog(state, 'warning', e.icon, `${e.name}: ${e.description} (duración estimada: ${months} meses)`);
+    const dur = months > 24 ? `${Math.round(months / 12)} años` : `${months} meses`;
+    addLog(state, 'warning', e.icon, `${e.name}: ${e.description} (duración estimada: ${dur})`);
     for (const n of state.world.news) {
       if (n.status !== 'abierta' || n.ref?.eventKind !== e.kind) continue;
       n.truth = true; // un anticipo que coincide con lo que pasó se cumplió, aunque haya nacido como candidato falso
       resolveNews(state, n, true, 'Se confirmó.');
     }
-    publish(state, { kind: 'hecho', topic: 'economia', icon: e.icon, title: `Comenzó: ${e.name.toLowerCase()}`, body: `${e.description} Duración estimada: ${months} meses.`, reliability: 1, truth: true, resolveDay: null, source: 'Comunicado oficial', sourceTypical: 0.97, ref: { eventKind: e.kind } });
+    publish(state, { kind: 'hecho', topic: 'economia', icon: e.icon, title: `Comenzó: ${e.name.toLowerCase()}`, body: `${e.description} Duración estimada: ${dur}.`, reliability: 1, truth: true, resolveDay: null, source: 'Comunicado oficial', sourceTypical: 0.97, ref: { eventKind: e.kind } });
   }
 }
 
@@ -292,6 +293,11 @@ function rivalryExtra(state: GameState, r: RivalGroup): number {
 }
 
 const inTruce = (state: GameState, r: RivalGroup, sector: BizSectorId) => !!r.truce && r.truce.until >= state.day && r.truce.sector === sector;
+
+/** Grupo con el que tenés una tregua en ese rubro (abrir o comprar ahí una empresa la rompe). */
+export function truceRivalIn(state: GameState, sector: BizSectorId): RivalGroup | undefined {
+  return state.world.rivals.find((r) => !r.acquired && inTruce(state, r, sector));
+}
 
 // ------------------------------------------------------------------ ejecución
 

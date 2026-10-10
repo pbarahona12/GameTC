@@ -9,10 +9,11 @@ import { ActionResult, FAIL, OK } from '../result';
 import { addLog } from '../log';
 import { fmtMoney, fmtPct } from '../format';
 import { post } from '../ledger/ledger';
+import { startOfMonth } from '../time/calendar';
 import { balanceSheet } from '../reports/statements';
 import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
 import { quitJob } from '../career/career';
-import { FIRST_NAMES } from '../../content/cities';
+import { FIRST_NAMES, LAST_NAMES, isFemaleName } from '../../content/cities';
 import { SKILL_BY_ID } from '../../content/skills';
 import { chronicle, celebrate } from './chronicle';
 import { srng } from './ranking';
@@ -32,7 +33,9 @@ export const RETIRE_AGE = 60;
 /** Impuesto a la herencia por residencia fiscal y mínimo exento (USD a precios iniciales). */
 export const ESTATE_TAX: Record<JurisdictionId, number> = { valdoria: 0.1, isla_coral: 0, norvalia: 0.25, meridia: 0.15 };
 export const ESTATE_EXEMPT_USD = 500_000;
-const CHILD_COST_USD = 220;
+export const CHILD_COST_USD = 220;
+/** Patrimonio mínimo para crear una fundación (USD a precios iniciales). */
+export const FOUNDATION_MIN_USD = 500_000;
 
 export function life(state: GameState): LifeState {
   const s = state.saga;
@@ -62,9 +65,12 @@ export function foundationReputation(state: GameState): number {
   return clamp((f.given / usd(1_000_000 * state.macro.priceIndex)) * 3, 0, 15);
 }
 
+/** Apellido de la familia. Si el jugador puso solo un nombre ("Adriana"), no se usa como
+ *  apellido ("Sebastián Adriana"): se elige uno fijo a partir del nombre. */
 function lastName(full: string): string {
   const parts = full.trim().split(/\s+/);
-  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  if (parts.length > 1) return parts[parts.length - 1];
+  return LAST_NAMES[(seedFromString(parts[0] || 'familia') >>> 0) % LAST_NAMES.length];
 }
 
 function pickFirst(g: RngHolder): string {
@@ -90,10 +96,11 @@ export interface Heir {
 /** Quién puede heredar: hijos adultos (el mayor primero) o, si no hay, un sobrino. */
 export function heirs(state: GameState): Heir[] {
   const l = life(state);
-  const out: Heir[] = l.children.filter((c) => childAge(state, c) >= 18).sort((a, b) => a.born - b.born).map((c) => ({ id: c.id, name: c.name, age: Math.floor(childAge(state, c)), relation: 'hijo/a' }));
+  const out: Heir[] = l.children.filter((c) => childAge(state, c) >= 18).sort((a, b) => a.born - b.born).map((c) => ({ id: c.id, name: c.name, age: Math.floor(childAge(state, c)), relation: isFemaleName(c.name) ? 'hija' : 'hijo' }));
   if (!out.length) {
     const g = { rng: seedFromString(`${state.seed}|sobrino|${l.generation}`) };
-    out.push({ id: 'sobrino', name: `${pickFirst(g)} ${lastName(state.player.name)}`, age: 26, relation: 'sobrino/a' });
+    const name = `${pickFirst(g)} ${lastName(state.player.name)}`;
+    out.push({ id: 'sobrino', name, age: 26, relation: isFemaleName(name) ? 'sobrina' : 'sobrino' });
   }
   return out;
 }
@@ -132,6 +139,20 @@ export function heirProfile(state: GameState, heirId: number | 'sobrino'): HeirP
 }
 
 export const skillName = (k: SkillId) => SKILL_BY_ID[k]?.name ?? k;
+
+/** Heredero designado (si sigue disponible) o el que corresponde por defecto. */
+export function designatedHeir(state: GameState): Heir {
+  const hs = heirs(state);
+  const id = life(state).heirId;
+  return hs.find((h) => h.id === id) ?? hs[0];
+}
+
+export function setHeir(state: GameState, heirId: number | 'sobrino'): ActionResult {
+  const h = heirs(state).find((x) => x.id === heirId);
+  if (!h) return FAIL('Ese heredero no está disponible.');
+  life(state).heirId = heirId;
+  return OK(`${h.name} es tu heredero: si fallecés, toma el control de todo.`);
+}
 
 /** Impuesto a la herencia estimado si la sucesión fuera hoy. */
 export function estateTax(state: GameState): { rate: number; exempt: Cents; base: Cents; tax: Cents } {
@@ -199,12 +220,13 @@ export function succession(state: GameState, heirId: number | 'sobrino', cause: 
   const a = state.player.attributes;
   state.player.attributes = { stress: 25, health: 85, reputation: clamp(Math.round(a.reputation * 0.5 + 10), 0, 100), network: clamp(Math.round(a.network * 0.5), 0, 100) };
   const siblings = l.children.filter((c) => c !== child).length;
-  state.saga.life = { birthDay: child ? child.born : state.day - Math.round(heir.age * 365.25), generation: l.generation + 1, partner: null, children: [], retired: false, foundation: l.foundation, ancestors: l.ancestors };
+  state.saga.life = { birthDay: child ? child.born : state.day - Math.round(heir.age * 365.25), generation: l.generation + 1, partner: null, children: [], retired: false, foundation: l.foundation, ancestors: l.ancestors, mortal: l.mortal, heirId: null };
   // 4 · Historia.
   const how = cause === 'fallecimiento' ? `${prevName} murió a los ${prevAge} años.` : `${prevName} se retiró a los ${prevAge} años.`;
   const text = `${how} ${heir.name} (${heir.relation}, ${heir.age} años) toma el control de la fortuna familiar (${fmtMoney(before, { decimals: false })}). ${taxNote}${siblings ? ` Sus ${siblings} hermano(s) siguen con sus vidas.` : ''}`;
   chronicle(state, 'vida', cause === 'fallecimiento' ? 'history' : 'crown', `Generación ${l.generation + 1}: ${heir.name}`, text);
-  celebrate(state, 'big', 'crown', `Empieza la generación ${l.generation + 1}`, text);
+  if (cause === 'fallecimiento') celebrate(state, 'big', 'history', `${prevName} murió a los ${prevAge} años`, `${text} Desde ahora jugás con ${heir.name}.`);
+  else celebrate(state, 'big', 'crown', `Empieza la generación ${l.generation + 1}`, text);
   addLog(state, cause === 'fallecimiento' ? 'danger' : 'success', '🏛️', text, undefined, 'logros');
   return OK(`${heir.name} ahora dirige la fortuna familiar.`);
 }
@@ -214,7 +236,7 @@ export function createFoundation(state: GameState, name: string): ActionResult {
   if (l.foundation) return FAIL('Ya tenés una fundación.');
   const n = name.trim();
   if (n.length < 3) return FAIL('Poné un nombre de al menos 3 letras.');
-  if (balanceSheet(state).netWorth < usd(500_000 * state.macro.priceIndex)) return FAIL(`Para crear una fundación hace falta un patrimonio de ${fmtMoney(usd(500_000 * state.macro.priceIndex), { decimals: false })}.`);
+  if (balanceSheet(state).netWorth < usd(FOUNDATION_MIN_USD * state.macro.priceIndex)) return FAIL(`Para crear una fundación hace falta un patrimonio de ${fmtMoney(usd(FOUNDATION_MIN_USD * state.macro.priceIndex), { decimals: false })}.`);
   l.foundation = { name: n, given: 0, since: state.day };
   chronicle(state, 'vida', 'gift', `Nace la ${n}`, 'Tu fundación financia becas, salud e investigación en el mundo del juego.');
   return OK(`Creaste la ${n}. Lo que le aportes es una donación: ya no es tuyo, pero construye tu reputación y tu legado.`);
@@ -231,6 +253,18 @@ export function donateToFoundation(state: GameState, amount: Cents): ActionResul
   state.saga.stats.donated += amount;
   return OK(`Aportaste ${fmtMoney(amount)} a la ${l.foundation.name}. Total donado: ${fmtMoney(l.foundation.given)}.`);
 }
+
+/** Avisos que solo tienen sentido con el fallecimiento por edad activado. */
+const MORTAL_NOTES = new Set([65, 68, 75]);
+
+/** Lo que conviene saber en cada cumpleaños clave (también queda en la crónica). */
+const BIRTHDAY_NOTES: Record<number, string> = {
+  50: 'Desde ahora la salud tiende a bajar un poco cada año: cuidala (estrés, estilo de vida, seguro).',
+  60: `Ya podés jubilarte o pasarle la posta a tu heredero (Más → Tu vida y legado).`,
+  65: 'Faltan 3 años para que la edad traiga un riesgo real de fallecer. Es buen momento para planificar la sucesión.',
+  68: 'Desde hoy hay un riesgo real de fallecer por edad, mayor con mala salud. Si pasa, hereda quien elegiste como heredero (si no elegiste, tu hijo/a adulto mayor o un sobrino). Revisá Más → Tu vida y legado.',
+  75: 'El riesgo de fallecer por edad sigue creciendo cada año.',
+};
 
 /** Cierre de mes: nacimientos, gastos de los hijos, cumpleaños redondos y riesgo de muerte. */
 export function lifeMonth(state: GameState): void {
@@ -250,15 +284,24 @@ export function lifeMonth(state: GameState): void {
     const cost = usd(CHILD_COST_USD * minors * state.macro.priceIndex);
     payExpense(state, 'food', cost, { memo: `Gastos de ${minors === 1 ? 'tu hijo' : `tus ${minors} hijos`} (crianza y escuela)`, tag: 'saga:children', method: 'checking' });
   }
-  // Cumpleaños redondos.
-  const prevAge = ageOf(state) - 1 / 12;
-  for (const milestone of [30, 40, 50, 60, 70, 80, 90]) {
-    if (prevAge < milestone && age >= milestone) chronicle(state, 'vida', 'calendar', `${state.player.name} cumple ${milestone}`, milestone >= 60 ? 'La salud pesa más con los años. Pensá en quién va a seguir con todo.' : 'Un año más.');
+  // Cumpleaños: un aviso cada año y avisos claros antes de que la edad pese.
+  // Edad al cierre del mes anterior: cada cumpleaños cae en exactamente un mes (los meses
+  // miden 28–31 días; restar 1/12 de año salteaba algunos y repetía otros).
+  const prevAge = (startOfMonth(state.day) - 1 - l.birthDay) / 365.25;
+  const turned = Math.floor(age) > Math.floor(prevAge) ? Math.floor(age) : null;
+  if (turned !== null) {
+    const note = l.mortal === false && MORTAL_NOTES.has(turned) ? undefined : BIRTHDAY_NOTES[turned];
+    if (note) {
+      addLog(state, turned >= 60 ? 'warning' : 'info', '🎂', `${state.player.name} cumplió ${turned} años. ${note}`, undefined, turned >= 65 ? 'peligro' : undefined);
+      chronicle(state, 'vida', 'calendar', `${state.player.name} cumple ${turned}`, note);
+    } else {
+      addLog(state, 'info', '🎂', `${state.player.name} cumplió ${turned} años.`);
+      if (turned % 10 === 0) chronicle(state, 'vida', 'calendar', `${state.player.name} cumple ${turned}`, 'Un año más.');
+    }
   }
   // Riesgo de muerte.
   const p = monthlyDeathRisk(state);
   if (p > 0 && chance(g, p)) {
-    const h = heirs(state)[0];
-    succession(state, h.id, 'fallecimiento');
+    succession(state, designatedHeir(state).id, 'fallecimiento');
   }
 }

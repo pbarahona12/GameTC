@@ -326,6 +326,7 @@ main.screen {
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.kv dd.txt { font-family: inherit; }
 
 .ledger-entry { border-bottom: 1px dashed var(--line); padding: 8px 0; display: flex; flex-direction: column; gap: 4px; }
 .ledger-entry .lines { font-family: var(--font-num); font-size: 12px; display: grid; grid-template-columns: 1fr auto auto; gap: 2px 10px; color: var(--muted); }
@@ -359,7 +360,8 @@ main.screen {
 .inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .badge-dot { color: var(--loss); font-size: 10px; vertical-align: middle; }
-.econ-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; text-align: left; }
+.econ-chip { display: flex; gap: 8px; align-items: flex-start; flex-wrap: nowrap; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 14px; padding: 8px 12px; font-size: 12px; font-weight: 600; text-align: left; line-height: 1.45; }
+.econ-chip > svg { flex: none; margin-top: 1px; }
 
 /* ---------- Accesibilidad y personalización (Ajustes) ---------- */
 body { zoom: var(--ui-zoom, 1); }
@@ -452,6 +454,12 @@ button.holding-row { border: 0; border-bottom: 1px solid var(--line); background
 .menu-card { padding: 4px 6px; gap: 0; }
 .menu-row { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font: inherit; color: inherit; padding: 11px 8px; min-height: 58px; border-radius: 10px; transition: background 0.15s ease; }
 .menu-row:last-child { border-bottom: 0; }
+.menu-later > summary { list-style: none; cursor: pointer; }
+.menu-later > summary::-webkit-details-marker { display: none; }
+.menu-later > summary .menu-title { color: var(--muted); }
+.menu-later[open] > summary { border-bottom: 1px solid var(--line); }
+.menu-later[open] .later-chevron { transform: rotate(90deg); }
+.later-chevron { transition: transform 0.15s ease; }
 .menu-row:active { background: var(--surface-2); }
 .menu-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--surface-2); color: var(--accent); display: grid; place-items: center; flex: none; overflow: hidden; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -795,3 +803,16 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
 .future-steps { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .future-steps li { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2, var(--muted)); }
 .future-steps li + li::before { content: '→'; color: var(--faint, var(--muted)); margin-right: 4px; }
+
+/* 1.4 · Edad siempre visible en la barra superior */
+.avail-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.age-chip { margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; vertical-align: 2px; cursor: pointer; white-space: nowrap; }
+.age-chip.risk { color: var(--loss, #c0392b); border-color: currentColor; }
+.date-block .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.celebrate-card.sombre .celebrate-ic { color: var(--muted); background: var(--surface-2); }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; font-family: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Segmentos con muchas opciones o textos largos: pasan a la línea siguiente en vez de salirse de la pantalla. */
+.seg { flex-wrap: wrap; }
+.seg button { min-width: fit-content; padding-inline: 8px; }
+ul.reqs { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; }

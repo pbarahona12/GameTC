@@ -1,10 +1,14 @@
+import { SKILL_BY_ID } from '../../content/skills';
+import { startOfMonth } from '../../engine/time/calendar';
+import { ageOf } from '../../engine/saga/life';
 import { ReactNode } from 'react';
 import { useGame, useUI, useDerived, store } from '../store';
 import { metricsOf, insightsOf, monthOf } from '../derived';
 import { navStore } from '../nav';
-import { formatMonth, formatDate } from '../../engine/time/calendar';
+import { formatMonth, formatDate, isLastDayOfMonth } from '../../engine/time/calendar';
 import { STAGES, professionalLevel } from '../../engine/progression/progression';
 import { nextMission, CHAPTERS, missionProgress } from '../../engine/progression/tutorial';
+import { goToMission } from '../missions';
 import { Icon, IconName } from '../icons';
 import { imageScore, imageLabel } from '../../engine/lifestyle/effects';
 import { unreadNews, TOPIC_NAMES } from '../../engine/world/news';
@@ -41,9 +45,11 @@ export function Home() {
   const m = useDerived(metricsOf);
   const insights = useDerived(insightsOf).filter((i) => ui.settings.alertCategories.includes(i.category));
   const month = useDerived(monthOf);
-  const hist = s.history.slice(-24);
+  // El último día del mes el cierre ya está en el historial: no repetirlo como «Hoy».
+  const histAll = s.history.slice(-25);
+  const hist = histAll.length && histAll[histAll.length - 1].day === s.day ? histAll.slice(0, -1).slice(-24) : histAll.slice(-24);
   const nwSeries = [...hist.map((h) => h.netWorth), m.netWorth];
-  const prev = hist[hist.length - 1];
+  const prev = [...s.history].reverse().find((h) => h.day < startOfMonth(s.day));
   const change = prev ? m.netWorth - prev.netWorth : 0;
   const stage = STAGES[s.progression.stage - 1];
   const prof = professionalLevel(s);
@@ -62,12 +68,12 @@ export function Home() {
   const openCos = s.companies.filter((c) => c.status === 'active' || c.status === 'insolvent');
   const invValue = m.securities + (s.ledger.balances.term_deposits ?? 0);
   const areas: Array<{ icon: IconName; title: string; value: ReactNode; sub: string; go: () => void; badge?: number }> = [
-    { icon: 'career', title: 'Trabajo', value: job ? <Money c={m.monthlyGross} fit /> : 'Sin empleo', sub: job ? `${job.title} · nivel ${prof.level}` : 'Buscá empleo en Carrera', go: () => navStore.go('career') },
+    { icon: 'career', title: 'Trabajo', value: job ? <Money c={m.monthlyGross} fit /> : 'Sin empleo', sub: job ? `${job.title} · bruto/mes · nivel ${prof.level}` : 'Buscá empleo en Carrera', go: () => navStore.go('career') },
     { icon: 'invest', title: 'Inversiones', value: <Money c={invValue} fit />, sub: invValue > 0 ? 'Tocá para ver y operar todo' : 'Empezá con un fondo índice', go: () => navStore.go('invest', 'portfolio') },
     { icon: 'realestate', title: 'Inmuebles', value: <Money c={m.realEstate - m.mortgages} fit />, sub: m.realEstate ? `Alquileres ${fmtMoney(m.rentIncome, { decimals: false })}/mes` : 'Cocheras y estudios desde poco', go: () => navStore.go('invest', 'realestate') },
     { icon: 'business', title: 'Negocios', value: openCos.length ? `${openCos.length} empresa${openCos.length > 1 ? 's' : ''}` : 'Ninguno', sub: openCos.length ? `Tu parte ${fmtMoney(s.ledger.balances.business_equity, { decimals: false })}` : 'Proyectá y fundá tu primera', go: () => navStore.go('business') },
     { icon: 'card', title: `Crédito · ${cardTier(s).name}`, value: String(s.credit.score), sub: m.debt ? `Deudas ${fmtMoney(m.debt, { decimals: false })}` : 'Sin deudas', go: () => navStore.go('finance', 'card') },
-    { icon: 'wardrobe', title: 'Tu imagen', value: `${img} · ${imageLabel(img)}`, sub: 'Vestidor, bienes y tiendas', go: () => navStore.go('more', 'wardrobe') },
+    { icon: 'wardrobe', title: 'Tu imagen', value: `${img} · ${imageLabel(img)}`, sub: `${Math.floor(ageOf(s))} años · salud ${Math.round(s.player.attributes.health)}/100 · vestidor y bienes`, go: () => navStore.go('more', 'wardrobe') },
     { icon: 'news', title: 'Noticias', value: unread ? `${unread} nueva${unread > 1 ? 's' : ''}` : 'Al día', sub: 'Rumores que podés analizar', go: () => navStore.go('more', 'news'), badge: unread },
     { icon: 'progress', title: 'Progreso', value: `Etapa ${s.progression.stage}/12`, sub: stage.name, go: () => navStore.open({ kind: 'progress' }) },
   ];
@@ -82,8 +88,8 @@ export function Home() {
       {ui.speed === 0 && (
         <div className="pause-strip" role="status">
           <Icon name="pause" size={16} />
-          <span className="grow small"><strong>El tiempo está en pausa.</strong> {s.day === 0 ? 'Cuando quieras, ponelo en marcha: un día dura 2 segundos a 1×.' : 'Nada avanza hasta que lo reanudes.'}</span>
-          <button className="btn sm primary" onClick={() => store.togglePlay()}><Icon name="play" size={14} /> Reanudar a {ui.settings.playSpeed}×</button>
+          <span className="grow small"><strong>El tiempo está en pausa.</strong> {s.day === 0 ? `Cuando quieras, ponelo en marcha: a 1× un día dura ${ui.settings.msPerDay / 1000} segundo${ui.settings.msPerDay === 1000 ? '' : 's'}.` : 'Nada avanza hasta que lo reanudes.'}</span>
+          <button className="btn sm primary" onClick={() => store.togglePlay()}><Icon name="play" size={14} /> {s.day === 0 ? 'Empezar' : 'Reanudar'} a {ui.settings.playSpeed}×</button>
         </div>
       )}
       <ExportReminder />
@@ -94,15 +100,15 @@ export function Home() {
           <div className="card-head">
             <span className="eyebrow" style={{ flex: 1 }}><Icon name="missions" size={13} /> Tu próxima acción · misiones {tutDone}/{tutTotal}</span>
             <button className="btn sm ghost" onClick={() => navStore.open({ kind: 'tutorial' })}>Ver todas</button>
-            <button className="btn sm ghost" aria-label="Ocultar misiones" onClick={() => store.run((st) => { st.tutorial.dismissed = true; }, { toast: false })}><Icon name="close" size={15} /></button>
+            <button className="btn sm ghost" aria-label="Ocultar misiones" onClick={() => { store.quick((st) => { st.tutorial.dismissed = true; }); store.toast('Misiones ocultas. Podés volver a verlas en Ajustes → Partida.', 'ok'); }}><Icon name="close" size={15} /></button>
           </div>
           <Bar value={tutDone / tutTotal} />
           <span className="tiny muted">{CHAPTERS[nextStep.chapter - 1].name}</span>
           <strong>{nextStep.title}</strong>
           <p className="small muted">{nextStep.body}</p>
           <div className="btn-row" style={{ alignItems: 'center' }}>
-            <button className="btn sm dark" onClick={() => navStore.go(nextStep.tab, nextStep.sub)}>Hacerlo ahora</button>
-            {nextStep.reward && <span className="tiny muted">Recompensa: +{nextStep.reward.xp} XP</span>}
+            <button className="btn sm dark" onClick={() => goToMission(nextStep)}>Hacerlo ahora</button>
+            {nextStep.reward && <span className="tiny muted">Recompensa: +{nextStep.reward.xp} XP en {SKILL_BY_ID[nextStep.reward.skill].name}</span>}
           </div>
         </div>
       )}
@@ -132,18 +138,18 @@ export function Home() {
       <div className="month-strip" role="group" aria-label="Tu mes">
         <button className="ms-cell" onClick={() => navStore.go('finance', 'accounts')}>
           <span className="tiny muted">Liquidez</span>
-          <strong className="num">{fmtMoneyFit(m.liquid, { decimals: false, max: 9 })}</strong>
-          <span className="tiny faint">{m.runwayMonths !== null ? `alcanza ~${m.runwayMonths.toFixed(1)} meses` : 'te sobra cada mes'}</span>
+          <strong className="num">{fmtMoneyFit(m.liquid, { decimals: false, max: 7 })}</strong>
+          <span className="tiny faint">{m.runwayMonths !== null ? `alcanza ~${m.runwayMonths.toFixed(1)} meses` : 'ganás más de lo que gastás'}</span>
         </button>
         <button className="ms-cell" onClick={() => navStore.go('reports', 'cf')}>
           <span className="tiny muted">Entró este mes</span>
-          <strong className="num gain">{fmtMoneyFit(month.cf.cashIn, { decimals: false, max: 9 })}</strong>
+          <strong className="num gain">{fmtMoneyFit(month.cf.cashIn, { decimals: false, max: 7 })}</strong>
           <span className="tiny faint">salió {fmtMoneyFit(month.cf.cashOut, { decimals: false, max: 9 })}</span>
         </button>
         <button className="ms-cell" onClick={() => navStore.go('reports', 'cf')}>
-          <span className="tiny muted">Balance del mes</span>
-          <strong className={`num ${month.cf.cashIn - month.cf.cashOut >= 0 ? 'gain' : 'loss'}`}>{fmtMoneyFit(month.cf.cashIn - month.cf.cashOut, { decimals: false, sign: true, max: 9 })}</strong>
-          <span className="tiny faint">gastos fijos {fmtMoneyFit(m.recurringMonthly, { decimals: false, max: 9 })}/mes</span>
+          <span className="tiny muted">Neto de caja del mes</span>
+          <strong className={`num ${month.cf.cashIn - month.cf.cashOut >= 0 ? 'gain' : 'loss'}`}>{fmtMoneyFit(month.cf.cashIn - month.cf.cashOut, { decimals: false, sign: true, max: 7 })}</strong>
+          <span className="tiny faint">{s.career.job && !isLastDayOfMonth(s.day) && month.cf.cashIn - month.cf.cashOut < 0 ? 'el sueldo entra el último día del mes' : `gastos fijos ${fmtMoneyFit(m.recurringMonthly, { decimals: false, max: 9 })}/mes`}</span>
         </button>
       </div>
 
@@ -171,7 +177,7 @@ export function Home() {
               </div>
             </button>
           ))}
-          {insights.length > 2 && <button className="btn sm ghost" onClick={() => { store.markSeen('asesor'); navStore.open({ kind: 'advisor' }); }}>Ver {insights.length - 2} alertas más en el Asesor</button>}
+          {insights.length > 2 && <button className="btn sm ghost" onClick={() => { store.markSeen('asesor'); navStore.open({ kind: 'advisor' }); }}>Ver {insights.length - 2 === 1 ? '1 alerta más' : `${insights.length - 2} alertas más`} en el Asesor</button>}
         </div>
       )}
 

@@ -1,3 +1,4 @@
+import { dismissCelebration } from './engine/saga/chronicle';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/fonts.css';
@@ -29,7 +30,9 @@ void import('@capacitor/core').then(async ({ Capacitor }) => {
   const { App: CapApp } = await import('@capacitor/app');
   CapApp.addListener('backButton', () => {
     const ui = store.getSnapshot();
-    if (ui.simError) store.dismissSimError();
+    const cel = ui.state?.saga?.celebrations[0];
+    if (cel?.size === 'big') store.quick((st) => dismissCelebration(st, cel.id));
+    else if (ui.simError) store.dismissSimError();
     else if (ui.absence) store.dismissAbsence();
     else if (!navStore.back()) void store.save().then(() => CapApp.minimizeApp());
   });

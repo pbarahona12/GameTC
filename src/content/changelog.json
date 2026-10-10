@@ -1,7 +1,7 @@
 [
   {
     "version": "1.4.0",
-    "date": "2026-10-04",
+    "date": "2026-10-10",
     "items": [
       "Listas de fortunas: las 100 personas más ricas de cada una de las cuatro ciudades y un ranking mundial. Sus fortunas siguen a la bolsa, los inmuebles y las tasas de tu partida; los dueños de los grupos rivales están en la lista.",
       "Entrar en la lista, llegar al top 10, ser el número 1 y defender el trono dan festejos, logros y noticias. Si sos el número 1, quien está segundo puede lanzar una ofensiva.",
@@ -26,8 +26,13 @@
       "Eras económicas: cada 10–15 años cambia el contexto y lo que conviene.",
       "Medallas por eficiencia en los desafíos, tres desafíos para clase y logros que premian cómo crecés.",
       "Escena de tu imperio, semáforo de empresas, «invertir lo que sobra», crónica como imagen y una vista previa de tu futuro al empezar.",
-      "En dificultad Fácil, tu primer atraso no tiene recargo ni marca en tu historial.",
-      "Enviar un comentario por correo desde Más (no se envía ningún dato de tu partida)."
+      "En dificultad Fácil, tu primer pago vencido de un gasto fijo (alquiler, servicios) no tiene recargo ni marca en tu historial.",
+      "Enviar un comentario por correo desde Más (no se envía ningún dato de tu partida).",
+      "Tu edad se ve siempre arriba, junto a la fecha (tocala para ver tu vida). Avisos en cada cumpleaños y, desde los 65, sobre la salud y la sucesión; podés elegir a tu heredero.",
+      "Revisión completa de todo lo que ya existía, sin funciones nuevas: más de 150 arreglos en números, textos y botones para que lo que dice el juego coincida con lo que hace.",
+      "La etapa 7 (Magnate regional) ahora pide $500,000 a precios de hoy y una empresa con ganancias o rentas que cubran tus gastos: ya no pasan 10–25 años sin etapa nueva.",
+      "Lo avanzado aparece cuando sirve: en Más, Competencia, Profesionales y Legal quedan plegadas al principio (se abren con un toque), y bolsa y bonos de una empresa joven se resumen en una tarjeta con lo que falta.",
+      "Al fundar una empresa, el juego avisa que con menos de 3 meses de caja casi todas quiebran."
     ]
   },
   {

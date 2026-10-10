@@ -7,6 +7,7 @@ import { sectorOf, coEquity, monthlyPayroll, monthlyFixed, isOpen, premisesBase 
 import { inventoryValue } from './inventory';
 import { companyShareEstimate } from './market';
 import { averageMorale } from './staff';
+import { last30Start, last90Start } from '../time/calendar';
 
 export interface CoLine {
   account: CoAccountId;
@@ -102,7 +103,8 @@ export function coBalanceSheet(co: Company): CoBalanceSheet {
   }
   const equity = totalAssets - totalLiabilities;
   const currentAssets = b.cash + b.receivables + b.inventory + b.in_transit;
-  const loanCurrent = co.loans.reduce((s, l) => s + Math.min(l.balance, l.payment * 12), 0);
+  // Deuda de corto plazo: las cuotas de 12 meses (y un bono entero si vence dentro de un año).
+  const loanCurrent = co.loans.reduce((s, l) => s + (l.bullet ? (l.termMonths - l.paymentsMade - l.missed <= 12 ? l.balance : 0) : Math.min(l.balance, l.payment * 12)), 0);
   const currentLiab = b.payables + b.arrears + b.taxes_payable + loanCurrent;
   return {
     assets, liabilities, totalAssets, totalLiabilities, capital: b.capital, distributions: b.distributions, retained, equity,
@@ -216,14 +218,16 @@ export interface CoMetrics {
 
 export function coMetrics(state: GameState, co: Company): CoMetrics {
   const to = state.day;
-  const from30 = Math.max(co.openDay, to - 29);
+  const from30 = Math.max(co.openDay, last30Start(to));
   const is30 = coIncomeStatement(co, from30, to);
-  const prevFrom = Math.max(co.openDay, to - 59);
-  const isPrev = prevFrom <= to - 30 ? coIncomeStatement(co, prevFrom, to - 30) : null;
+  const prevTo = from30 - 1;
+  const prevFrom = Math.max(co.openDay, last30Start(prevTo));
+  const isPrev = prevFrom <= prevTo ? coIncomeStatement(co, prevFrom, prevTo) : null;
+  const prevDays = Math.max(1, prevTo - prevFrom + 1);
   const days = Math.max(1, to - from30 + 1);
   // Consumo de caja: promedio de los últimos 90 días (incluye alquileres y nóminas completos),
   // sin contar aportes, dividendos ni préstamos (financiamiento).
-  const from90 = Math.max(co.openDay, to - 89);
+  const from90 = Math.max(co.openDay, last90Start(to));
   const cf = coCashFlow(co, from90, to);
   const burn = -Math.round((cf.totalOperating + cf.totalInvesting) / Math.max(1, to - from90 + 1));
   const cash = co.ledger.balances.cash;
@@ -249,7 +253,8 @@ export function coMetrics(state: GameState, co: Company): CoMetrics {
   const sec = sectorOf(co);
   return {
     cash, equity: coEquity(co), revenue30: is30.revenue, revenuePrev30: isPrev?.revenue ?? 0,
-    salesTrend: isPrev && isPrev.revenue > 0 && to - co.openDay >= 60 ? is30.revenue / isPrev.revenue - 1 : null,
+    // Por día: las dos ventanas pueden medir 28–31 días.
+    salesTrend: isPrev && isPrev.revenue > 0 && to - co.openDay >= 60 ? (is30.revenue / days) / (isPrev.revenue / prevDays) - 1 : null,
     net30: is30.netIncome, grossMargin30: is30.grossMargin,
     wageShare: is30.revenue > 0 ? (is30.opex.filter((l) => l.account === 'wages' || l.account === 'payroll_taxes').reduce((s, l) => s + l.amount, 0)) / is30.revenue : null,
     payrollMonthly: payroll, fixedMonthly: fixed, burnPerDay: burn, runwayDays: runway,
@@ -354,18 +359,31 @@ export interface Consolidated {
 /** Vista consolidada del grupo (100 % de cada empresa) y la parte atribuible al jugador. */
 export function consolidated(state: GameState, from: number, to: number): Consolidated {
   const out: Consolidated = { companies: 0, revenue: 0, netIncome: 0, attributableNet: 0, cash: 0, equity: 0, attributableEquity: 0, employees: 0 };
+  // Tu parte efectiva: la de la empresa por la de cada holding que la controla.
+  const byId = new Map(state.companies.map((c) => [c.id, c]));
+  const share = (co: Company): number => {
+    let f = co.ownership;
+    for (let p = co.parentId != null ? byId.get(co.parentId) : undefined, n = 0; p && n < 5; p = p.parentId != null ? byId.get(p.parentId) : undefined, n++) f *= p.ownership;
+    return f;
+  };
   for (const co of state.companies) {
     if (!isOpen(co)) continue;
     const is = coIncomeStatement(co, from, to);
+    // El resultado de una holding ya incluye el de sus subsidiarias (método de participación):
+    // cada empresa suma solo lo suyo para no contarlo dos veces.
+    const own = is.netIncome - coPeriodTotals(co.ledger, from, to).subsidiary_results;
     out.companies++;
     out.revenue += is.revenue;
-    out.netIncome += is.netIncome;
-    out.attributableNet += roundCents(is.netIncome * co.ownership);
+    out.netIncome += own;
+    out.attributableNet += roundCents(own * share(co));
     out.cash += co.ledger.balances.cash;
-    const eq = coEquity(co);
-    out.equity += eq;
-    out.attributableEquity += roundCents(eq * co.ownership);
     out.employees += co.employees.length;
+    // El patrimonio de la holding ya contiene el valor de sus subsidiarias.
+    if (co.parentId == null) {
+      const eq = coEquity(co);
+      out.equity += eq;
+      out.attributableEquity += roundCents(eq * co.ownership);
+    }
   }
   return out;
 }

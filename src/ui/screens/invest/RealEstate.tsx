@@ -4,11 +4,11 @@ import { navStore } from '../../nav';
 import { InfoButton, CardHead, Pill, NumInput, Act, Learn, LineChart, Money, Seg, AmountInput, ConfirmButton, Empty, Stat, Bar, GuardedAct } from '../../components/common';
 import {
   buyProperty, inspectListing, allMortgageQuotes, sellProperty, setRent, setManagement, renovate, developLand, setUse, prepayMortgage,
-  propertyReport, marketRent, listingRent, listingGrossYield, closingCosts, ownerLabel, ownerCash, monthlyEconomics, zoneState, marketVacancy, SALE_COMMISSION, quickSalePrice, buyerWeeklyChance, tenantWeeklyChance, rentNoFasterBelow, knownRepairCost,
+  appraise, propertyReport, marketRent, listingRent, listingGrossYield, closingCosts, ownerLabel, ownerCash, monthlyEconomics, zoneState, marketVacancy, SALE_COMMISSION, quickSalePrice, buyerWeeklyChance, tenantWeeklyChance, rentNoFasterBelow, knownRepairCost,
 } from '../../../engine/realestate/realestate';
 import { ZONES, ZONE_BY_ID, PROPERTY_TYPE_NAMES, BUILD_COST } from '../../../content/realestate';
 import { jurisdictionById } from '../../../content/jurisdictions';
-import { fmtMoney, fmtPct } from '../../../engine/format';
+import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
 import type { GameState } from '../../../engine/state';
 import type { Property, PropertyOwner, PropertyType, PropertyListing } from '../../../engine/realestate/types';
@@ -62,7 +62,7 @@ function PropertyDetail({ p }: { p: Property }) {
       <div className="card-head">
         <div style={{ flex: 1 }}>
           <h2><Icon name={PROPERTY_ICON[p.type]} size={18} /> {p.name}</h2>
-          <div className="tiny muted">{PROPERTY_TYPE_NAMES[p.type]} · {p.m2} m² · {ZONE_BY_ID[p.zoneId]?.name} ({j.name}) · categoría {p.grade}/5</div>
+          <div className="tiny muted">{PROPERTY_TYPE_NAMES[p.type]} · {fmtNumber(p.m2)} m² · {ZONE_BY_ID[p.zoneId]?.name} ({j.name}) · categoría {p.grade}/5</div>
           <div className="tiny muted">Dueño: {ownerLabel(s, p.owner)}</div>
         </div>
         <button className="btn sm ghost" onClick={() => navStore.setSub('invest', 'realestate')}>Cerrar</button>
@@ -116,7 +116,8 @@ function PropertyDetail({ p }: { p: Property }) {
       {p.type !== 'terreno' && !p.development && (
         <div className="card flat" style={{ padding: 12, gap: 8 }}>
           <div className="card-head"><strong style={{ flex: 1 }}>Alquiler y administración</strong><InfoButton term="alquiler" /></div>
-          {p.usedBy === null && (
+          {p.usedBy === null && p.lease && <p className="small">Alquilado a {p.lease.tenant} por {fmtMoney(p.lease.rent)}/mes hasta el {formatDate(p.lease.endDay)}. Al vencer, el inquilino puede renovar (a valor de mercado) o irse; si se va, vas a poder fijar el alquiler pedido.</p>}
+          {p.usedBy === null && !p.lease && (
             <>
               <div className="field">
                 <label htmlFor="rent">Alquiler pedido (mercado {fmtMoney(mr)})</label>
@@ -133,7 +134,7 @@ function PropertyDetail({ p }: { p: Property }) {
                   confirmLabel="Publicar igual"
                   onConfirm={() => store.run((x) => setRent(x, p.id, rent, true))}
                 />
-                {p.listedForRent && !p.lease && <button className="btn sm ghost" onClick={() => store.run((x) => setRent(x, p.id, p.askingRent || mr, false))}>Dejar de ofrecer</button>}
+                {p.listedForRent && <button className="btn sm ghost" onClick={() => store.run((x) => setRent(x, p.id, p.askingRent || mr, false))}>Dejar de ofrecer</button>}
               </div>
             </>
           )}
@@ -157,7 +158,7 @@ function PropertyDetail({ p }: { p: Property }) {
           {p.type === 'terreno' ? (
             <>
               <Seg items={[{ id: 'vivienda', label: 'Viviendas' }, { id: 'local', label: 'Locales' }, { id: 'oficina', label: 'Oficinas' }, { id: 'cochera', label: 'Cocheras' }]} value={devTo} onChange={setDevTo} />
-              <p className="small">Construir {devM2} m² cuesta ≈ {fmtMoney(devCost)} y tarda 9–15 meses. Tasación estimada al terminar ≈ {fmtMoney(Math.round(devM2 * (ZONE_BY_ID[p.zoneId]?.price[devTo] ?? 0) * 100 * zoneState(s, p.zoneId).index))}.</p>
+              <p className="small">Construir {fmtNumber(devM2)} m² cuesta ≈ {fmtMoney(devCost)} y tarda 9–15 meses. Tasación estimada al terminar (a los precios de hoy) ≈ {fmtMoney(appraise(s, { ...p, type: devTo, m2: devM2, condition: 100 }))}.</p>
               <ConfirmButton label="Iniciar construcción" help="accion_desarrollar" className="btn sm" detail={`Se pagan ${fmtMoney(devCost)} ahora desde ${ownerLabel(s, p.owner)}.`} onConfirm={() => store.run((x) => developLand(x, p.id, devTo))} />
             </>
           ) : (
@@ -232,7 +233,7 @@ function Mine({ selected }: { selected: number | null }) {
         <Stat label="Valor de tus inmuebles" term="tasacion" value={<Money c={totals.value} />} sub={`${props.length} inmueble(s)`} />
         <Stat label="Hipotecas" term="hipoteca" value={<Money c={totals.debt} />} sub={`Patrimonio ${fmtMoney(totals.value - totals.debt, { decimals: false })}`} />
         <Stat label="Flujo mensual estimado" term="flujo_caja" value={<Money c={totals.flow} colored sign />} />
-        <Stat label="Alquileres cobrados (año)" term="alquiler" value={<Money c={s.tax.ytd.rentalIncome ?? 0} />} sub="Personales, para impuestos" />
+        <Stat label="Alquileres y repartos (año)" term="alquiler" value={<Money c={s.tax.ytd.rentalIncome ?? 0} />} sub="Alquileres personales y repartos de Mogul (para impuestos)" />
       </div>
       {props.length === 0 && <Empty icon="realestate">Todavía no tenés inmuebles. Mirá el mercado: podés comprar a tu nombre o a nombre de una empresa, con o sin hipoteca.</Empty>}
       {props.length > 0 && (
@@ -279,7 +280,7 @@ function ListingDetail({ l }: { l: PropertyListing }) {
   const price = Math.min(offer, l.askPrice);
   const cc = closingCosts(s, price, p.jurisdiction);
   const mr = marketRent(s, p);
-  const expRent = p.lease?.rent ?? mr;
+  const expRent = listingRent(s, l);
   const quotes = finance ? allMortgageQuotes(s, owner, price, loan, years, rateType, p.type, expRent) : [];
   const chosen = quotes.find((q) => q.bank.id === bankId && q.approved) ?? quotes.find((q) => q.approved) ?? null;
   const fee = finance && chosen ? chosen.fee : 0;
@@ -295,7 +296,7 @@ function ListingDetail({ l }: { l: PropertyListing }) {
       <div className="card-head">
         <div style={{ flex: 1 }}>
           <h2><Icon name={PROPERTY_ICON[p.type]} size={18} /> {p.name}</h2>
-          <div className="tiny muted">{PROPERTY_TYPE_NAMES[p.type]} · {p.m2} m² · {ZONE_BY_ID[p.zoneId]?.name} ({j.name}) · categoría {p.grade}/5 · conservación {Math.round(p.condition)}/100</div>
+          <div className="tiny muted">{PROPERTY_TYPE_NAMES[p.type]} · {fmtNumber(p.m2)} m² · {ZONE_BY_ID[p.zoneId]?.name} ({j.name}) · categoría {p.grade}/5 · conservación {Math.round(p.condition)}/100</div>
         </div>
         <button className="btn sm ghost" onClick={() => navStore.setSub('invest', 'realestate:market')}>Cerrar</button>
       </div>
@@ -315,7 +316,7 @@ function ListingDetail({ l }: { l: PropertyListing }) {
 
       <div className="field">
         <label>Comprador</label>
-        <div className="chips">{os.map((o) => <button key={o.id} onClick={() => setOwnerId(o.id)} style={ownerId === o.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{o.label}</button>)}</div>
+        <div className="chips">{os.map((o) => <button key={o.id} aria-pressed={ownerId === o.id} onClick={() => setOwnerId(o.id)} style={ownerId === o.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{o.label}</button>)}</div>
         <span className="tiny muted">Disponible: {fmtMoney(avail)}. {owner.kind === 'company' ? 'La empresa lo registra al costo y lo deprecia; los alquileres son ingresos de la empresa.' : 'A título personal: se valúa a tasación y los alquileres tributan en tu declaración.'}</span>
       </div>
       <div className="field">
@@ -357,7 +358,7 @@ function ListingDetail({ l }: { l: PropertyListing }) {
         label={offer < l.askPrice ? `Ofertar ${fmtMoney(offer, { decimals: false })}` : 'Comprar al precio pedido'}
         help="accion_comprar_inmueble"
         className="btn primary"
-        disabled={!(offer > 0) || (finance && (!chosen || !(loan > 0)))}
+        disabled={!(offer > 0) || cashNeeded > avail || (finance && (!chosen || !(loan > 0)))}
         detail={<>Precio {fmtMoney(price)} + gastos {fmtMoney(cc.total + fee)}{repair ? ` + reparación del vicio oculto ${fmtMoney(repair)}` : ''}{finance && chosen ? ` · hipoteca ${fmtMoney(loan)} con ${chosen.bank.name}` : ''}. Comprador: {os.find((o) => o.id === ownerId)?.label}.</>}
         onConfirm={() => store.run((x) => {
           const r = buyProperty(x, l.id, { owner, offer: offer < l.askPrice ? offer : undefined, financing: finance && chosen ? { bankId: chosen.bank.id, amount: loan, years, rateType } : null });
@@ -389,12 +390,12 @@ function Market({ selected }: { selected: number | null }) {
       {sel && <ListingDetail key={sel.id} l={sel} />}
       <div className="chips">
         {([['todos', 'Todos'], ['cochera', 'Cocheras'], ['vivienda', 'Viviendas'], ['local', 'Locales'], ['oficina', 'Oficinas'], ['terreno', 'Terrenos']] as Array<['todos' | PropertyType, string]>).map(([id, label]) => (
-          <button key={id} className={type === id ? 'on' : ''} onClick={() => setType(id)}>{label}</button>
+          <button key={id} className={type === id ? 'on' : ''} aria-pressed={type === id} onClick={() => setType(id)}>{label}</button>
         ))}
       </div>
       <p className="tiny muted">Para empezar con poco capital: cocheras y estudios. <InfoButton term="cochera" /> <InfoButton term="estudio_inmueble" /></p>
       <div className="chips">
-        {[{ id: 'todas', name: 'Todas las zonas' }, ...ZONES].map((z) => <button key={z.id} onClick={() => setZone(z.id)} style={zone === z.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{z.name}</button>)}
+        {[{ id: 'todas', name: 'Todas las zonas' }, ...ZONES].map((z) => <button key={z.id} aria-pressed={zone === z.id} onClick={() => setZone(z.id)} style={zone === z.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{z.name}</button>)}
       </div>
       <div className="inline-form">
         <span className="tiny muted">Ordenar por</span>
@@ -410,11 +411,11 @@ function Market({ selected }: { selected: number | null }) {
               <button key={l.id} className="row clickable" style={{ border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', width: '100%' }} onClick={() => { navStore.setSub('invest', `realestate:list:${l.id}`); window.scrollTo({ top: 0 }); }}>
                 <div className="grow">
                   <div className="title small"><Icon name={PROPERTY_ICON[p.type]} size={15} /> {p.name}</div>
-                  <div className="meta">{ZONE_BY_ID[p.zoneId]?.name} · {p.m2} m² · {p.lease ? 'con inquilino' : 'libre'}{rent ? ` · renta bruta ${fmtPct(listingGrossYield(s, l), 1)}` : ''}</div>
+                  <div className="meta">{ZONE_BY_ID[p.zoneId]?.name} · {fmtNumber(p.m2)} m² · {p.lease ? 'con inquilino' : 'libre'}{rent ? ` · renta bruta ${fmtPct(listingGrossYield(s, l), 1)}` : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="amt small">{fmtMoney(l.askPrice, { decimals: false })}</div>
-                  <span className={`tiny ${l.askPrice <= p.appraisal ? 'gain' : 'loss'}`}>{fmtPct(l.askPrice / p.appraisal - 1, 0)} vs tasación</span>
+                  <span className={`tiny ${l.askPrice <= p.appraisal ? 'gain' : 'loss'}`}>{l.askPrice > p.appraisal ? '+' : ''}{fmtPct(l.askPrice / p.appraisal - 1, 0)} vs tasación</span>
                 </div>
               </button>
             );
@@ -444,7 +445,7 @@ function Zones() {
               <dt>Precio vivienda</dt><dd>{fmtMoney(Math.round(z.price.vivienda * zs.index * 100), { decimals: false })}/m²</dd>
               <dt>Variación de precios 12 m <InfoButton term="plusvalia" /></dt><dd>{y1 === null ? '—' : fmtPct(y1, 1)}</dd>
               <dt>Vacancia viviendas <InfoButton term="vacancia" /></dt><dd>{fmtPct(marketVacancy(s, z.id, 'vivienda'), 0)}</dd>
-              <dt>Riesgo de morosidad</dt><dd>{z.tenantRisk < 0.3 ? 'Bajo' : z.tenantRisk < 0.6 ? 'Medio' : 'Alto'}</dd>
+              <dt>Riesgo de morosidad</dt><dd>{z.tenantRisk < 0.2 ? 'Bajo' : z.tenantRisk < 0.35 ? 'Medio' : 'Alto'}</dd>
               <dt>Impuesto inmobiliario / transferencia</dt><dd>{fmtPct(j.propertyTaxRate, 2)} / {fmtPct(j.transferTaxRate, 1)}</dd>
             </div>
           </div>

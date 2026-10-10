@@ -7,7 +7,7 @@ import { amortizedPayment, amortizationSchedule } from '../finance/loans';
 import { Cents, roundCents, clamp } from '../money';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
-import { addMonths, dayOf } from '../time/calendar';
+import { addMonths, dayOf, last90Start } from '../time/calendar';
 import { LEGAL_FORM_BY_ID, CORPORATE_LOSS_CARRY_YEARS } from '../../content/sectors';
 import { recordInquiry } from '../finance/credit';
 import { settleArrears } from './common';
@@ -52,8 +52,9 @@ export interface CoLoanOffer {
 export function quoteCoLoan(state: GameState, co: Company, bank: BizBank, amount: Cents, term: number): CoLoanOffer {
   const reasons: string[] = [];
   const m = coMetrics(state, co);
-  const is = coIncomeStatement(co, Math.max(co.openDay, state.day - 89), state.day);
-  const monthsData = Math.max(1, (state.day - Math.max(co.openDay, state.day - 89) + 1) / 30.4);
+  const from90 = Math.max(co.openDay, last90Start(state.day));
+  const is = coIncomeStatement(co, from90, state.day);
+  const monthsData = Math.max(1, (state.day - from90 + 1) / 30.44);
   // Libros inflados (fraude ficticio): el banco ve un EBITDA mayor al real.
   const ebitdaMonthly = (is.ebitda / monthsData) * (1 + clamp(co.irregular.inflatedBooks, 0, 1));
   const bs = coBalanceSheet(co);
@@ -71,7 +72,7 @@ export function quoteCoLoan(state: GameState, co: Company, bank: BizBank, amount
   if (co.status === 'insolvent' || co.ledger.balances.arrears > 0) reasons.push('La empresa tiene deudas vencidas.');
   if (state.day - co.foundedDay < bank.minDaysOpen) reasons.push(`Se exigen ${bank.minDaysOpen} días de antigüedad.`);
   if (term > bank.maxTerm) reasons.push(`Plazo máximo: ${bank.maxTerm} meses.`);
-  if (amount < px(state, 1000)) reasons.push('Monto mínimo: $1,000.');
+  if (amount < px(state, 1000)) reasons.push(`Monto mínimo: ${fmtMoney(px(state, 1000))}.`);
   if (amount > maxAmount) reasons.push(`Monto máximo según ${bank.requiresGuarantee ? 'garantías' : 'ganancias (3 × EBITDA anual)'}: ${fmtMoney(maxAmount)}.`);
   if (!bank.requiresGuarantee && (dscr === null || dscr < 1.25)) reasons.push('La empresa no genera suficiente EBITDA para cubrir 1.25 veces las cuotas.');
   if (bank.requiresGuarantee && state.credit.score < 640) reasons.push(`Tu puntaje personal (${state.credit.score}) está por debajo de 640, requerido para garantizar.`);
@@ -104,7 +105,8 @@ export function processCoLoans(state: GameState, co: Company): void {
   for (const l of co.loans) {
     if (l.balance <= 0 || l.nextDueDay !== state.day) continue;
     const interest = roundCents((l.balance * l.apr) / 12);
-    const due = l.bullet ? (l.paymentsMade + 1 >= l.termMonths ? l.balance + interest : interest) : Math.max(interest, Math.min(l.payment, l.balance + interest));
+    // Bonos: el vencimiento llega en su fecha aunque se haya atrasado algún cupón.
+    const due = l.bullet ? (l.paymentsMade + l.missed + 1 >= l.termMonths ? l.balance + interest : interest) : Math.max(interest, Math.min(l.payment, l.balance + interest));
     const principal = due - interest;
     if (co.ledger.balances.cash >= due) {
       coPost(co.ledger, { day: state.day, memo: l.bullet ? (principal > 0 ? 'Vencimiento de bonos (capital e intereses)' : 'Cupón de bonos') : 'Cuota de préstamo', cf: 'financing', tag: 'coloan:payment', lines: [{ account: 'loans', debit: principal }, { account: 'interest', debit: interest }, { account: 'cash', credit: due }] });
@@ -207,6 +209,7 @@ export function processCoTaxes(state: GameState, co: Company): void {
       });
       co.arrears.push({ id: state.meta.nextId++, kind: 'impuestos', amount: f.outstanding + fee, since: state.day, label: `Impuesto empresarial ${f.year}` });
       coLog(state, co, 'danger', '🏛️', `no pudo pagar el impuesto empresarial de ${f.year}: multa del 5 % y deuda vencida.`);
+      f.late = true;
     }
     f.outstanding = 0;
   }

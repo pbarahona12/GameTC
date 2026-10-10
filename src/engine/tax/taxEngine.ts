@@ -1,7 +1,7 @@
 import { post } from '../ledger/ledger';
 import { Cents, clamp, roundCents, usd } from '../money';
 import type { Filing, GameState } from '../state';
-import { dayOf, dateOf, formatDate } from '../time/calendar';
+import { dayOf, dateOf, formatDate, daysInMonth } from '../time/calendar';
 import { addLog } from '../log';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney } from '../format';
@@ -12,6 +12,9 @@ import { hiredPro } from '../pros/lookup';
 import { balanceSheet } from '../reports/statements';
 import { rebuildLivingCosts } from '../finance/budget';
 import { recordEvasion } from '../legal/hooks';
+import { coIncomeStatement } from '../business/reports';
+import { coPeriodTotals } from '../business/companyLedger';
+import { LEGAL_FORM_BY_ID } from '../../content/sectors';
 
 /** Jurisdicción de residencia fiscal actual del jugador. */
 export function residence(state: GameState): Jurisdiction {
@@ -187,15 +190,36 @@ export function taxesOutstanding(state: GameState): Cents {
 
 /**
  * Proyección del año en curso: lo acumulado + lo que falta del año si el
- * sueldo actual se mantiene. Es una ESTIMACIÓN (no incluye bonos, ventas ni alquileres futuros).
+ * sueldo actual se mantiene. Incluye lo que llevan ganado este año tus empresas transparentes.
+ * Es una ESTIMACIÓN (no incluye bonos, ventas, alquileres ni ganancias futuras).
  */
+/**
+ * Tu parte del resultado de este año de las empresas transparentes (individual, sociedad):
+ * tributa en tu declaración, pero recién entra a `ytd.business` el 1 de enero siguiente.
+ */
+export function passThroughYearToDate(state: GameState): Cents {
+  const from0 = dayOf(state.tax.ytd.year, 1, 1);
+  let total = 0;
+  for (const co of state.companies) {
+    if (co.npc || (co.status !== 'active' && co.status !== 'insolvent') || !LEGAL_FORM_BY_ID[co.legalForm]?.passThrough) continue;
+    const from = Math.max(from0, co.acquiredDay ?? co.foundedDay);
+    if (from > state.day) continue;
+    const profit = coIncomeStatement(co, from, state.day).preTax - coPeriodTotals(co.ledger, from, state.day).subsidiary_results;
+    total += roundCents(profit * co.ownership);
+  }
+  return total;
+}
+
 export function projectCurrentYear(state: GameState): { toDate: TaxComputation; projected: TaxComputation; projectedYtd: YearToDate } {
-  const ytd = state.tax.ytd;
+  const biz = passThroughYearToDate(state);
+  const ytd = biz ? { ...state.tax.ytd, business: (state.tax.ytd.business ?? 0) + biz } : state.tax.ytd;
   const j = jurisdictionById(ytd.jurisdiction ?? state.tax.jurisdiction);
   const ctx = taxContext(state, j, ytd.year, 0);
   const toDate = computeAnnualTax(j, ytd, ctx);
   const g = dateOf(state.day);
-  const monthsLeft = 12 - g.m + (g.d < 28 ? 1 : 0);
+  // El sueldo del mes se cobra el último día: el mes en curso cuenta mientras no se haya pagado.
+  const paidThisMonth = !!state.career.job && state.career.job.paidThroughDay >= dayOf(g.y, g.m, daysInMonth(g.y, g.m));
+  const monthsLeft = 12 - g.m + (paidThisMonth ? 0 : 1);
   const p: YearToDate = { ...ytd };
   const job = state.career.job;
   if (job && monthsLeft > 0) {
@@ -215,7 +239,7 @@ export function compareJurisdictions(state: GameState): Array<{ id: Jurisdiction
     const j = JURISDICTION_BY_ID[id];
     const ytd = { ...projectedYtd, withheld: 0 };
     const c = computeAnnualTax(j, ytd, { ...HONEST, deductionCapture: deductionCapture(state) });
-    return { id, name: j.name, tax: c.taxAfterCredits, cgt: c.capitalGainsTax ?? 0 };
+    return { id, name: j.name, tax: c.taxAfterCredits + (c.capitalGainsTax ?? 0), cgt: c.capitalGainsTax ?? 0 };
   });
 }
 
@@ -227,6 +251,11 @@ export function requestResidence(state: GameState, id: JurisdictionId): ActionRe
   const j = JURISDICTION_BY_ID[id];
   if (!j) return FAIL('Jurisdicción inexistente.');
   if (id === state.tax.jurisdiction && !state.tax.pendingJurisdiction) return FAIL('Ya residís allí.');
+  // Cancelar una mudanza pendiente: no cuesta nada (el trámite ya pagado no se devuelve).
+  if (id === state.tax.jurisdiction && state.tax.pendingJurisdiction) {
+    state.tax.pendingJurisdiction = null;
+    return OK('Cancelaste el cambio de residencia. El trámite que ya pagaste no se devuelve.');
+  }
   if (state.legal?.prison) return FAIL('No podés mudarte mientras cumplís una condena.');
   if (state.legal?.cases.some((c) => c.stage !== 'cerrado')) return FAIL('Con un proceso judicial abierto no se autoriza el cambio de residencia.');
   const nw = balanceSheet(state).netWorth;
@@ -234,9 +263,9 @@ export function requestResidence(state: GameState, id: JurisdictionId): ActionRe
   const cost = usd(j.moveCost * state.macro.priceIndex);
   if (!canPayFromChecking(state, cost)) return FAIL(`El trámite y la mudanza cuestan ${fmtMoney(cost)}.`);
   post(state.ledger, { day: state.day, memo: `Trámite de residencia en ${j.name}`, cf: 'operating', tag: 'moving', lines: [{ account: 'other_expense', debit: cost }, { account: 'checking', credit: cost }] });
-  state.tax.pendingJurisdiction = id === state.tax.jurisdiction ? null : id;
+  state.tax.pendingJurisdiction = id;
   const y = dateOf(state.day).y + 1;
-  return OK(state.tax.pendingJurisdiction ? `Residencia en ${j.name} aprobada: rige desde el 1 de enero de ${y}.` : 'Cancelaste el cambio de residencia.');
+  return OK(`Residencia en ${j.name} aprobada: rige desde el 1 de enero de ${y}.`);
 }
 
 /** Próximas obligaciones fiscales (personales y de empresas) en los próximos `days` días. */
@@ -248,7 +277,10 @@ export function taxObligations(state: GameState, days = 365): Array<{ day: numbe
   const next = dayOf(g.y + 1, 1, 1);
   if (next - state.day <= days) {
     const p = projectCurrentYear(state).projected;
-    out.push({ day: next, label: `Declaración ${g.y} (estimado; vence ${formatDate(dayOf(g.y + 1, j.filingDeadline.month, j.filingDeadline.day))})`, amount: p.balance, kind: 'personal' });
+    const due = dayOf(g.y + 1, j.filingDeadline.month, j.filingDeadline.day);
+    if (p.balance > 0) out.push({ day: due, label: `Declaración ${g.y}: saldo a pagar (estimado; se presenta el 1 de enero)`, amount: p.balance, kind: 'personal' });
+    else if (p.balance < 0) out.push({ day: due, label: `Declaración ${g.y}: te devolverían ${fmtMoney(-p.balance, { decimals: false })} (estimado)`, amount: null, kind: 'personal' });
+    else out.push({ day: next, label: `Declaración ${g.y}: sin saldo estimado (se presenta el 1 de enero)`, amount: 0, kind: 'personal' });
   }
   for (const co of state.companies) for (const f of co.taxFilings) if (f.outstanding > 0) out.push({ day: f.dueDay, label: `${co.name}: impuesto empresarial ${f.year}`, amount: f.outstanding, kind: 'empresa' });
   for (const p of state.realEstate?.properties ?? []) {

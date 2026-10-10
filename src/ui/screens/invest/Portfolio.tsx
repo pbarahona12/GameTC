@@ -247,15 +247,15 @@ export function Portfolio() {
             { label: 'Cuenta con gestor', value: b.managed ?? 0, color: CHART_COLORS[4] },
             { label: 'Mogul Exchange', value: b.mogul, color: CHART_COLORS[5] },
             { label: 'Inmuebles (neto de hipotecas)', value: Math.max(0, data.reEquity), color: CHART_COLORS[3] },
-            { label: 'Depósitos a plazo', value: b.term_deposits, color: CHART_COLORS[6] },
           ]} />
+          {b.term_deposits > 0 && <span className="tiny muted">Además tenés {fmtMoney(b.term_deposits, { decimals: false })} en depósitos a plazo (en Finanzas → Inversión).</span>}
           <Learn term="diversificacion" />
         </div>
       )}
 
       <div className="grid2">
         <Stat label="Ganancias realizadas (año)" term="ganancia_capital" value={<Money c={(y.gainsShort ?? 0) + (y.gainsLong ?? 0)} colored sign />} sub={`Comisiones ${fmtMoney(y.investFees ?? 0, { decimals: false })}`} />
-        <Stat label="Dividendos y rentas (año)" term="dividend_yield" value={<Money c={(y.dividends ?? 0) + (y.bondInterest ?? 0)} />} sub="Dividendos + cupones + repartos" />
+        <Stat label="Dividendos y cupones (año)" term="dividend_yield" value={<Money c={(y.dividends ?? 0) + (y.bondInterest ?? 0)} />} sub="Dividendos de acciones y fondos + cupones de bonos" />
       </div>
 
       {data.risk && (
@@ -293,7 +293,7 @@ export function Portfolio() {
               <div className="row" key={t.id}>
                 <div className="grow">
                   <div className="small"><Pill tone={t.side === 'compra' ? 'info' : 'accent'}>{t.side}</Pill> {t.market} · {t.market === 'gestor' ? 'cuenta con gestor' : t.assetId}</div>
-                  <div className="tiny faint">{formatDate(t.day)} · {Number.isInteger(t.qty) ? t.qty : t.qty.toFixed(2)} × {fmtMoney(t.price)} · comisión {fmtMoney(t.fee)}</div>
+                  <div className="tiny faint">{formatDate(t.day)} · {Number.isInteger(t.qty) ? fmtNumber(t.qty) : fmtNumber(t.qty, 2)} × {fmtMoney(t.price)} · comisión {fmtMoney(t.fee)}</div>
                 </div>
                 {t.realized !== undefined && <span className="tiny"><Money c={t.realized} colored sign /></span>}
               </div>

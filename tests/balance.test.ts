@@ -48,7 +48,10 @@ describe('Balance · bots por estilo de juego', () => {
       lines.push(`| ${x.st} | $${Math.round(x.nw / 100).toLocaleString('en-US')} | ×${(x.nw / Math.max(1, others)).toFixed(2)} |`);
     }
     const WHY: Record<BotStyle, string> = {
-      emprendedor: 'es el camino con más riesgo (las quiebras de la tabla son suyas) y el bot delega en un gerente desde el principio. Con una sola empresa no paga un equipo directivo (hace falta desde la quinta) ni suele llegar a una posición dominante: esos costos aparecen al crecer',
+      emprendedor: (() => {
+        const bk = results.filter((r) => r.style === 'emprendedor').reduce((a, r) => a + r.bankruptcies, 0);
+        return `el bot funda con capital para 6 meses de costos y delega en el mejor gerente que encuentra (${bk ? `aun así quebró ${bk} ${bk === 1 ? 'vez' : 'veces'}` : 'así no quebró ninguna vez'}). El riesgo es real para quien funda sin colchón: medido aparte, fundando solo con el costo de apertura quebraron todas (33 de 33, en los 5 rubros). Con una sola empresa tampoco paga un equipo directivo (hace falta desde la quinta) ni enfrenta una posición dominante: esos costos aparecen al crecer`;
+      })(),
       inversionista: 'pone todo el excedente en el fondo índice desde el primer mes; en 15 años el interés compuesto pesa más que el sueldo extra que buscan los otros estilos',
       ejecutivo: 'gana más sueldo que los demás',
       inmobiliario: 'el apalancamiento de las hipotecas multiplica la revalorización',
@@ -85,7 +88,10 @@ describe('Balance · bots por estilo de juego', () => {
       '- Etapa 4: cuentan también inmuebles y cuentas con gestor como inversión (el estilo inmobiliario se trababa).',
       '- Etapa 6: la parte de las ganancias de tus empresas cuenta como ingreso pasivo (el emprendedor tardaba 12–14 años; ahora 5–8).',
       '- Etapa 10: ahora se puede alcanzar (empresas o inmuebles en 2 jurisdicciones).',
-      '- Ningún estilo tarda más de 1 año y medio en salir de la supervivencia (prueba automática).');
+      '- Ningún estilo tarda más de 1 año y medio en salir de la supervivencia (prueba automática).',
+      '', '## Ajustes de balance de la versión 1.4', '',
+      '- Etapa 7 (Magnate regional): antes pedía $1.000.000 a precios de hoy y una empresa con ganancias sí o sí. Con 30 años de bots, el ejecutivo, el inversionista y el inmobiliario nunca llegaban y el emprendedor tardaba 19 años: entre la etapa 6 y la 7 pasaban 10–25 años sin nada nuevo. Ahora pide $500.000 a precios de hoy y una empresa con ganancias **o** ingresos pasivos que cubran todos tus gastos. Resultado (30 años, origen técnico): emprendedor 9,9 años, inversionista 12,9, inmobiliario 21,3, ejecutivo 21,8.',
+      '- Riesgo empresarial medido (8 partidas por rubro, 10 años): fundando con capital para 6 meses de costos y un gerente, quebraron 2 de 40 partidas del bot emprendedor; fundando solo con el costo de apertura quebraron las 33 que llegaron a fundarse (consultora 8, cafetería 4, minimercado 7, software 8, muebles 6). Al fundar, el juego ahora dice que con menos de 3 meses de caja casi todas quiebran y que lo prudente son 6.');
     writeFileSync('docs/BALANCE.md', lines.join('\n') + '\n');
   });
 });

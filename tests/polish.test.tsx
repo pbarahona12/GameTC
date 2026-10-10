@@ -124,8 +124,8 @@ describe('Fase 8 · montos enormes no se salen de la pantalla', () => {
     expect(fmtMoneyFit(usd(9_431_211_140.52), { sign: true })).toBe('+$9.43B');
     expect(fmtMoneyFit(-usd(2_500_000_000_000))).toBe('−$2.50T');
     expect(fmtCompact(usd(4_000_000_000_000_000))).toBe('$4,000T');
-    expect(fmtPct(133.216, 1)).toBe('13,322 %');
-    expect(fmtPct(0.199, 1)).toBe('19.9 %');
+    expect(fmtPct(133.216, 1)).toBe('13,322\u00a0%');
+    expect(fmtPct(0.199, 1)).toBe('19.9\u00a0%');
   });
 
   it('la cifra principal achica la letra según el largo del número', async () => {

@@ -38,12 +38,12 @@ export const FUND_DEFS: FundDef[] = [
     risks: 'Riesgo de tasa de interés; bajo riesgo de impago.' },
   { id: 'F-MON', name: 'Fondo Monetario', kind: 'monetario', fee: 0.004, entryFee: 0, risk: 1, distributes: false,
     description: 'Invierte en depósitos y letras a muy corto plazo.',
-    howItWorks: 'Crece todos los días al ritmo de la tasa de política menos su comisión. Se puede retirar en cualquier momento.',
+    howItWorks: 'Crece todos los días al ritmo de la tasa de política menos 0.6 puntos (su comisión de 0.4 % y los costos de las letras). Se puede retirar en cualquier momento.',
     risks: 'Casi sin riesgo, pero su rendimiento puede quedar por debajo de la inflación.' },
   { id: 'F-REIT', name: 'Fondo Inmobiliario (REIT)', kind: 'inmobiliario', fee: 0.007, entryFee: 0.01, risk: 3, distributes: true,
     description: 'Invierte en edificios alquilados de varias zonas.',
     howItWorks: 'Reparte los alquileres cada trimestre y su valor sigue los precios inmobiliarios. Comisión de entrada 1 % y anual 0.7 %.',
-    risks: 'Cae con los precios de los inmuebles y cuando sube la vacancia.' },
+    risks: 'Cae con los precios de los inmuebles. El reparto es fijo (alrededor del 5 % anual de su valor), aunque suba la vacancia.' },
 ];
 
 export const FUND_BY_ID: Record<string, FundDef> = Object.fromEntries(FUND_DEFS.map((f) => [f.id, f]));

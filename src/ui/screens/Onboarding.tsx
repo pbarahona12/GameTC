@@ -13,6 +13,7 @@ import { Avatar } from '../components/Avatar';
 import { Switch } from '../components/common';
 import { Icon, type IconName } from '../icons';
 import { CHALLENGES, CHALLENGE_BY_ID } from '../../engine/saga/challenges';
+import { START_AGE } from '../../engine/saga/life';
 import { BACKGROUND_BY_ID } from '../../content/backgrounds';
 import { iconOf } from './saga/SagaCards';
 
@@ -70,6 +71,7 @@ export function Onboarding() {
   // Las actividades ilegales ficticias son opcionales: arrancan desactivadas y se
   // pueden activar acá (opciones avanzadas), en Ajustes → Partida o en Más → Legal.
   const [illegal, setIllegal] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [mode, setMode] = useState<'libre' | 'desafio'>('libre');
   const [challenge, setChallenge] = useState(CHALLENGES[0].id);
@@ -135,12 +137,12 @@ export function Onboarding() {
             <span className="small hook">{HOOK[b.id]}</span>
             <span className="small muted">{b.summary}</span>
             <span className="tiny"><span className="gain">+ {b.pros}</span> · <span className="loss">− {b.cons}</span></span>
-            <span className="tiny faint">Educación: {EDUCATION_NAMES[b.education]} · Estilo de vida: {LIFESTYLE_BY_ID[b.lifestyle].name} · Límite de tarjeta {fmtMoney(usd(b.cardLimit), { decimals: false })}</span>
+            <span className="tiny faint">Empezás con {START_AGE[b.id]} años · Educación: {EDUCATION_NAMES[b.education]} · Estilo de vida: {LIFESTYLE_BY_ID[b.lifestyle].name} (≈ {fmtMoney(usd(LIFESTYLE_BY_ID[b.lifestyle].items.reduce((a, x) => a + x.amount, 0)), { decimals: false })}/mes) · Límite de tarjeta {fmtMoney(usd(b.cardLimit), { decimals: false })}</span>
           </button>
         ))}
       </div>}
 
-      <details className="card advanced">
+      {mode === 'desafio' ? <p className="tiny muted">El desafío fija el origen, la semilla del mundo y la dificultad (Normal), para que todos los resultados se puedan comparar.</p> : <details className="card advanced">
         <summary><strong>Opciones avanzadas</strong> <span className="tiny muted">dificultad, objetivo, actividades ilegales, semilla</span></summary>
         <div className="stack" style={{ marginTop: 12 }}>
           <span className="eyebrow">Dificultad económica</span>
@@ -170,11 +172,11 @@ export function Onboarding() {
             <span className="tiny muted">Misma semilla y mismas decisiones = mismos acontecimientos.</span>
           </div>
         </div>
-      </details>
+      </details>}
 
       <FuturePreview look={look} />
 
-      <button className="btn primary block" style={{ minHeight: 52, fontSize: 16 }} onClick={() => void store.startNewGame({ name: name.trim() || 'Jugador', background: bg, style, color, seed: seed.trim() || undefined, difficulty, illegalEnabled: illegal, look, challenge: ch?.id })}>
+      <button className="btn primary block" style={{ minHeight: 52, fontSize: 16 }} disabled={starting} onClick={() => { setStarting(true); void store.startNewGame({ name: name.trim() || 'Jugador', background: bg, style, color, seed: ch ? undefined : seed.trim() || undefined, difficulty: ch ? 'normal' : difficulty, illegalEnabled: illegal, look, challenge: ch?.id }).finally(() => setStarting(false)); }}>
         {ch ? `Empezar el desafío: ${ch.title}` : 'Comenzar partida'}
       </button>
 

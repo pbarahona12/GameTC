@@ -16,41 +16,55 @@ export function Celebrations() {
   const s = ui.state;
   const c = s?.saga?.celebrations[0];
   const shown = useRef<number | null>(null);
-  const close = (id: number) => store.run((st) => dismissCelebration(st, id), { toast: false });
+  const close = (id: number) => store.quick((st) => dismissCelebration(st, id));
   // Muchos avisos chicos juntos (al volver de una ausencia o importar): quedan los 2 más nuevos.
   const smalls = s?.saga?.celebrations.filter((x) => x.size === 'small') ?? [];
   useEffect(() => {
     if (smalls.length <= 2) return;
     const drop = new Set(smalls.slice(0, -2).map((x) => x.id));
-    store.run((st) => { st.saga.celebrations = st.saga.celebrations.filter((x) => !drop.has(x.id)); }, { toast: false });
+    store.quick((st) => { st.saga.celebrations = st.saga.celebrations.filter((x) => !drop.has(x.id)); });
   }, [smalls.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sombre = c?.icon === 'history';
   useEffect(() => {
-    if (!c || shown.current === c.id) return;
-    shown.current = c.id;
-    celebrateFeedback(c.size);
+    if (!c) return;
+    // El sonido y la vibración, una sola vez por festejo (y nunca en un fallecimiento).
+    if (shown.current !== c.id) {
+      shown.current = c.id;
+      if (!sombre) celebrateFeedback(c.size);
+    }
     if (c.size === 'small') {
-      const t = setTimeout(() => close(c.id), 3400);
+      const t = setTimeout(() => close(c.id), 4200);
       return () => clearTimeout(t);
     }
+    // Escape cierra el festejo grande (y no la hoja que haya debajo).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      close(c.id);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [c?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!c) return null;
   if (c.size === 'small') {
     return (
-      <button className="celebrate-banner" onClick={() => close(c.id)} aria-live="polite" aria-label={`${c.title}. ${c.text} (tocar para cerrar)`}>
-        <span className="cb-ic" aria-hidden><Icon name={iconOf(c.icon, 'medal')} size={18} /></span>
-        <span className="cb-text"><strong className="small">{c.title}</strong><span className="tiny">{c.text}</span></span>
-      </button>
+      <div aria-live="polite" role="status">
+        <button className="celebrate-banner" onClick={() => close(c.id)} aria-label={`${c.title}. ${c.text} (tocar para cerrar)`}>
+          <span className="cb-ic" aria-hidden><Icon name={iconOf(c.icon, 'medal')} size={18} /></span>
+          <span className="cb-text"><strong className="small">{c.title}</strong><span className="tiny">{c.text}</span></span>
+        </button>
+      </div>
     );
   }
   return (
     <div className="celebrate-backdrop" role="dialog" aria-modal="true" aria-labelledby={`cel-${c.id}`} onClick={() => close(c.id)}>
-      <div className="celebrate-card" onClick={(e) => e.stopPropagation()}>
-        <div className="confetti" aria-hidden>{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ ['--i' as string]: i }} />)}</div>
+      <div className={`celebrate-card ${sombre ? 'sombre' : ''}`} onClick={(e) => e.stopPropagation()}>
+        {!sombre && <div className="confetti" aria-hidden>{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ ['--i' as string]: i }} />)}</div>}
         <span className="celebrate-ic" aria-hidden><Icon name={iconOf(c.icon, 'crown')} size={40} /></span>
         <h2 id={`cel-${c.id}`}>{c.title}</h2>
         <p className="small">{c.text}</p>
         <div className="btn-row">
-          <button className="btn primary" autoFocus onClick={() => close(c.id)}>¡Seguimos!</button>
+          <button className="btn primary" autoFocus onClick={() => close(c.id)}>{sombre ? 'Continuar' : '¡Seguimos!'}</button>
           <button className="btn ghost" onClick={() => { close(c.id); navStore.open({ kind: 'chronicle' }); }}>Ver crónica</button>
         </div>
       </div>

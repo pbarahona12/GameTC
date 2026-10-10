@@ -422,6 +422,11 @@ export interface OrderInput {
  * Coloca una orden. Las de mercado se ejecutan al instante en día hábil (al
  * precio de cierre ± diferencial e impacto) o en la apertura del siguiente día hábil.
  */
+/** Acciones ya comprometidas en órdenes de venta abiertas (de un par OCO cuenta una sola pata). */
+export function reservedForSale(state: GameState, stockId: string): number {
+  return state.stocks.orders.filter((x) => x.stockId === stockId && x.side === 'venta' && x.status === 'abierta' && (!x.oco || x.type === 'stop')).reduce((t, x) => t + x.qty, 0);
+}
+
 export function placeStockOrder(state: GameState, o: OrderInput): ActionResult {
   const s = stockById(state, o.stockId);
   if (!s) return FAIL('Acción inexistente.');
@@ -430,8 +435,8 @@ export function placeStockOrder(state: GameState, o: OrderInput): ActionResult {
   if (state.legal?.prison) return FAIL('Desde prisión no podés operar en bolsa.');
   const h = state.stocks.holdings[s.id];
   if (o.side === 'venta') {
-    const reserved = state.stocks.orders.filter((x) => x.stockId === s.id && x.side === 'venta' && x.status === 'abierta' && !x.oco).reduce((t, x) => t + x.qty, 0);
-    if (!h || h.qty - reserved < o.qty) return FAIL(`Solo tenés ${h ? h.qty - reserved : 0} acciones disponibles para vender.`);
+    const reserved = reservedForSale(state, s.id);
+    if (!h || h.qty - reserved < o.qty) return FAIL(`Solo tenés ${h ? h.qty - reserved : 0} acciones disponibles para vender (el resto ya está en órdenes de venta abiertas).`);
   }
   const days = clamp(o.days ?? 30, 1, 90);
   if (o.type === 'mercado') {
@@ -476,7 +481,9 @@ export function placeBracket(state: GameState, stockId: string, qty: number, sto
   const s = stockById(state, stockId);
   if (!s) return FAIL('Acción inexistente.');
   const h = state.stocks.holdings[stockId];
-  if (!h || h.qty < qty || qty <= 0 || !Number.isInteger(qty)) return FAIL('Cantidad inválida o mayor a tu tenencia.');
+  if (!h || qty <= 0 || !Number.isInteger(qty)) return FAIL('Cantidad inválida.');
+  const free = h.qty - reservedForSale(state, stockId);
+  if (free < qty) return FAIL(`Solo tenés ${Math.max(0, free)} acciones libres para proteger (el resto ya está en órdenes de venta abiertas).`);
   if (!(stop < s.price && takeProfit > s.price)) return FAIL('El stop debe estar por debajo del precio actual y la toma de ganancias por encima.');
   const a: Order = { id: state.meta.nextId++, stockId, side: 'venta', type: 'stop', qty, stop, createdDay: state.day, expiresDay: state.day + days, status: 'abierta' };
   const b: Order = { id: state.meta.nextId++, stockId, side: 'venta', type: 'take_profit', qty, limit: takeProfit, createdDay: state.day, expiresDay: state.day + days, status: 'abierta' };

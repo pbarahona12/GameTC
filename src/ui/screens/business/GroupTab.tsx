@@ -109,7 +109,7 @@ function IcLoans({ co }: { co: Company }) {
       {members.length > 0 && (
         <>
           <strong className="small">Prestar desde {co.name} a…</strong>
-          <div className="chips">{members.map((m) => <button key={m.id} onClick={() => setTo(m.id)} style={to === m.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{m.name}</button>)}</div>
+          <div className="chips">{members.map((m) => <button key={m.id} aria-pressed={to === m.id} onClick={() => setTo(m.id)} style={to === m.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{m.name}</button>)}</div>
           <AmountInput id="ic-amt" value={amount} onChange={setAmount} max={co.ledger.balances.cash} />
           <div className="inline-form small"><span>Tasa anual</span><NumInput id="ic-rate" live value={rate} onChange={setRate} step={0.5} suffix="%" /><span>Plazo</span><NumInput id="ic-m" live value={months} onChange={setMonths} suffix="meses" /></div>
           <p className="tiny muted">Los intereses son ingreso para quien presta y gasto para quien recibe (cambia dónde tributa la ganancia si están en distintas jurisdicciones). En los estados consolidados se eliminan.</p>

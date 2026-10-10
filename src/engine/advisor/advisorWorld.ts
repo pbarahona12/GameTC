@@ -7,7 +7,7 @@ import { fmtMoney, fmtPct } from '../format';
 import { positions, investmentsValue } from '../invest/portfolio';
 import { propertyReport, marketRent } from '../realestate/realestate';
 import { projectCurrentYear, compareJurisdictions, taxObligations, residence } from '../tax/taxEngine';
-import { legalRiskSummary, heatLabel, openCases, convictionProbability } from '../legal/legal';
+import { legalRiskSummary, heatLabel, openCases, estimatedConviction } from '../legal/legal';
 import { formatDate } from '../time/calendar';
 import { PHASES, SECTOR_CYCLICALITY } from '../economy/economy';
 import { isOpen } from '../business/common';
@@ -264,14 +264,14 @@ export function analyzeWorld(state: GameState): Insight[] {
   }
   const cmp = compareJurisdictions(state);
   const mine = cmp.find((c) => c.id === state.tax.jurisdiction);
-  const best = [...cmp].sort((x, y) => x.tax + x.cgt - (y.tax + y.cgt))[0];
-  if (mine && best && best.id !== mine.id && mine.tax + mine.cgt - (best.tax + best.cgt) > 1000000) {
+  const best = [...cmp].sort((x, y) => x.tax - y.tax)[0]; // tax ya incluye ganancias de capital
+  if (mine && best && best.id !== mine.id && mine.tax - best.tax > 1000000) {
     out.push({
       id: 'jurisdiction-opportunity', severity: 'opportunity', category: 'impuestos', term: 'residencia_fiscal',
       title: `🌍 Con tus ingresos de este año, residir en ${best.name} te ahorraría impuestos`,
-      what: `Impuesto estimado: ${fmtMoney(mine.tax + mine.cgt)} en ${mine.name} vs ${fmtMoney(best.tax + best.cgt)} en ${best.name}.`,
+      what: `Impuesto estimado: ${fmtMoney(mine.tax)} en ${mine.name} vs ${fmtMoney(best.tax)} en ${best.name}.`,
       why: 'Cada jurisdicción grava distinto salarios, alquileres y ganancias de capital. Es planificación fiscal legal.',
-      data: cmp.map((c) => E(c.name, fmtMoney(c.tax + c.cgt))),
+      data: cmp.map((c) => E(c.name, fmtMoney(c.tax))),
       consequence: 'También cambia tu costo de vida, el trámite tiene costo y algunas exigen patrimonio mínimo.',
       options: [{ label: 'Comparar jurisdicciones', pros: 'Menos impuestos de forma legal.', cons: 'Costo de vida y trámite.', tab: 'more', sub: 'tax' }],
       ifNothing: 'Seguís tributando en tu residencia actual.',
@@ -282,13 +282,16 @@ export function analyzeWorld(state: GameState): Insight[] {
   // ------------------------------------------------ Legal
   const lr = legalRiskSummary(state);
   for (const c of openCases(state)) {
-    const p = convictionProbability(state, c);
+    const est = estimatedConviction(state, c); // lo que estima tu abogado (no el valor real)
+    const stageName = ({ investigacion: 'investigación', imputacion: 'imputación', juicio: 'juicio', sentencia: 'sentencia', cerrado: 'cerrado' } as Record<string, string>)[c.stage] ?? c.stage;
     out.push({
       id: `case-${c.id}`, severity: 'critical', category: 'legal', term: 'defensa_legal',
       title: `⚖️ Proceso ${c.kind === 'fiscal' ? 'fiscal' : 'penal'} abierto: ${c.title}`,
-      what: `Etapa: ${c.stage}. Próximo paso: ${formatDate(c.nextStepDay)}.`,
+      what: `Etapa: ${stageName}. Próximo paso: ${formatDate(c.nextStepDay)}.`,
       why: c.origin,
-      data: [H('Abogado', c.lawyerHireId ? 'Asignado' : 'Defensor público'), H('Preparación de la defensa', `${Math.round(c.defense)}/100`), ...(c.reviewed ? [E('Probabilidad de condena (según tu abogado)', fmtPct(p, 0))] : [])],
+      data: c.kind === 'fiscal'
+        ? [H('Abogado', c.lawyerHireId ? 'Asignado (baja la multa)' : 'Sin abogado')]
+        : [H('Abogado', c.lawyerHireId ? 'Asignado' : 'Defensor público'), H('Preparación de la defensa', `${Math.round(c.defense)}/100`), ...(c.reviewed && est ? [E('Probabilidad de condena (según tu abogado)', `${fmtPct(est.estimate, 0)} ± ${fmtPct(est.error, 0)}`)] : [])],
       consequence: 'Multas, restitución, decomiso, antecedentes y posible prisión (ficticia).',
       options: [{ label: 'Gestionar la defensa', pros: 'Un buen abogado y preparación bajan la probabilidad de condena.', cons: 'Honorarios; nunca garantiza la absolución.', tab: 'more', sub: 'legal' }],
       ifNothing: 'El caso avanzará con un defensor público.',
