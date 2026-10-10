@@ -20,7 +20,7 @@ Implementación completa de la auditoría de diseño. Todo vive en `src/engine/s
 | Equipo directivo | `saga/executive.ts`, `business/common.ts` | Desde la 5.ª empresa, sin equipo directivo los gerentes pierden 8 puntos por empresa extra (hasta 30); con equipo ganan 5 y cuesta cada mes. |
 | Eras económicas | `saga/eras.ts` | Cada 10–15 años, desde el año 6: auge digital, fiebre inmobiliaria, transición energética, clase media, austeridad, salud. |
 | Etapas a precios de hoy | `progression/progression.ts` | Umbrales × índice de precios; la etapa 12 pide top 10 global. Logros de eficiencia (millón en menos de 10 años, 10 años sin atrasos, 100 empleados, $1 M de impuestos sin evasión). |
-| Modo tranquilo | `finance/payments.ts` | En Fácil, el primer atraso no tiene recargo ni marca en el historial. |
+| Modo tranquilo | `finance/payments.ts` | En Fácil, el primer pago vencido de un gasto fijo no tiene recargo ni marca en el historial (la tarjeta y los préstamos, como siempre). |
 | Interfaz | `ui/screens/saga/*`, `ui/screens/business/Corporate.tsx` | Escena de tu imperio, semáforo de empresas, invertir lo que sobra, diagnóstico arriba de cada informe, dos columnas en escritorio, vista previa del futuro en la partida nueva, enviar comentario por correo. |
 
 Partidas guardadas: versión 6. La migración 5 → 6 crea la historia; al cargar cualquier partida se agregan las cuentas y secciones nuevas (por ejemplo, impuesto a la herencia y vida del personaje).

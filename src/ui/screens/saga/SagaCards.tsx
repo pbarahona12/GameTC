@@ -7,7 +7,8 @@ import { firstMonthSteps, firstMonthActive, markFirstStep, dismissFirstMonth } f
 import type { AgendaItem, AgendaTarget } from '../../../engine/saga/agenda';
 import { cityName } from '../../../engine/saga/ranking';
 import { fmtMoney, fmtMoneyFit, fmtNumber, fmtPct } from '../../../engine/format';
-import { formatDate } from '../../../engine/time/calendar';
+import { formatDate, dateOf } from '../../../engine/time/calendar';
+import { monthlyRecurring } from '../../../engine/finance/budget';
 import { MAX_ACTIVE_GOALS } from '../../../engine/saga/goals';
 import { bestVehicle } from '../../../engine/lifestyle/effects';
 import { ITEM_BY_ID } from '../../../content/shops';
@@ -95,7 +96,8 @@ export function FirstMonthSummary() {
         <span>Gastaste <strong className="num loss">{fmtMoney(h.expenses, { decimals: false })}</strong></span>
         <span>{left >= 0 ? 'Te sobró' : 'Te faltó'} <strong className={`num ${left >= 0 ? 'gain' : 'loss'}`}>{fmtMoney(Math.abs(left), { decimals: false })}</strong></span>
       </div>
-      <p className="small muted">{left > 0 ? 'Lo que sobra decide tu futuro: un fondo de emergencia primero, después invertir.' : left === 0 ? 'Salió justo: cualquier imprevisto te deja sin margen.' : 'Gastaste más de lo que ganaste. Revisá tu estilo de vida o buscá un empleo mejor pago.'}</p>
+      <p className="small muted">{left > 0 ? 'Lo que sobra decide tu futuro: un fondo de emergencia primero, después invertir.' : left === 0 ? 'Salió justo: cualquier imprevisto te deja sin margen.' : s.career.job ? 'Gastaste más de lo que ganaste. Revisá tu estilo de vida o buscá un empleo mejor pago.' : 'Gastaste más de lo que ganaste: conseguir un empleo es lo primero (y un estilo de vida austero te da más tiempo).'}</p>
+      {dateOf(h.day).m === 1 && dateOf(h.day).y === dateOf(0).y && <p className="tiny faint">Enero empezó con el alquiler ya pagado: un mes completo te cuesta ≈ {fmtMoney(monthlyRecurring(s), { decimals: false })} en gastos fijos.</p>}
     </div>
   );
 }

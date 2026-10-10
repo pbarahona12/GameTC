@@ -30,6 +30,7 @@ import { COURSE_BY_ID } from '../content/courses';
 import { showRewardedAd, todayKey, ADS_LIVE } from './ads';
 import { applyUpdate, checkForUpdate, OTA_REPO, dismissUpdateNotes } from '../persistence/ota';
 import { useOta } from './useOta';
+import { goToMission } from './missions';
 import { LogRow } from './screens/Home';
 import { CHAPTER_ICON } from './contentIcons';
 import { GoalsView, DilemmaSheet, AgendaSheet, ChronicleView, ChallengesView, ExplainView, LifeView } from './screens/saga/sagaSheets';
@@ -557,7 +558,7 @@ function TutorialView() {
                         {!ok && <div className="meta">{t.body}</div>}
                         {t.reward && <div className="tiny faint">+{t.reward.xp} XP en {SKILL_BY_ID[t.reward.skill].name}</div>}
                       </div>
-                      {!ok && <button className="btn sm" onClick={() => navStore.go(t.tab, t.sub)}>Ir</button>}
+                      {!ok && <button className="btn sm" onClick={() => goToMission(t)}>Ir</button>}
                     </div>
                   );
                 })}

@@ -8,6 +8,7 @@ import { navStore } from '../nav';
 import { formatMonth, formatDate, isLastDayOfMonth } from '../../engine/time/calendar';
 import { STAGES, professionalLevel } from '../../engine/progression/progression';
 import { nextMission, CHAPTERS, missionProgress } from '../../engine/progression/tutorial';
+import { goToMission } from '../missions';
 import { Icon, IconName } from '../icons';
 import { imageScore, imageLabel } from '../../engine/lifestyle/effects';
 import { unreadNews, TOPIC_NAMES } from '../../engine/world/news';
@@ -106,12 +107,7 @@ export function Home() {
           <strong>{nextStep.title}</strong>
           <p className="small muted">{nextStep.body}</p>
           <div className="btn-row" style={{ alignItems: 'center' }}>
-            <button className="btn sm dark" onClick={() => {
-              // Misiones que se cumplen en Inicio: abrir lo que hay que mirar.
-              if (nextStep.id === 'networth') navStore.open({ kind: 'term', id: 'patrimonio_neto' });
-              else if (nextStep.id === 'liquidity') navStore.open({ kind: 'advisor' });
-              else navStore.go(nextStep.tab, nextStep.sub);
-            }}>Hacerlo ahora</button>
+            <button className="btn sm dark" onClick={() => goToMission(nextStep)}>Hacerlo ahora</button>
             {nextStep.reward && <span className="tiny muted">Recompensa: +{nextStep.reward.xp} XP en {SKILL_BY_ID[nextStep.reward.skill].name}</span>}
           </div>
         </div>

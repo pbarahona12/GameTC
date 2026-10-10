@@ -127,7 +127,9 @@ export function processApplications(state: GameState): void {
       } else {
         a.status = 'rejected';
         a.message = REJECTIONS[randInt(state, 0, REJECTIONS.length - 1)];
-        addLog(state, 'warning', '📭', `${job.employer} rechazó tu postulación a ${job.title}. ${a.message}`);
+        // Sin empleo y sin otras postulaciones abiertas, hay que actuar: se avisa (y pausa) como una oferta.
+        const stuck = !state.career.job && !state.career.applications.some((x) => x !== a && (x.status === 'pending' || x.status === 'offer'));
+        addLog(state, 'warning', '📭', `${job.employer} rechazó tu postulación a ${job.title}. ${a.message}${stuck ? ' No te quedan postulaciones abiertas: postulate a otros puestos en Carrera → Vacantes.' : ''}`, undefined, stuck ? 'ofertas' : undefined);
       }
     } else if (a.status === 'offer' && a.offerExpiresDay !== undefined && a.offerExpiresDay < state.day) {
       a.status = 'expired';

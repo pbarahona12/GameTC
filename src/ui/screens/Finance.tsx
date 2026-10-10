@@ -324,7 +324,7 @@ function Invest() {
   const s = useGame();
   const [amount, setAmount] = useState(MIN_DEPOSIT);
   const [term, setTerm] = useState<number>(12);
-  const [source, setSource] = useState<AccountId>('savings');
+  const [source, setSource] = useState<AccountId>(() => (s.ledger.balances.savings >= MIN_DEPOSIT ? 'savings' : 'checking'));
   const rate = depositRate(s, term);
   const preview = depositInterest({ principal: amount, rate, startDay: s.day, maturityDay: addMonths(s.day, term) });
   return (
@@ -463,7 +463,10 @@ function Budget() {
 function Credit() {
   const s = useGame();
   const bd = computeCreditScore(s);
-  const band = scoreBand(bd.score);
+  // Los bancos ven el puntaje registrado (se actualiza al cierre de mes, al pagar la tarjeta
+  // o al pedir crédito); el desglose muestra cómo quedaría si se recalculara hoy.
+  const shown = s.credit.score;
+  const band = scoreBand(shown);
   const parts: Array<[string, number, number]> = [
     ['Historial de pagos', bd.paymentHistory, 192],
     ['Utilización', bd.utilization, 165],
@@ -476,10 +479,11 @@ function Credit() {
       <div className="card">
         <div className="card-head"><h2>Puntaje crediticio</h2><InfoButton term="puntaje_crediticio" /></div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span className="num" style={{ fontSize: 40, fontWeight: 600 }}>{bd.score}</span>
+          <span className="num" style={{ fontSize: 40, fontWeight: 600 }}>{shown}</span>
           <Pill tone={band.tone === 'good' ? 'gain' : band.tone === 'ok' ? 'info' : band.tone === 'warn' ? 'warn' : 'loss'}>{band.label}</Pill>
         </div>
-        <Bar value={(bd.score - 300) / 550} tone={band.tone === 'bad' ? 'loss' : band.tone === 'warn' ? 'warn' : 'gain'} />
+        <Bar value={(shown - 300) / 550} tone={band.tone === 'bad' ? 'loss' : band.tone === 'warn' ? 'warn' : 'gain'} />
+        <p className="tiny muted">Es el puntaje que ven los bancos hoy. {bd.score !== shown ? <>Si se recalculara ahora sería <strong className={bd.score > shown ? 'gain' : 'loss'}>{bd.score}</strong> (por ejemplo, por lo que usaste de la tarjeta): se actualiza al cierre del mes, al pagar la tarjeta o al pedir un crédito. El desglose de abajo es el de ese cálculo.</> : 'Se actualiza al cierre del mes, al pagar la tarjeta o al pedir un crédito.'}</p>
         <Learn term="puntaje_crediticio" />
         <div className="rows">
           {parts.map(([label, v, max]) => (

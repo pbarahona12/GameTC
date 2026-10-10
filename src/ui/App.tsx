@@ -71,9 +71,11 @@ function TopBar() {
               </button>
             )}
           </div>
-          <div className="tiny muted" title="Lo que podés pagar desde tu cuenta corriente y tu ahorro (no incluye el efectivo en mano)">
+          <button type="button" className="tiny muted avail-btn" onClick={() => navStore.go('finance', 'accounts')}
+            title={s.bank.overdraftSweep ? 'Lo que podés pagar ya: cuenta corriente + ahorro (sin el efectivo en mano). Tocá para ver tus cuentas.' : 'Lo que podés pagar ya: tu cuenta corriente (el ahorro y el efectivo en mano no se usan solos). Tocá para ver tus cuentas.'}
+            aria-label={`Disponible para pagar: ${fmtMoney(spendable(s), { decimals: false })}. Ver tus cuentas`}>
             Disponible <Money c={spendable(s)} fit />
-          </div>
+          </button>
         </div>
         <button className={`time-btn ${running ? 'on' : ''}`} aria-label={running ? 'Pausar el tiempo' : `Reanudar el tiempo a ${speed}×`} aria-pressed={running} onClick={() => store.togglePlay()}>
           <Icon name={running ? 'pause' : 'play'} size={18} />

@@ -24,7 +24,7 @@ export interface DifficultyDef {
 }
 
 export const DIFFICULTIES: DifficultyDef[] = [
-  { id: 'facil', name: 'Fácil', description: 'Economía más estable, menos recesiones y bancos más flexibles. Tu primer atraso no tiene recargo ni marca en tu historial. Ideal para aprender.', volatility: 0.7, recession: 0.6, events: 0.6, enforcement: 0.7, credit: -20 },
+  { id: 'facil', name: 'Fácil', description: 'Economía más estable, menos recesiones y bancos más flexibles. Tu primer pago vencido de un gasto fijo (alquiler, servicios) no tiene recargo ni marca en tu historial; la tarjeta y los préstamos se cobran como siempre. Ideal para aprender.', volatility: 0.7, recession: 0.6, events: 0.6, enforcement: 0.7, credit: -20 },
   { id: 'normal', name: 'Normal', description: 'Equilibrio entre estabilidad y sorpresas.', volatility: 1, recession: 1, events: 1, enforcement: 1, credit: 0 },
   { id: 'dificil', name: 'Difícil', description: 'Más volatilidad, recesiones frecuentes, bancos y autoridades exigentes.', volatility: 1.25, recession: 1.4, events: 1.35, enforcement: 1.3, credit: 20 },
   { id: 'realista', name: 'Realista', description: 'Parámetros cercanos a economías reales: ciclos largos, volatilidad normal y controles estrictos.', volatility: 1.05, recession: 1.1, events: 1.1, enforcement: 1.2, credit: 10 },
