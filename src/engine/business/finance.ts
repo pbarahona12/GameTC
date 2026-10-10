@@ -142,7 +142,7 @@ export function prepayCoLoan(state: GameState, co: Company, loanId: number, amou
 // ------------------------------------------------------------ Impuestos
 
 /**
- * Cierre fiscal anual (31 de diciembre, para el año que termina):
+ * Cierre fiscal anual (1 de enero, para el año que terminó):
  *  - SRL y corporación: 25 % sobre el beneficio antes de impuestos, restando
  *    pérdidas de hasta 5 años anteriores. Vence el 30 de abril.
  *  - Individual y sociedad: sin impuesto empresarial; la parte del jugador del

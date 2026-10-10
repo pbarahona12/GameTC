@@ -388,7 +388,7 @@ const BASE_GLOSSARY: GlossaryEntry[] = [
     purpose: 'Liquidar diferencias: intereses sin retención, bonos, deducciones, créditos.',
     formula: 'Saldo = Impuesto − Créditos − Retenciones',
     example: 'Impuesto $1,500, retenido $1,320 → debés $180 antes del 30 de abril.',
-    impact: 'Se presenta sola el 31 de diciembre. Pagar tarde: multa 5 % + 1 % mensual.',
+    impact: 'Se presenta sola el 1 de enero. Pagar tarde: multa 5 % + 1 % mensual.',
   },
   {
     id: 'seguridad_social', term: 'Seguridad social', category: 'Impuestos',

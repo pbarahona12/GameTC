@@ -101,7 +101,7 @@ export const VALDORIA: Jurisdiction = {
     'Alquileres: renta ordinaria. Se deducen gastos, impuesto inmobiliario, intereses hipotecarios y la depreciación del edificio (40 años). Una pérdida de alquiler reduce el resto de tus ingresos.',
     'Impuesto de sociedades 25 %. Impuesto inmobiliario 1 % anual de la tasación. Transferencia de inmuebles 3 %.',
     'Hipotecas con recurso: si un remate no cubre la deuda, seguís debiendo la diferencia.',
-    'La declaración se presenta automáticamente el 31 de diciembre; el saldo a pagar vence el 30 de abril. Pagar tarde: multa del 5 % más 1 % mensual.',
+    'La declaración se presenta automáticamente el 1 de enero; el saldo a pagar vence el 30 de abril. Pagar tarde: multa del 5 % más 1 % mensual.',
   ],
 };
 

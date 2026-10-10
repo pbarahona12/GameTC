@@ -264,14 +264,14 @@ export function analyzeWorld(state: GameState): Insight[] {
   }
   const cmp = compareJurisdictions(state);
   const mine = cmp.find((c) => c.id === state.tax.jurisdiction);
-  const best = [...cmp].sort((x, y) => x.tax + x.cgt - (y.tax + y.cgt))[0];
-  if (mine && best && best.id !== mine.id && mine.tax + mine.cgt - (best.tax + best.cgt) > 1000000) {
+  const best = [...cmp].sort((x, y) => x.tax - y.tax)[0]; // tax ya incluye ganancias de capital
+  if (mine && best && best.id !== mine.id && mine.tax - best.tax > 1000000) {
     out.push({
       id: 'jurisdiction-opportunity', severity: 'opportunity', category: 'impuestos', term: 'residencia_fiscal',
       title: `🌍 Con tus ingresos de este año, residir en ${best.name} te ahorraría impuestos`,
-      what: `Impuesto estimado: ${fmtMoney(mine.tax + mine.cgt)} en ${mine.name} vs ${fmtMoney(best.tax + best.cgt)} en ${best.name}.`,
+      what: `Impuesto estimado: ${fmtMoney(mine.tax)} en ${mine.name} vs ${fmtMoney(best.tax)} en ${best.name}.`,
       why: 'Cada jurisdicción grava distinto salarios, alquileres y ganancias de capital. Es planificación fiscal legal.',
-      data: cmp.map((c) => E(c.name, fmtMoney(c.tax + c.cgt))),
+      data: cmp.map((c) => E(c.name, fmtMoney(c.tax))),
       consequence: 'También cambia tu costo de vida, el trámite tiene costo y algunas exigen patrimonio mínimo.',
       options: [{ label: 'Comparar jurisdicciones', pros: 'Menos impuestos de forma legal.', cons: 'Costo de vida y trámite.', tab: 'more', sub: 'tax' }],
       ifNothing: 'Seguís tributando en tu residencia actual.',

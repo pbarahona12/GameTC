@@ -54,7 +54,7 @@ function applyLossCarry(state: GameState, j: Jurisdiction, year: number, used: C
   if (created > 0) state.tax.capitalLossCarry.push({ year, amount: created });
 }
 
-/** Presenta la declaración del año. Se ejecuta el 31 de diciembre, al cerrar el día. */
+/** Presenta la declaración del año que terminó. Se ejecuta el 1 de enero. */
 export function fileAnnualReturn(state: GameState): Filing {
   const ytd = state.tax.ytd;
   const j = jurisdictionById(ytd.jurisdiction ?? state.tax.jurisdiction);
@@ -98,7 +98,7 @@ export function fileAnnualReturn(state: GameState): Filing {
     state.tax.jurisdiction = pending;
     state.tax.pendingJurisdiction = null;
     rebuildLivingCosts(state, from.costOfLiving);
-    addLog(state, 'info', JURISDICTION_BY_ID[pending].flag, `Desde el 1 de enero tu residencia fiscal es ${JURISDICTION_BY_ID[pending].name}. Tus gastos de vida se ajustaron al costo de vida local.`);
+    addLog(state, 'info', JURISDICTION_BY_ID[pending].flag, `Desde hoy tu residencia fiscal es ${JURISDICTION_BY_ID[pending].name}. Tus gastos de vida se ajustaron al costo de vida local.`);
   }
   state.tax.ytd = emptyYtd(ytd.year + 1, state.tax.jurisdiction);
   state.tax.underreport = 0;
@@ -195,7 +195,7 @@ export function taxesOutstanding(state: GameState): Cents {
  */
 /**
  * Tu parte del resultado de este año de las empresas transparentes (individual, sociedad):
- * tributa en tu declaración, pero recién entra a `ytd.business` al cierre del 31 de diciembre.
+ * tributa en tu declaración, pero recién entra a `ytd.business` el 1 de enero siguiente.
  */
 export function passThroughYearToDate(state: GameState): Cents {
   const from0 = dayOf(state.tax.ytd.year, 1, 1);
@@ -278,9 +278,9 @@ export function taxObligations(state: GameState, days = 365): Array<{ day: numbe
   if (next - state.day <= days) {
     const p = projectCurrentYear(state).projected;
     const due = dayOf(g.y + 1, j.filingDeadline.month, j.filingDeadline.day);
-    if (p.balance > 0) out.push({ day: due, label: `Declaración ${g.y}: saldo a pagar (estimado; se presenta el 31 de diciembre)`, amount: p.balance, kind: 'personal' });
+    if (p.balance > 0) out.push({ day: due, label: `Declaración ${g.y}: saldo a pagar (estimado; se presenta el 1 de enero)`, amount: p.balance, kind: 'personal' });
     else if (p.balance < 0) out.push({ day: due, label: `Declaración ${g.y}: te devolverían ${fmtMoney(-p.balance, { decimals: false })} (estimado)`, amount: null, kind: 'personal' });
-    else out.push({ day: next - 1, label: `Declaración ${g.y}: sin saldo estimado (se presenta el 31 de diciembre)`, amount: 0, kind: 'personal' });
+    else out.push({ day: next, label: `Declaración ${g.y}: sin saldo estimado (se presenta el 1 de enero)`, amount: 0, kind: 'personal' });
   }
   for (const co of state.companies) for (const f of co.taxFilings) if (f.outstanding > 0) out.push({ day: f.dueDay, label: `${co.name}: impuesto empresarial ${f.year}`, amount: f.outstanding, kind: 'empresa' });
   for (const p of state.realEstate?.properties ?? []) {

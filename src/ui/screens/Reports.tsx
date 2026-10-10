@@ -240,7 +240,7 @@ function Tax() {
       </div>
       <div className="card">
         <div className="card-head"><h2>Declaraciones</h2><InfoButton term="declaracion_fiscal" /></div>
-        {s.tax.filings.length === 0 && <p className="small muted">La primera declaración se presenta automáticamente el 31 de diciembre.</p>}
+        {s.tax.filings.length === 0 && <p className="small muted">La primera declaración se presenta automáticamente el 1 de enero.</p>}
         {s.tax.filings.slice().reverse().map((f) => (
           <div key={f.year} className="stack" style={{ gap: 6, borderBottom: '1px solid var(--line)', paddingBottom: 10 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

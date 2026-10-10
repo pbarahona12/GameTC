@@ -298,7 +298,7 @@ export function FinanceTab({ co }: { co: Company }) {
       <div className="card">
         <CardHead title="Impuestos" term="impuesto_empresarial" />
         <p className="small">{coTaxRateLabel(co)}.</p>
-        {co.taxFilings.length === 0 && <p className="small muted">El primer cierre fiscal es el 31 de diciembre.</p>}
+        {co.taxFilings.length === 0 && <p className="small muted">El primer cierre fiscal es el 1 de enero.</p>}
         {co.taxFilings.slice().reverse().map((f) => (
           <div key={f.year} className="kv" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 6 }}>
             <dt>Año {f.year}: resultado</dt><dd>{fmtMoney(f.profit)}</dd>

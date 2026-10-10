@@ -78,9 +78,7 @@ export function companiesMonthEnd(state: GameState): void {
     if (a > 0) distribute(state, sub, a, true);
   });
   icLoansMonthEnd(state);
-  // 3) …el impuesto del año en diciembre (es de este año, no del enero siguiente)…
-  if (dateOf(state.day).m === 12) companiesYearEnd(state);
-  // 4) …y recién entonces la foto del mes, los dividendos automáticos y la revaluación.
+  // 3) …y recién entonces la foto del mes, los dividendos automáticos y la revaluación.
   for (const co of byDepth()) if (state.companies.includes(co) && isOpen(co)) companyMonthClose(state, co);
   for (const co of byDepth()) if (!co.npc && isOpen(co)) revalue(state, co);
   monthlyMarkets(state);
@@ -125,9 +123,9 @@ export function snapshot(state: GameState, co: Company): void {
   if (co.history.length > 120) co.history.shift();
 }
 
-/** 31 de diciembre: impuestos empresariales y resultado de empresas transparentes (antes de la declaración personal). */
-export function companiesYearEnd(state: GameState): void {
-  const year = dateOf(state.day).y;
+/** 1 de enero: impuestos empresariales y resultado de empresas transparentes del año que terminó (antes de la declaración personal). */
+export function companiesYearStart(state: GameState): void {
+  const year = dateOf(state.day).y - 1;
   for (const co of state.companies) if (isOpen(co)) closeCompanyYear(state, co, year);
 }
 

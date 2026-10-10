@@ -153,7 +153,7 @@ export const GLOSSARY_BUSINESS: GlossaryEntry[] = [
     purpose: 'Planificar el costo fiscal según la forma legal.',
     formula: 'Impuesto = 25 % × (Beneficio − pérdidas de hasta 5 años anteriores)',
     example: 'Beneficio $40,000 con $10,000 de pérdidas previas: impuesto $7,500.',
-    impact: 'Se calcula el 31 de diciembre y vence el 30 de abril. Los dividendos pagan 10 % adicional.',
+    impact: 'Se calcula el 1 de enero y vence el 30 de abril. Los dividendos pagan 10 % adicional.',
   },
   {
     id: 'quiebra', term: 'Insolvencia y quiebra', category: 'Empresas',
