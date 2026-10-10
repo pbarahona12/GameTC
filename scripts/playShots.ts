@@ -16,6 +16,8 @@ import type { GameState } from '../src/engine/state';
 import { serialize } from '../src/persistence/save';
 import { chooseGoal } from '../src/engine/saga/goals';
 import { dilemmasDay } from '../src/engine/saga/dilemmas';
+import { simulateDays } from '../src/engine/simulation';
+import { dateOf } from '../src/engine/time/calendar';
 
 const OUT = 'docs/play';
 const URL = 'http://127.0.0.1:4174/';
@@ -25,6 +27,8 @@ function playedGame(): GameState {
   runBot('emprendedor', 'tecnico', 'play-shots', 7, { onMonth: (s) => { last = s; } });
   const s = last as GameState | null;
   if (!s) throw new Error('El bot no cerró ningún mes.');
+  // Pasar el cierre de mes: el día 1 se ven el sueldo cobrado y el mes completo en los informes.
+  for (let i = 0; i < 31 && dateOf(s.day).d !== 2; i++) simulateDays(s, 1);
   s.player.name = 'Adriana';
   const NAMES: Record<string, string> = { consultora: 'Rivas Consultores', cafeteria: 'Café Aurora', minimarket: 'Mercadito Sol', saas: 'Nube Clara', muebles: 'Roble & Pino' };
   for (const co of s.companies) if (co.name.startsWith('Bot ')) co.name = NAMES[co.sector] ?? co.name.replace('Bot ', '');
@@ -98,11 +102,13 @@ async function main() {
     await shot(page, '4-empresa');
 
     await tab(page, 'Invertir');
+    await page.getByRole('tab', { name: /Bolsa/ }).or(page.getByRole('button', { name: /^Bolsa/ })).first().click();
     await shot(page, '5-inversiones');
 
     await tab(page, 'Más');
     await page.getByRole('button', { name: /Informes financieros/ }).click();
     await closeCelebrations(page);
+    await page.getByRole('button', { name: 'Mes ant.' }).or(page.getByRole('tab', { name: 'Mes ant.' })).first().click();
     await shot(page, '6-informes');
 
     await tab(page, 'Más');

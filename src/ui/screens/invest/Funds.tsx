@@ -40,8 +40,8 @@ function FundCard({ id }: { id: string }) {
             <dt>Rendimiento 3 meses</dt><dd>{r3 === null ? '—' : fmtPct(r3, 1)}</dd>
             <dt>Rendimiento 12 meses</dt><dd>{r1 === null ? '—' : fmtPct(r1, 1)}</dd>
             <dt>Comisión anual <InfoButton term="comision" /></dt><dd>{fmtPct(d.fee, 1)}</dd>
-            <dt>Comisión de entrada</dt><dd>{d.entryFee ? fmtPct(d.entryFee, 1) : 'Sin comisión'}</dd>
-            <dt>Reparte rendimientos</dt><dd>{d.distributes ? 'Sí, cada trimestre' : 'No, los reinvierte'}</dd>
+            <dt>Comisión de entrada</dt><dd className={d.entryFee ? undefined : 'txt'}>{d.entryFee ? fmtPct(d.entryFee, 1) : 'Sin comisión'}</dd>
+            <dt>Reparte rendimientos</dt><dd className="txt">{d.distributes ? 'Sí, cada trimestre' : 'No, los reinvierte'}</dd>
           </div>
           <p className="small"><strong>Cómo funciona:</strong> {d.howItWorks}</p>
           <p className="small"><strong>Riesgos:</strong> {d.risks}</p>

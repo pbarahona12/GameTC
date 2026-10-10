@@ -29,12 +29,22 @@ Guía para docentes: `docs/DOCENTES.md`.
 
 ### Verificación 1.4 (resultados reales)
 
-- `npm test`: 362 pruebas, todas pasan (nuevas en `tests/saga.test.ts`, `saga_ui.test.tsx`, `saga_legacy.test.ts` y `saga_rivals.test.ts`). Typecheck, lint y build sin errores.
+- `npm test`: 370 pruebas, todas pasan (nuevas en `tests/saga.test.ts`, `saga_ui.test.tsx`, `saga_legacy.test.ts` y `saga_rivals.test.ts`). Typecheck, lint y build sin errores.
 - Recorrido de punta a punta (Playwright): pasa.
 - Auditoría de caos (8 semillas × 10 años, ahora también con decisiones, fusiones, bonos, salida a bolsa, equipo directivo, proveedores propios, sucesiones y guerras de precios): invariantes contables intactos todos los meses.
 - Bots: jugador nuevo que tarda 3 semanas en postularse sin atrasos en 4 meses; dominancia entre estilos y años con pérdida en `docs/BALANCE.md`; bots de 60 años opcionales (`URT_LONG=1`, `docs/BALANCE_LARGO.md`).
 - Rendimiento (Node, un núcleo, bot con empleo, empresa, inversiones e inmuebles): 0,6–0,9 ms por día de juego. Guardado comprimido: 709 KB a los 10 años, 920 KB a los 20, 1.034 KB a los 30 y 1.084 KB a los 40 (143–175 ms por guardado); el crecimiento se aplana porque las velas semanales y el libro se compactan. El paquete principal (≈ 840 KB) es casi todo motor: dividirlo no acelera el arranque.
 - Origen herencia: medido con los bots, no tiene una penalización estructural (los meses de bajo desempeño son iguales a los del egresado). Donde termina peor es porque con más efectivo se pagan más estudios a la vez y aparecen atrasos; el juego lo advierte al elegir el origen. `docs/BALANCE.md` lo mide y una comprobación impide que su patrimonio mediano baje del 60 % del egresado.
+
+### Ronda de mejoras sobre lo existente (sin funciones nuevas)
+
+Pedido: «no agregues más cosas, mejorá todo lo que hay», revisando cada módulo hasta que no quede nada que mejorar.
+
+- **Edad visible:** chip con la edad en la barra superior (rojo si hay riesgo de fallecer), edad y salud en Inicio y en Ajustes, aviso en cada cumpleaños y advertencias a los 50, 60, 65, 68 y 75; heredero elegido y guardado; la ficha de vida dice cuántos años faltan para el riesgo y cuánto costaría la sucesión hoy.
+- **Dos pasadas de revisión, módulo por módulo** (primera hora, carrera y finanzas, impuestos, inversiones e inmuebles, empresas, historia y rivales, legal, Asesor, gestor y tiendas), y una pasada visual con capturas: más de 150 arreglos de números que no coincidían con el motor, asientos mal clasificados, fechas corridas un día, textos engañosos, botones que no hacían nada y accesibilidad.
+- **Secciones que aparecen de a poco:** en Más, Competencia, Profesionales y Legal se pliegan en «Para más adelante» hasta tener una empresa o más etapa (nada se bloquea; si piden atención, se muestran siempre). Salir a bolsa y bonos, mientras no se pueden usar, se resumen en una tarjeta con lo que falta.
+- **Equilibrio:** etapa 7 a $500.000 de hoy con empresa rentable **o** rentas que cubran los gastos (antes solo el emprendedor llegaba, a los 19 años; ahora entre 10 y 22 años según el estilo). Riesgo empresarial medido: fundando solo con el costo de apertura quebraron las 33 empresas fundadas; el aviso al fundar lo dice. Detalle en `docs/BALANCE.md`.
+- **Ficha de Play:** descripción corta y completa con la identidad «cada número es verdad, cada decisión deja una historia» y 8 capturas generadas con `npm run shots` desde una partida real del bot (`docs/GOOGLE_PLAY.md`, `docs/play/`).
 
 ### Pendiente
 

@@ -89,7 +89,7 @@ function Summary({ co }: { co: Company }) {
       )}
       <div className="grid2">
         <Stat label="Caja" term="liquidez" value={<Money c={m.cash} />} sub={m.runwayDays !== null ? `Alcanza ~${Math.round(m.runwayDays)} días (estim.)` : 'Genera caja'} />
-        <Stat label="Ventas 30 días" term="ingresos_vs_beneficio" value={<Money c={m.revenue30} />} sub={m.salesTrend !== null ? `${m.salesTrend >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(m.salesTrend * 100))} % vs. 30 días previos` : 'Sin comparación aún'} />
+        <Stat label="Ventas 30 días" term="ingresos_vs_beneficio" value={<Money c={m.revenue30} />} sub={salesTrendText(m.salesTrend)} />
         <Stat label="Resultado 30 días" term="estado_resultados" value={<Money c={m.net30} colored sign />} sub={`Margen bruto ${fmtPct(m.grossMargin30)}`} />
         <Stat label="Cuota de mercado" term="cuota_mercado" value={fmtPct(m.share)} sub={m.lostShare > 0.02 ? `Pierde ${Math.round(m.lostShare * 100)} % de la demanda` : 'Atiende la demanda'} />
         <Stat label="Calidad" term="capacidad" value={`${Math.round(co.quality)}/100`} sub="Insumos, personal, equipos" />
@@ -544,4 +544,12 @@ export function CompanyView({ co, tab }: { co: Company; tab: string }) {
       {tab === 'manage' && <ManageTab co={co} />}
     </>
   );
+}
+
+/** Variación de ventas redondeada: sin flecha si redondea a 0 (un "▼ 0 %" confunde). */
+function salesTrendText(t: number | null): string {
+  if (t === null) return 'Sin comparación aún';
+  const pct = Math.round(t * 100);
+  if (pct === 0) return 'Igual que los 30 días previos';
+  return `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}\u00a0% vs. 30 días previos`;
 }

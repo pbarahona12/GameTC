@@ -327,8 +327,8 @@ export function ManageTab({ co }: { co: Company }) {
       <div className="card">
         <CardHead title="Propiedad y forma legal" term="forma_legal" />
         <div className="kv">
-          <dt>Forma legal</dt><dd>{lf.name}</dd>
-          <dt>Responsabilidad</dt><dd>{lf.limitedLiability ? 'Limitada' : 'Ilimitada'}</dd>
+          <dt>Forma legal</dt><dd className="txt">{lf.name}</dd>
+          <dt>Responsabilidad</dt><dd className="txt">{lf.limitedLiability ? 'Limitada' : 'Ilimitada'}</dd>
           <dt>Tu participación</dt><dd>{fmtPct(co.ownership, 1)}</dd>
           <dt>Aportado por vos</dt><dd>{fmtMoney(co.investedByOwner)}</dd>
           <dt>Recibido por vos</dt><dd>{fmtMoney(co.receivedByOwner)}</dd>
@@ -342,7 +342,7 @@ export function ManageTab({ co }: { co: Company }) {
         <CardHead title="Valoración" term="valoracion" />
         <div className="kv">
           <dt>Valoración estimada</dt><dd><strong>{fmtMoney(v.value)}</strong></dd>
-          <dt>Método</dt><dd>{v.method}</dd>
+          <dt>Método</dt><dd className="txt">{v.method}</dd>
           <dt>EBITDA anualizado ({v.monthsOfData.toFixed(1)} meses de datos)</dt><dd>{fmtMoney(v.ebitdaAnnual)}</dd>
           <dt>Múltiplo del sector</dt><dd>{v.multiple.toFixed(1)}×</dd>
           <dt>Valor por ganancias</dt><dd>{fmtMoney(v.earningsValue)}</dd>

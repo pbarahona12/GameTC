@@ -50,9 +50,9 @@ export function RankingScreen() {
         {!pos.exact && <p className="small">Para entrar en la lista hacen falta <strong>{fmtMoneyFit(pos.floor, { decimals: false })}</strong> (el puesto 100 de hoy). Las fortunas también crecen: es una carrera.</p>}
         {pos.exact && pos.ahead && <p className="small">Adelante: <strong>{pos.ahead.name}</strong> con {fmtMoneyFit(pos.ahead.wealth, { decimals: false })}.{pos.behind ? <> Atrás: {pos.behind.name} con {fmtMoneyFit(pos.behind.wealth, { decimals: false })}.</> : null}</p>}
         {pos.exact && pos.rank === 1 && <p className="small">Sos el número 1{rk.reignMonths ? ` desde hace ${rk.reignMonths} mes${rk.reignMonths > 1 ? 'es' : ''}` : ''}. Quien está segundo puede lanzar una ofensiva: si es un grupo rival, se va a notar en tus negocios.</p>}
-        <div className="btn-row">
-          <span className="tiny muted" style={{ flex: 1 }}>{pos.globalRank ? `Puesto ${pos.globalRank} del mundo.` : 'Todavía fuera del top 100 mundial.'} Tu ciudad es la de tu residencia fiscal ({JURISDICTION_BY_ID[s.tax.jurisdiction].name}).</span>
-          <button className="btn sm ghost" onClick={() => navStore.open({ kind: 'goals' })}>Metas</button>
+        <div className="btn-row" style={{ alignItems: 'center' }}>
+          <span className="tiny muted" style={{ flex: '1 1 60%' }}>{pos.globalRank ? `Puesto ${pos.globalRank} del mundo.` : 'Todavía fuera del top 100 mundial.'} Tu ciudad es la de tu residencia fiscal ({JURISDICTION_BY_ID[s.tax.jurisdiction].name}).</span>
+          <button className="btn sm ghost" style={{ flex: '0 0 auto' }} onClick={() => navStore.open({ kind: 'goals' })}><Icon name="missions" size={15} /> Mis metas</button>
         </div>
         {hist.length >= 2 && (
           <LineChart series={[{ name: 'Tu puesto (más alto es mejor)', values: hist.map((h) => CITY_SIZE + 1 - (h.city ?? CITY_SIZE + 1)), color: 'var(--accent)' }]} pointLabels={hist.map((h) => formatMonth(h.day))} height={80} format={(v) => String(Math.round(CITY_SIZE + 1 - v))} />

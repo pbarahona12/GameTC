@@ -114,7 +114,7 @@ export function StocksLite({ selected }: { selected: string | null }) {
         <Learn term="accion" />
         <div className="kv">
           <dt>Índice <InfoButton term="indice_bursatil" /></dt><dd>{fmtNumber(s.stocks.index.level, 1)}</dd>
-          <dt>Mercado</dt><dd>{isTradingDay(s.day) ? 'Abierto (día hábil)' : 'Cerrado (fin de semana)'}</dd>
+          <dt>Mercado</dt><dd className="txt">{isTradingDay(s.day) ? 'Abierto (día hábil)' : 'Cerrado (fin de semana)'}</dd>
           <dt>Comisión <InfoButton term="comision_corretaje" /></dt><dd>0.2 % (mín. {fmtMoney(Math.round(100 * s.macro.priceIndex))})</dd>
         </div>
       </div>

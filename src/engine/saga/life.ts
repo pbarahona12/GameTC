@@ -13,7 +13,7 @@ import { startOfMonth } from '../time/calendar';
 import { balanceSheet } from '../reports/statements';
 import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
 import { quitJob } from '../career/career';
-import { FIRST_NAMES, LAST_NAMES } from '../../content/cities';
+import { FIRST_NAMES, LAST_NAMES, isFemaleName } from '../../content/cities';
 import { SKILL_BY_ID } from '../../content/skills';
 import { chronicle, celebrate } from './chronicle';
 import { srng } from './ranking';
@@ -96,10 +96,11 @@ export interface Heir {
 /** Quién puede heredar: hijos adultos (el mayor primero) o, si no hay, un sobrino. */
 export function heirs(state: GameState): Heir[] {
   const l = life(state);
-  const out: Heir[] = l.children.filter((c) => childAge(state, c) >= 18).sort((a, b) => a.born - b.born).map((c) => ({ id: c.id, name: c.name, age: Math.floor(childAge(state, c)), relation: 'hijo/a' }));
+  const out: Heir[] = l.children.filter((c) => childAge(state, c) >= 18).sort((a, b) => a.born - b.born).map((c) => ({ id: c.id, name: c.name, age: Math.floor(childAge(state, c)), relation: isFemaleName(c.name) ? 'hija' : 'hijo' }));
   if (!out.length) {
     const g = { rng: seedFromString(`${state.seed}|sobrino|${l.generation}`) };
-    out.push({ id: 'sobrino', name: `${pickFirst(g)} ${lastName(state.player.name)}`, age: 26, relation: 'sobrino/a' });
+    const name = `${pickFirst(g)} ${lastName(state.player.name)}`;
+    out.push({ id: 'sobrino', name, age: 26, relation: isFemaleName(name) ? 'sobrina' : 'sobrino' });
   }
   return out;
 }
