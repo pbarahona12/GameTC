@@ -16,7 +16,7 @@ import { Icon } from '../../icons';
 /** SALIR A BOLSA: requisitos, precio según el ciclo y, si ya cotiza, su valor de mercado. */
 export function IpoCard({ co }: { co: Company }) {
   const s = useGame();
-  const [pct, setPct] = useState(20);
+  const [pctPick, setPct] = useState(20);
   if (co.listed) {
     const cap = marketCap(s, co);
     const caps = co.listed.caps;
@@ -39,6 +39,9 @@ export function IpoCard({ co }: { co: Company }) {
   }
   const why = ipoBlocker(s, co);
   const v = valuation(s, co).value * ipoPremium(s);
+  // Solo los porcentajes que conservan el control; si el elegido no está, el mayor posible.
+  const options = [10, 15, 20, 25, 30].filter((x) => co.ownership * (1 - x / 100) >= 0.51);
+  const pct = options.includes(pctPick) ? pctPick : options[options.length - 1] ?? 10;
   const money = Math.round((v * pct) / 100 / (1 - pct / 100));
   return (
     <div className="card">
@@ -48,7 +51,7 @@ export function IpoCard({ co }: { co: Company }) {
       ) : (
         <>
           <p className="small">Vendés acciones nuevas al público: el dinero entra a la caja de la empresa. En esta fase del ciclo los inversores pagan {ipoPremium(s) >= 1 ? `un ${fmtPct(ipoPremium(s) - 1, 0)} más` : `un ${fmtPct(1 - ipoPremium(s), 0)} menos`} que la valoración.</p>
-          <Seg items={[10, 15, 20, 25, 30].filter((x) => co.ownership * (1 - x / 100) >= 0.51).map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
+          <Seg items={options.map((x) => ({ id: x, label: `${x} %` }))} value={pct} onChange={setPct} />
           <span className="tiny muted">Solo se muestran los porcentajes con los que conservás al menos el 51 % (el control).</span>
           <div className="kv">
             <dt>Entran a la caja</dt><dd>≈ {fmtMoney(money, { decimals: false })} (menos {fmtPct(IPO_FEE, 0)} de comisiones)</dd>
@@ -163,7 +166,7 @@ export function ExecCard() {
       )}
       {st.hired
         ? <button className="btn sm ghost" onClick={() => store.run((x) => dismissExecTeam(x))}>Despedir al equipo</button>
-        : <ConfirmButton label="Contratar equipo directivo" className="btn sm primary" confirmLabel="Contratar" detail={<>Se paga el día 1 de cada mes desde tu cuenta. Si no alcanza, renuncian.</>} onConfirm={() => store.run((x) => hireExecTeam(x))} />}
+        : <ConfirmButton label="Contratar equipo directivo" className="btn sm primary" confirmLabel="Contratar" detail={<>Hoy pagás lo que queda de este mes; después, el día 1 de cada mes desde tu cuenta (nunca con la tarjeta). Si no alcanza, renuncian.</>} onConfirm={() => store.run((x) => hireExecTeam(x))} />}
     </div>
   );
 }

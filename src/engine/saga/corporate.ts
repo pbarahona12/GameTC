@@ -9,7 +9,7 @@ import { post } from '../ledger/ledger';
 import { coPost, CO_ACCOUNT_IDS, CO_CHART, CoAccountId } from '../business/companyLedger';
 import { valuation, coIncomeStatement } from '../business/reports';
 import { creditSpread } from '../economy/economy';
-import { addMonths, dateOf, dayOf } from '../time/calendar';
+import { addMonths, dateOf, dayOf, formatDate } from '../time/calendar';
 import { buildCompany, revalue } from '../business/ownership';
 import { coEquity, isOpen, distributableProfit } from '../business/common';
 import { LEGAL_FORM_BY_ID } from '../../content/sectors';
@@ -256,7 +256,8 @@ export function mergeBlocker(state: GameState, a: Company, b: Company): string |
   if (!isOpen(a) || !isOpen(b) || a.status !== 'active' || b.status !== 'active') return 'Las dos empresas tienen que estar operando y sanas.';
   if (a.sector === 'holding' || b.sector === 'holding') return 'Las holdings no se fusionan (podés pasar empresas de una a otra).';
   if (a.sector !== b.sector) return 'Solo se fusionan empresas del mismo rubro.';
-  if ((a.suspendedUntil ?? -1) > state.day || (b.suspendedUntil ?? -1) > state.day) return 'Una de las empresas tiene la licencia suspendida por la justicia: no se puede fusionar hasta que termine.';
+  const stopped = [a, b].find((c) => (c.suspendedUntil ?? -1) > state.day);
+  if (stopped) return `${stopped.name} no está operando hasta el ${formatDate(stopped.suspendedUntil!)} (suspensión, huelga o ataque informático): no se puede fusionar hasta entonces.`;
   if (a.jurisdiction !== b.jurisdiction) return 'Tienen que estar registradas en la misma jurisdicción.';
   if (a.parentId || b.parentId) return 'Por ahora solo se fusionan empresas que tenés directamente.';
   if (a.ownership < 0.9999 || b.ownership < 0.9999) return 'Tienen que ser 100 % tuyas (sin socios ni accionistas).';

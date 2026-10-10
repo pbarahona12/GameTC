@@ -301,12 +301,12 @@ export function LifeView() {
         <div className="kv">
           <dt>Edad</dt><dd><strong>{Math.floor(age)} años</strong></dd>
           <dt>Salud</dt><dd className={s.player.attributes.health < 50 ? 'warn' : ''}>{Math.round(s.player.attributes.health)}/100</dd>
-          <dt>Situación</dt><dd>{l.retired ? 'Jubilado' : s.career.job ? 'Trabajando' : 'Sin empleo'}</dd>
+          <dt>Situación</dt><dd>{s.career.job ? (l.retired ? 'Trabajando (volviste después de jubilarte)' : 'Trabajando') : l.retired ? 'Jubilado' : 'Sin empleo'}</dd>
           {l.mortal === false ? <><dt>Fallecimiento por edad</dt><dd>desactivado</dd></>
             : risk > 0 ? <><dt>Riesgo de fallecer este año</dt><dd className="loss">≈ {fmtPct(Math.min(1, 1 - Math.pow(1 - risk, 12)), 1)}</dd></>
             : <><dt>Riesgo de fallecer</dt><dd>desde los 68 (faltan {Math.ceil(68 - age)} años)</dd></>}
         </div>
-        <p className="tiny muted">Un año de juego dura unos {minutesPerYear} minutos a 1×. Desde los 50 la salud tiende a bajar; desde los 68 hay un riesgo real de fallecer, mayor con mala salud. Si pasa, hereda {heirName}. <InfoButton term="legado" /></p>
+        <p className="tiny muted">Un año de juego dura unos {minutesPerYear} minutos a 1×. Desde los 50 la salud tiende a bajar.{l.mortal === false ? ' Con el fallecimiento por edad apagado, la posta pasa solo cuando vos lo decidís' : <> Desde los 68 hay un riesgo real de fallecer, mayor con mala salud. Si pasa, hereda {heirName}</>}. <InfoButton term="legado" /></p>
         <Switch checked={l.mortal !== false} onChange={() => store.run((st) => setMortality(st, life(st).mortal === false))} label="Fallecimiento por edad" sub="Si lo apagás, tu personaje envejece pero solo pasa la posta cuando vos decidís." term="legado" />
       </div>
 

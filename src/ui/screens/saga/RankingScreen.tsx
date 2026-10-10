@@ -92,7 +92,9 @@ function RankLine({ r, n, open, onToggle, view }: { r: RankRow; n: number; open:
     );
   }
   const m = r.m!;
-  const rival = m.rivalId ? s.world.rivals.find((x) => x.id === m.rivalId) : undefined;
+  const group = m.rivalId ? s.world.rivals.find((x) => x.id === m.rivalId) : undefined;
+  // Un grupo que compraste ya no es rival: se muestra como vendido a vos.
+  const rival = group && !group.acquired ? group : undefined;
   const moved = view !== 'global' && m.lastRank && m.prevCityRank ? m.lastRank - m.prevCityRank : 0;
   return (
     <>
@@ -109,6 +111,7 @@ function RankLine({ r, n, open, onToggle, view }: { r: RankRow; n: number; open:
         <div className="rank-detail small">
           <p>{m.bio}</p>
           <p className="muted">Edad {m.age + Math.floor(s.day / 365)} · mejor puesto en {cityName(m.city)}: {m.bestCityRank <= CITY_SIZE ? m.bestCityRank : '—'}</p>
+          {group?.acquired && <p className="muted">Te vendió <strong>{group.name}</strong>: el grupo ahora es tuyo y su fortuna sigue en la lista.</p>}
           {rival && (
             <p>
               Controla <strong>{rival.name}</strong>. {(rival.attitude ?? 0) >= 60 ? 'Te tiene en la mira: espera más ataques en sus sectores.' : (rival.attitude ?? 0) >= 25 ? 'Te mira con desconfianza.' : 'Por ahora no te considera una amenaza.'}{' '}

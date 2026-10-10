@@ -200,11 +200,11 @@ export const GOALS: GoalDef[] = [
     },
   },
   {
-    id: 'resistir_crisis', title: 'Resistir una crisis', icon: 'rain', category: 'riqueza', stage: 2,
-    description: 'Atravesar una recesión o una crisis económica terminando con más patrimonio que cuando empezó.',
+    id: 'resistir_crisis', title: 'Resistir una recesión', icon: 'rain', category: 'riqueza', stage: 2,
+    description: 'Atravesar una recesión (fase del ciclo económico) terminando con más patrimonio que cuando empezó.',
     check: (s) => {
       const n = s.saga.stats.crisesSurvived;
-      return { progress: n >= 1 ? 1 : Object.keys(s.saga.stats.crisisStart).length ? 0.5 : 0, done: n >= 1, label: n ? 'La resististe' : Object.keys(s.saga.stats.crisisStart).length ? 'Hay una crisis en curso: aguantá' : 'Esperando una crisis' };
+      return { progress: n >= 1 ? 1 : Object.keys(s.saga.stats.crisisStart).length ? 0.5 : 0, done: n >= 1, label: n ? 'La resististe' : Object.keys(s.saga.stats.crisisStart).length ? 'Hay una recesión en curso: aguantá' : 'Esperando la próxima recesión' };
     },
   },
   {
@@ -242,7 +242,7 @@ export const GOALS: GoalDef[] = [
     description: 'Comprar uno de los cuatro grupos rivales. Deja de competir con vos para siempre.',
     check: (s) => {
       const done = s.world.rivals.some((r) => !!r.acquired);
-      return { progress: done ? 1 : Math.min(0.9, (s.progression.stage - 1) / 8), done, label: done ? 'Ya compraste un grupo rival' : 'Se habilita desde la etapa 8' };
+      return { progress: done ? 1 : Math.min(0.9, (s.progression.stage - 1) / 8), done, label: done ? 'Ya compraste un grupo rival' : s.progression.stage >= 8 ? 'Ya podés: Más → Competencia' : 'Se habilita desde la etapa 8' };
     },
   },
   {

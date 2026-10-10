@@ -19,6 +19,7 @@ import { usd, Cents } from '../../engine/money';
 import { Money, InfoButton, Pill, Empty, AmountInput, ConfirmButton, LineChart, CardHead, Act, Stat, Learn, Seg, ScreenIntro } from '../components/common';
 import { CompanyView } from './business/CompanyView';
 import { SoftGate } from '../components/Gate';
+import { truceRivalIn } from '../../engine/world/rivals';
 import type { Company } from '../../engine/business/types';
 import { SECTOR_ICON } from '../contentIcons';
 import { Icon } from '../icons';
@@ -197,6 +198,7 @@ function Found({ parentId }: { parentId: number | null }) {
           Costos fijos del primer mes ≈ <strong>{fmtMoney(monthly)}</strong> (alquiler, servicios, administración y sueldos). {working > 0 ? <>El capital de trabajo cubre ≈ <strong>{(working / monthly).toFixed(1)} meses</strong> sin ventas.</> : <span className="loss">No alcanza para instalarse.</span>} Capital recomendado para este sector: {fmtMoney(costs.recommended, { decimals: false })}.
         </p>
         {total >= costs.total && (total < costs.recommended || working < monthly * 6) && <p className="small warn">{working < monthly * 3 ? 'Con menos de 3 meses de caja, casi todas las empresas quiebran antes de ganar suficientes clientes.' : 'Por debajo de lo recomendado: la empresa puede quedarse sin caja antes de ganar clientes.'} Lo prudente es cubrir al menos 6 meses de costos sin ventas.</p>}
+        {truceRivalIn(s, sector) && <p className="small loss">Tenés una tregua con {truceRivalIn(s, sector)!.name} en {sec.name.toLowerCase()}: abrir esta empresa la rompe (te atacan con todo y tu reputación baja 5).</p>}
         <ForecastPanel target={{ kind: 'nueva', sector, legalForm: form, capital, jurisdiction: jur }} title="¿Cómo le iría? Proyección a 12 meses" onResult={(f) => setFc({ key: `${sector}|${form}|${capital}|${jur}`, f })} />
         <ConfirmButton
           label="Fundar empresa"
@@ -204,7 +206,7 @@ function Found({ parentId }: { parentId: number | null }) {
           disabled={!!req && !req.met}
           confirmLabel="Fundar"
           help="accion_fundar"
-          detail={<>Se transferirán {fmtMoney(capital)} {parent ? `de la caja de ${parent.name}` : 'de tu cuenta corriente'} a {name || sec.name} (registrada en {JURISDICTION_BY_ID[jur].name}). Abrirá al público en 7 días.</>}
+          detail={<>Se transferirán {fmtMoney(capital)} {parent ? `de la caja de ${parent.name}` : 'de tu cuenta corriente'} a {name || sec.name} (registrada en {JURISDICTION_BY_ID[jur].name}). Abrirá al público en 7 días.{truceRivalIn(s, sector) ? ` Rompe la tregua con ${truceRivalIn(s, sector)!.name}.` : ''}</>}
           onConfirm={() => {
             const r = store.run((st) => {
               const res = foundCompany(st, { sector, name: name || `${sec.name} ${st.player.name.split(' ')[0]}`, legalForm: form, capital, color, jurisdiction: jur, parentId: parent?.id ?? null });
@@ -290,7 +292,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               help="accion_comprar_empresa"
               disabled={!(offer > 0)}
               confirmLabel="Confirmar"
-              detail={<>Pagarías {fmtMoney(pay)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
+              detail={<>Pagarías {fmtMoney(pay)} + {fmtMoney(fee)} de costos legales (3 %).{truceRivalIn(s, co.sector) ? ` Rompe tu tregua con ${truceRivalIn(s, co.sector)!.name} en ${sec.name.toLowerCase()}.` : ''} {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
               onConfirm={() => {
                 const r = store.run((st) => {
                   const res = buyListing(st, l.id, offer, buyer);

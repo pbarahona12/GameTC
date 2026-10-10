@@ -4,7 +4,7 @@ import type { GameState } from '../src/engine/state';
 import { post } from '../src/engine/ledger/ledger';
 import { usd } from '../src/engine/money';
 import { advanceDay, simulateDays } from '../src/engine/simulation';
-import { isLastDayOfMonth } from '../src/engine/time/calendar';
+import { isLastDayOfMonth, startOfMonth } from '../src/engine/time/calendar';
 import { balanceSheet } from '../src/engine/reports/statements';
 import { foundCompany } from '../src/engine/business/ownership';
 import { SECTOR_BY_ID } from '../src/content/sectors';
@@ -325,12 +325,37 @@ describe('1.4 · Desafíos para aprender y dilemas urgentes', () => {
 describe('1.4 · La edad se ve y avisa antes de que pese', () => {
   it('cumpleaños: aviso cada año y advertencias a los 65 y 68 (peligro)', () => {
     const s = makeGame('egresado', 'bday-1');
-    life(s).birthDay = s.day - Math.round(65.02 * 365.25);
+    life(s).birthDay = s.day - Math.ceil(65 * 365.25); // cumple este mes
     lifeMonth(s);
     expect(s.log.some((l) => /cumplió 65 años/.test(l.text) && l.cat === 'peligro')).toBe(true);
-    life(s).birthDay = s.day - Math.round(68.02 * 365.25);
+    life(s).birthDay = s.day - Math.ceil(68 * 365.25);
     lifeMonth(s);
     expect(s.log.some((l) => /cumplió 68 años.*riesgo real de fallecer/.test(l.text))).toBe(true);
+  });
+
+  it('cada cumpleaños cae en exactamente un cierre de mes, para cualquier fecha de nacimiento', () => {
+    const s = makeGame('egresado', 'bday-2');
+    for (let b = 0; b < 400; b += 7) {
+      const birth = -Math.round(20 * 365.25) - b;
+      const seen = new Map<number, number>();
+      for (let d = 30; d < 365 * 12; d++) {
+        if (startOfMonth(d + 1) !== d + 1) continue; // d = último día del mes
+        const age = (d - birth) / 365.25;
+        const prev = (startOfMonth(d) - 1 - birth) / 365.25;
+        if (Math.floor(age) > Math.floor(prev)) seen.set(Math.floor(age), (seen.get(Math.floor(age)) ?? 0) + 1);
+      }
+      for (let a = 23; a <= 31; a++) expect(seen.get(a), `nacido ${birth}, ${a} años`).toBe(1);
+    }
+    expect(s).toBeTruthy();
+  });
+
+  it('con el fallecimiento apagado no hay avisos de riesgo de muerte al cumplir 68', () => {
+    const s = makeGame('egresado', 'bday-3');
+    setMortality(s, false);
+    life(s).birthDay = s.day - Math.ceil(68 * 365.25);
+    lifeMonth(s);
+    expect(s.log.some((l) => /cumplió 68 años\.$/.test(l.text))).toBe(true);
+    expect(s.log.some((l) => /riesgo real de fallecer/.test(l.text))).toBe(false);
   });
 
   it('si fallece, hereda el heredero elegido; el ajuste de fallecimiento se conserva', () => {

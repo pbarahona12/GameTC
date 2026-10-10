@@ -9,6 +9,7 @@ import { ActionResult, FAIL, OK } from '../result';
 import { addLog } from '../log';
 import { fmtMoney, fmtPct } from '../format';
 import { post } from '../ledger/ledger';
+import { startOfMonth } from '../time/calendar';
 import { balanceSheet } from '../reports/statements';
 import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
 import { quitJob } from '../career/career';
@@ -252,12 +253,15 @@ export function donateToFoundation(state: GameState, amount: Cents): ActionResul
   return OK(`Aportaste ${fmtMoney(amount)} a la ${l.foundation.name}. Total donado: ${fmtMoney(l.foundation.given)}.`);
 }
 
+/** Avisos que solo tienen sentido con el fallecimiento por edad activado. */
+const MORTAL_NOTES = new Set([65, 68, 75]);
+
 /** Lo que conviene saber en cada cumpleaños clave (también queda en la crónica). */
 const BIRTHDAY_NOTES: Record<number, string> = {
   50: 'Desde ahora la salud tiende a bajar un poco cada año: cuidala (estrés, estilo de vida, seguro).',
   60: `Ya podés jubilarte o pasarle la posta a tu heredero (Más → Tu vida y legado).`,
   65: 'Faltan 3 años para que la edad traiga un riesgo real de fallecer. Es buen momento para planificar la sucesión.',
-  68: 'Desde hoy hay un riesgo real de fallecer por edad, mayor con mala salud. Si pasa, hereda tu hijo/a adulto mayor (o un sobrino). Revisá Más → Tu vida y legado.',
+  68: 'Desde hoy hay un riesgo real de fallecer por edad, mayor con mala salud. Si pasa, hereda quien elegiste como heredero (si no elegiste, tu hijo/a adulto mayor o un sobrino). Revisá Más → Tu vida y legado.',
   75: 'El riesgo de fallecer por edad sigue creciendo cada año.',
 };
 
@@ -280,10 +284,12 @@ export function lifeMonth(state: GameState): void {
     payExpense(state, 'food', cost, { memo: `Gastos de ${minors === 1 ? 'tu hijo' : `tus ${minors} hijos`} (crianza y escuela)`, tag: 'saga:children', method: 'checking' });
   }
   // Cumpleaños: un aviso cada año y avisos claros antes de que la edad pese.
-  const prevAge = ageOf(state) - 1 / 12;
+  // Edad al cierre del mes anterior: cada cumpleaños cae en exactamente un mes (los meses
+  // miden 28–31 días; restar 1/12 de año salteaba algunos y repetía otros).
+  const prevAge = (startOfMonth(state.day) - 1 - l.birthDay) / 365.25;
   const turned = Math.floor(age) > Math.floor(prevAge) ? Math.floor(age) : null;
   if (turned !== null) {
-    const note = BIRTHDAY_NOTES[turned];
+    const note = l.mortal === false && MORTAL_NOTES.has(turned) ? undefined : BIRTHDAY_NOTES[turned];
     if (note) {
       addLog(state, turned >= 60 ? 'warning' : 'info', '🎂', `${state.player.name} cumplió ${turned} años. ${note}`, undefined, turned >= 65 ? 'peligro' : undefined);
       chronicle(state, 'vida', 'calendar', `${state.player.name} cumple ${turned}`, note);

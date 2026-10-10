@@ -294,6 +294,11 @@ function rivalryExtra(state: GameState, r: RivalGroup): number {
 
 const inTruce = (state: GameState, r: RivalGroup, sector: BizSectorId) => !!r.truce && r.truce.until >= state.day && r.truce.sector === sector;
 
+/** Grupo con el que tenés una tregua en ese rubro (abrir o comprar ahí una empresa la rompe). */
+export function truceRivalIn(state: GameState, sector: BizSectorId): RivalGroup | undefined {
+  return state.world.rivals.find((r) => !r.acquired && inTruce(state, r, sector));
+}
+
 // ------------------------------------------------------------------ ejecución
 
 function executeIntent(state: GameState, it: RivalIntent): void {

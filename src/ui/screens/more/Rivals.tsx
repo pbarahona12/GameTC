@@ -101,7 +101,7 @@ export function RivalsScreen() {
             <div className="stack" style={{ gap: 4 }}>
               <span className="small" style={{ display: 'flex', gap: 6 }}><strong style={{ flex: 1 }}>Actitud hacia vos <InfoButton term="rencor_rivales" /></strong><span className="num">{attitudeLabel(r.attitude ?? 0)}</span></span>
               <Bar value={(r.attitude ?? 0) / 100} tone={(r.attitude ?? 0) >= 60 ? 'loss' : (r.attitude ?? 0) >= 25 ? 'warn' : 'gain'} />
-              {r.truce && r.truce.until >= s.day && <span className="tiny gain"><Icon name="deal" size={12} /> Tregua hasta el {formatDate(r.truce.until)}: no te ataca y vos no entrás con empresas nuevas en {SECTOR_BY_ID[r.truce.sector].name.toLowerCase()}.</span>}
+              {r.truce && r.truce.until >= s.day && <span className="tiny gain"><Icon name="deal" size={12} /> Tregua hasta el {formatDate(r.truce.until)}: en {SECTOR_BY_ID[r.truce.sector].name.toLowerCase()} no te ataca y vos no entrás con empresas nuevas (en sus otros rubros sigue compitiendo).</span>}
               {rv?.nemesisId === r.id && <span className="tiny loss"><Icon name="rivals" size={12} /> Es tu némesis desde el {formatDate(rv.nemesisSince)}: ataca más seguido. Lo vencés comprándolo o duplicando la fortuna de su dueño.</span>}
               {r.ally && r.ally.until >= s.day && <span className="tiny gain"><Icon name="deal" size={12} /> Aliado hasta el {formatDate(r.ally.until)}: no te ataca.</span>}
               {coalition && coalition.members.includes(r.id) && <span className="tiny loss"><Icon name="rivals" size={12} /> En coalición contra vos hasta el {formatDate(coalition.until)}.</span>}

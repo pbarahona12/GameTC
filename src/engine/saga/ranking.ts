@@ -429,10 +429,11 @@ export function rankingMonth(state: GameState): void {
   // 7 · Tus hitos: primera vez en el top 100, 50, 25, 10, 3 y 1 de tu ciudad y del mundo.
   const p = rk.player;
   if (newCity !== null) {
-    for (const t of CITY_MILESTONES) {
+    // Del mejor al peor: se festeja el mejor hito nuevo y quedan marcados los menores.
+    for (const t of [...CITY_MILESTONES].sort((a, b) => a - b)) {
       const key = `city:${city}:${t}`;
       if (newCity > t || rk.milestones.includes(key)) continue;
-      rk.milestones.push(key);
+      for (const u of CITY_MILESTONES) if (u >= t && !rk.milestones.includes(`city:${city}:${u}`)) rk.milestones.push(`city:${city}:${u}`);
       const big = t <= 10;
       const title = t === 1 ? `La persona más rica de ${cityName(city)}` : t === 100 ? `En la lista de ${cityName(city)}` : `Top ${t} de ${cityName(city)}`;
       const text = t === 1 ? `Con ${fmtMoney(nw, { decimals: false })} encabezás la lista de fortunas de ${cityName(city)}. Ahora todos te miran: mantener el puesto también es un desafío.` : `Entraste al top ${t} de las fortunas de ${cityName(city)} (puesto ${newCity}).`;
@@ -444,10 +445,10 @@ export function rankingMonth(state: GameState): void {
     }
   }
   if (newGlobal !== null) {
-    for (const t of GLOBAL_MILESTONES) {
+    for (const t of [...GLOBAL_MILESTONES].sort((a, b) => a - b)) {
       const key = `global:${t}`;
       if (newGlobal > t || rk.milestones.includes(key)) continue;
-      rk.milestones.push(key);
+      for (const u of GLOBAL_MILESTONES) if (u >= t && !rk.milestones.includes(`global:${u}`)) rk.milestones.push(`global:${u}`);
       const title = t === 1 ? 'La persona más rica del mundo' : `Top ${t} del mundo`;
       const text = t === 1 ? 'Ninguna fortuna de las cuatro ciudades supera la tuya.' : `Entraste al top ${t} del ranking global (puesto ${newGlobal}).`;
       celebrate(state, 'big', 'crown', title, text);
@@ -460,10 +461,12 @@ export function rankingMonth(state: GameState): void {
 
   // 8 · Superar a un grupo rival (por patrimonio): lo festejás vos… y ellos lo recuerdan.
   for (const m of rk.magnates) {
-    if (!m.rivalId || rk.overtaken.includes(m.rivalId) || state.world.rivals.find((x) => x.id === m.rivalId)?.acquired) continue;
+    if (!m.rivalId || rk.overtaken.includes(m.rivalId)) continue;
     const w = magnateWealth(state, m);
     if (nw <= w) continue;
     rk.overtaken.push(m.rivalId);
+    // Si ya compraste su grupo, cuenta para tus metas pero no hay festejo ni rencor.
+    if (state.world.rivals.find((x) => x.id === m.rivalId)?.acquired) continue;
     const r = state.world.rivals.find((x) => x.id === m.rivalId);
     const text = `Tu patrimonio (${fmtMoney(nw, { decimals: false })}) ya supera la fortuna de ${m.name} (${fmtMoney(w, { decimals: false })}).`;
     celebrate(state, 'small', 'rivals', `Superaste a ${m.name}`, text);

@@ -168,7 +168,7 @@ function nemesisStep(state: GameState): void {
   if (!cand) return;
   rv.nemesisId = cand.id;
   rv.nemesisSince = state.day;
-  const why = cand.memory?.slice(-2).map((m) => m.text.toLowerCase()).join(' y ') ?? 'todo lo que pasó entre ustedes';
+  const why = cand.memory?.slice(-2).map((m) => m.text.toLowerCase()).join(' y ') || 'todo lo que pasó entre ustedes';
   const text = `${cand.name} te declaró la guerra (${why}). Va a atacarte más seguido hasta que lo venzas: comprarlo o que tu fortuna duplique la de su dueño.`;
   news(state, cand, cand.icon, `${cand.name} declara la guerra a ${state.player.name}`, text);
   chronicle(state, 'rival', 'rivals', `${cand.name} es tu némesis`, text);
