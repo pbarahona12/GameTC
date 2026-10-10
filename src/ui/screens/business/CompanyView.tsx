@@ -15,7 +15,7 @@ import { supplierShockMult } from '../../../engine/world/rivals';
 import { PoachCard } from '../more/Rivals';
 import { generateCandidates, hire, fire, train, setWage, marketWage, hiringFee, severance } from '../../../engine/business/staff';
 import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
-import { formatDate } from '../../../engine/time/calendar';
+import { formatDate, last30Start } from '../../../engine/time/calendar';
 import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, GroupedTabs, Pill, Bar, Empty, AmountInput, ConfirmButton, CardHead, Act, Stat, LineChart, Legend, NumInput, Seg, GuardedAct } from '../../components/common';
 import type { TabGroup } from '../../components/common';
@@ -508,7 +508,7 @@ function ForecastVsReality({ co }: { co: Company }) {
 export function CompanyView({ co, tab }: { co: Company; tab: string }) {
   const s = useGame();
   const sec = SECTOR_BY_ID[co.sector];
-  const is = coIncomeStatement(co, Math.max(co.openDay, s.day - 29), s.day);
+  const is = coIncomeStatement(co, Math.max(co.openDay, last30Start(s.day)), s.day);
   return (
     <>
       <button className="btn ghost sm" onClick={() => navStore.setSub('business', 'portfolio')}>← Mis empresas</button>

@@ -12,7 +12,7 @@ import { expectedShare, refPrice, companyAttraction, effectivePrice } from '../.
 import { distributableProfit, isOpen } from '../../../engine/business/common';
 import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { spendable } from '../../../engine/finance/payments';
-import { formatDate, startOfMonth, startOfYear, addMonths } from '../../../engine/time/calendar';
+import { formatDate, startOfMonth, startOfYear, addMonths, last30Start } from '../../../engine/time/calendar';
 import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, Pill, AmountInput, ConfirmButton, CardHead, Act, Seg, NumInput, Learn } from '../../components/common';
 import { runCo } from './CompanyView';
@@ -27,7 +27,7 @@ export function MarketingTab({ co }: { co: Company }) {
   const [budget, setBudget] = useState<Cents>(usd(30 * s.macro.priceIndex));
   const [days, setDays] = useState(30);
   const ch = CHANNEL_BY_ID[channel];
-  const revenue30 = coIncomeStatement(co, Math.max(co.openDay, s.day - 29), s.day).revenue;
+  const revenue30 = coIncomeStatement(co, Math.max(co.openDay, last30Start(s.day)), s.day).revenue;
   return (
     <>
       <div className="card">

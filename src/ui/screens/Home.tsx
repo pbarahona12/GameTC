@@ -5,7 +5,7 @@ import { ReactNode } from 'react';
 import { useGame, useUI, useDerived, store } from '../store';
 import { metricsOf, insightsOf, monthOf } from '../derived';
 import { navStore } from '../nav';
-import { formatMonth, formatDate } from '../../engine/time/calendar';
+import { formatMonth, formatDate, isLastDayOfMonth } from '../../engine/time/calendar';
 import { STAGES, professionalLevel } from '../../engine/progression/progression';
 import { nextMission, CHAPTERS, missionProgress } from '../../engine/progression/tutorial';
 import { Icon, IconName } from '../icons';
@@ -143,7 +143,7 @@ export function Home() {
         <button className="ms-cell" onClick={() => navStore.go('finance', 'accounts')}>
           <span className="tiny muted">Liquidez</span>
           <strong className="num">{fmtMoneyFit(m.liquid, { decimals: false, max: 7 })}</strong>
-          <span className="tiny faint">{m.runwayMonths !== null ? `alcanza ~${m.runwayMonths.toFixed(1)} meses` : 'te sobra cada mes'}</span>
+          <span className="tiny faint">{m.runwayMonths !== null ? `alcanza ~${m.runwayMonths.toFixed(1)} meses` : 'ganás más de lo que gastás'}</span>
         </button>
         <button className="ms-cell" onClick={() => navStore.go('reports', 'cf')}>
           <span className="tiny muted">Entró este mes</span>
@@ -153,7 +153,7 @@ export function Home() {
         <button className="ms-cell" onClick={() => navStore.go('reports', 'cf')}>
           <span className="tiny muted">Neto de caja del mes</span>
           <strong className={`num ${month.cf.cashIn - month.cf.cashOut >= 0 ? 'gain' : 'loss'}`}>{fmtMoneyFit(month.cf.cashIn - month.cf.cashOut, { decimals: false, sign: true, max: 7 })}</strong>
-          <span className="tiny faint">gastos fijos {fmtMoneyFit(m.recurringMonthly, { decimals: false, max: 9 })}/mes</span>
+          <span className="tiny faint">{s.career.job && !isLastDayOfMonth(s.day) && month.cf.cashIn - month.cf.cashOut < 0 ? 'el sueldo entra el último día del mes' : `gastos fijos ${fmtMoneyFit(m.recurringMonthly, { decimals: false, max: 9 })}/mes`}</span>
         </button>
       </div>
 
@@ -181,7 +181,7 @@ export function Home() {
               </div>
             </button>
           ))}
-          {insights.length > 2 && <button className="btn sm ghost" onClick={() => { store.markSeen('asesor'); navStore.open({ kind: 'advisor' }); }}>Ver {insights.length - 2} alertas más en el Asesor</button>}
+          {insights.length > 2 && <button className="btn sm ghost" onClick={() => { store.markSeen('asesor'); navStore.open({ kind: 'advisor' }); }}>Ver {insights.length - 2 === 1 ? '1 alerta más' : `${insights.length - 2} alertas más`} en el Asesor</button>}
         </div>
       )}
 

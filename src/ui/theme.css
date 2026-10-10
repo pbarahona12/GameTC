@@ -359,7 +359,8 @@ main.screen {
 .inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .badge-dot { color: var(--loss); font-size: 10px; vertical-align: middle; }
-.econ-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; text-align: left; }
+.econ-chip { display: flex; gap: 8px; align-items: flex-start; flex-wrap: nowrap; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 14px; padding: 8px 12px; font-size: 12px; font-weight: 600; text-align: left; line-height: 1.45; }
+.econ-chip > svg { flex: none; margin-top: 1px; }
 
 /* ---------- Accesibilidad y personalización (Ajustes) ---------- */
 body { zoom: var(--ui-zoom, 1); }

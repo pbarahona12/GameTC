@@ -4,7 +4,7 @@ import { incomeOf, cashFlowOf, taxProjectionOf } from '../derived';
 import { navStore, useNav } from '../nav';
 import { balanceSheet, transactions, ledgerCsv, IncomeStatement, Line } from '../../engine/reports/statements';
 import { ACCOUNTS, ACCOUNT_IDS, AccountId } from '../../engine/ledger/accounts';
-import { startOfMonth, startOfYear, dateOf, dayOf, formatDate, formatMonth, addMonths } from '../../engine/time/calendar';
+import { startOfMonth, startOfYear, dateOf, dayOf, formatDate, formatMonth, addMonths, isLastDayOfMonth } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../engine/format';
 import { payTaxes } from '../../engine/tax/taxEngine';
 import { residence } from '../../engine/tax/taxEngine';
@@ -77,6 +77,7 @@ function IS({ period }: { period: Period }) {
       <p className="tiny muted">{formatDate(from)} – {formatDate(to)}{prev && ' · la columna gris es el período anterior'}</p>
       <p className="small is-summary">
         {is.grossIncome || is.totalExpensesBeforeTax ? <>Ganaste <strong className="gain">{fmtMoney(is.grossIncome, { decimals: false })}</strong>, gastaste <strong className="loss">{fmtMoney(is.totalExpensesBeforeTax + is.totalTaxes, { decimals: false })}</strong> (con impuestos) y {is.netResult >= 0 ? <>te sobró <strong className="gain">{fmtMoney(is.netResult, { decimals: false })}</strong></> : <>te faltó <strong className="loss">{fmtMoney(-is.netResult, { decimals: false })}</strong></>}.{is.unrealized ? <> De lo ganado, {fmtMoney(is.unrealized, { decimals: false })} es revalorización (no es dinero cobrado).</> : null}</> : 'Sin movimientos en este período.'}
+        {to === s.day && !isLastDayOfMonth(s.day) && (period === 'month' || period === 'year') && !!s.career.job && <> El período sigue abierto: el sueldo se cobra el último día de cada mes (los alquileres, el día 1).</>}
       </p>
       <Learn term="ingresos_vs_beneficio" />
       <div className="rows">

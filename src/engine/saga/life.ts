@@ -12,7 +12,7 @@ import { post } from '../ledger/ledger';
 import { balanceSheet } from '../reports/statements';
 import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
 import { quitJob } from '../career/career';
-import { FIRST_NAMES } from '../../content/cities';
+import { FIRST_NAMES, LAST_NAMES } from '../../content/cities';
 import { SKILL_BY_ID } from '../../content/skills';
 import { chronicle, celebrate } from './chronicle';
 import { srng } from './ranking';
@@ -64,9 +64,12 @@ export function foundationReputation(state: GameState): number {
   return clamp((f.given / usd(1_000_000 * state.macro.priceIndex)) * 3, 0, 15);
 }
 
+/** Apellido de la familia. Si el jugador puso solo un nombre ("Adriana"), no se usa como
+ *  apellido ("Sebastián Adriana"): se elige uno fijo a partir del nombre. */
 function lastName(full: string): string {
   const parts = full.trim().split(/\s+/);
-  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  if (parts.length > 1) return parts[parts.length - 1];
+  return LAST_NAMES[(seedFromString(parts[0] || 'familia') >>> 0) % LAST_NAMES.length];
 }
 
 function pickFirst(g: RngHolder): string {

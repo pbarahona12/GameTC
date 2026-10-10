@@ -26,6 +26,8 @@ function playedGame(): GameState {
   const s = last as GameState | null;
   if (!s) throw new Error('El bot no cerró ningún mes.');
   s.player.name = 'Adriana';
+  const NAMES: Record<string, string> = { consultora: 'Rivas Consultores', cafeteria: 'Café Aurora', minimarket: 'Mercadito Sol', saas: 'Nube Clara', muebles: 'Roble & Pino' };
+  for (const co of s.companies) if (co.name.startsWith('Bot ')) co.name = NAMES[co.sector] ?? co.name.replace('Bot ', '');
   for (const g of ['top100', 'casa_propia', 'tres_empresas']) chooseGoal(s, g);
   // Que haya una decisión abierta para mostrarla (una plantilla real, con su sorteo).
   if (!s.saga.dilemmas.open.length) { s.saga.dilemmas.nextDay = s.day; dilemmasDay(s); }
@@ -42,7 +44,8 @@ async function closeCelebrations(page: Page) {
   }
 }
 
-async function shot(page: Page, name: string) {
+async function shot(page: Page, name: string, top = true) {
+  if (top) await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${OUT}/${name}.png` });
   console.log(`  ${OUT}/${name}.png`);
@@ -76,9 +79,12 @@ async function main() {
     await closeCelebrations(page);
     await page.waitForTimeout(4500); // festejos chicos
 
+    // Una jugadora de 7 años ya no mira las misiones del principio: las oculta (como en Ajustes).
+    const hide = page.getByRole('button', { name: 'Ocultar misiones' });
+    if (await hide.isVisible().catch(() => false)) { await hide.click(); await page.waitForTimeout(4500); }
     await shot(page, '1-inicio');
     await page.locator('.agenda-row').first().click();
-    await shot(page, '2-decision');
+    await shot(page, '2-decision', false);
     await page.keyboard.press('Escape');
 
     await tab(page, 'Más');
@@ -101,11 +107,11 @@ async function main() {
 
     await tab(page, 'Más');
     await page.getByRole('button', { name: /Tu crónica/ }).click();
-    await shot(page, '7-cronica');
+    await shot(page, '7-cronica', false);
     await page.keyboard.press('Escape');
 
     await page.locator('.age-chip').click();
-    await shot(page, '8-vida');
+    await shot(page, '8-vida', false);
 
     writeFileSync(`${OUT}/errores.txt`, errors.join('\n'));
     if (errors.length) console.error(`Errores de la página: ${errors.length} (ver ${OUT}/errores.txt)`);
