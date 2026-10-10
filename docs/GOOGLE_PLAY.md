@@ -50,12 +50,69 @@ Responder con la verdad (una respuesta falsa puede hacer que retiren la app):
 3. **Anuncios (AdMob):** es un servicio aparte de la cuenta de comerciante; confirmar en AdMob que acepta pagos a El Salvador (transferencia). Requiere política de privacidad actualizada, consentimiento UMP, Data safety actualizado, permiso `AD_ID`, y respetar la política de anuncios de Play (nada de anuncios a pantalla completa inesperados ni que tapen controles; los recompensados, siempre opcionales).
 4. **Impuestos:** los ingresos por ventas o anuncios pueden tributar en El Salvador; consultarlo con un contador.
 
-## Ficha de la tienda (borrador)
+## Ficha de la tienda
 
-- Nombre: Ultimate Realistic Tycoon
-- Descripción corta: Simulador de finanzas, empresas e inversiones con contabilidad real. Sin conexión.
-- Aclarar en la descripción que todo es ficticio, sin dinero real, y que no es asesoramiento financiero.
-- Categoría: Juegos → Simulación.
+Identidad: **cada número es verdad, cada decisión deja una historia.** La ficha vende eso (contabilidad de verdad + la historia de un magnate), no "hacete rico rápido".
+
+- **Nombre (≤ 30):** Ultimate Realistic Tycoon
+- **Categoría:** Juegos → Simulación. Etiquetas sugeridas: magnate, negocios, economía, un jugador, sin conexión.
+- **Descripción corta (≤ 80, tiene 79):**
+  > De tu primer sueldo a un imperio. Cada número es real; cada decisión, historia.
+
+### Descripción completa (≤ 4.000 caracteres)
+
+```
+Empezás con un sueldo, un alquiler y una tarjeta. Cada decisión que tomes queda escrita en tus libros y en tu historia.
+
+Ultimate Realistic Tycoon es un simulador de magnate donde los números no mienten: cada peso entra y sale por un libro de partida doble, como en una empresa de verdad. Tu patrimonio, tus impuestos y los resultados de tus empresas siempre cuadran, y podés tocar cualquier número para ver de dónde salió.
+
+DE TU PRIMER SUELDO A UN IMPERIO
+• Buscá empleo, negociá el sueldo, estudiá y ascendé.
+• Armá un fondo de emergencia, pagá la tarjeta a tiempo y cuidá tu puntaje de crédito.
+• Invertí en una bolsa con 20 empresas ficticias, bonos, fondos e inmuebles con hipotecas.
+• Fundá empresas en 5 sectores: precios, personal, proveedores, marketing, préstamos y gerentes.
+• Crecé con holdings, bonos corporativos, fusiones, salida a bolsa y compra de grupos rivales.
+
+CADA DECISIÓN DEJA UNA HISTORIA
+• Más de 30 decisiones con plazo: una huelga, una auditoría fiscal, un socio con capital, un ciberataque.
+• Rivales con memoria: si les ganás, te guardan rencor; algunos se vuelven tu némesis y te declaran una guerra de precios.
+• Listas de fortunas de cuatro ciudades y del mundo: mirá a quién pasás y quién te pisa los talones.
+• Tu crónica guarda los momentos que importan, con un resumen de cada año.
+• Tu personaje envejece: pareja, hijos, jubilación, herencia y fundación. Si activás el fallecimiento, tu heredero sigue la partida.
+
+APRENDÉ JUGANDO
+• Glosario con más de 280 conceptos explicados con ejemplos.
+• Un asesor que lee tus números y te dice qué conviene revisar.
+• Estados de resultados, balance y flujo de caja reales, personales y de cada empresa.
+• Desafíos con semilla para comparar resultados con amigos o en clase.
+
+PENSADO PARA EL TELÉFONO
+• Funciona sin conexión. Tu partida queda en tu dispositivo.
+• El tiempo corre aunque cierres la app (y te cuenta qué pasó mientras no estabas).
+• Tema claro y oscuro, texto grande, alto contraste y modo para daltonismo.
+• Modo tranquilo para empezar sin castigos duros.
+
+IMPORTANTE
+Todo es ficticio: empresas, personas, países y mercados. No hay dinero real, no se puede apostar ni retirar nada, y nada de lo que pasa en el juego es asesoramiento financiero. Tiene anuncios recompensados opcionales: solo se muestran si tocás "Ver anuncio". Incluye, desactivadas al empezar, actividades ilegales ficticias con consecuencias.
+```
+
+### Capturas (8, en orden)
+
+Se generan con `npm run build && npm run shots` (partida real de 7 años del bot emprendedor, sin dinero regalado) en `docs/play/`. Formato 2:1 (1081 × 2163 px), dentro de lo que acepta Play.
+
+| # | Archivo | Texto sobre la captura |
+|---|---|---|
+| 1 | `1-inicio.png` | Tu imperio, de un vistazo |
+| 2 | `2-decision.png` | Cada decisión deja una historia |
+| 3 | `3-fortunas.png` | Subí en las listas de fortunas |
+| 4 | `4-empresa.png` | Empresas con contabilidad de verdad |
+| 5 | `5-inversiones.png` | Bolsa, bonos, fondos e inmuebles |
+| 6 | `6-informes.png` | Cada número es verdad |
+| 7 | `7-cronica.png` | Tu historia, año por año |
+| 8 | `8-vida.png` | Una vida entera: edad, familia y legado |
+
+- **Gráfico destacado (1024 × 500):** fondo oscuro con la escena del imperio de la pantalla de inicio y el lema "Cada número es verdad. Cada decisión deja una historia."
+- **Ícono (512 × 512):** el mismo de la app (`scripts/make_icons.py`).
 
 ## Páginas públicas (GitHub Pages)
 

@@ -17,7 +17,7 @@ import { Cents, usd } from '../../../engine/money';
 import { Money, InfoButton, Pill, AmountInput, ConfirmButton, CardHead, Act, Seg, NumInput, Learn } from '../../components/common';
 import { runCo } from './CompanyView';
 import { navStore } from '../../nav';
-import { IpoCard, DealsCard, BondsCard, MergeCard } from './Corporate';
+import { CapitalMarketsCards, DealsCard, MergeCard } from './Corporate';
 
 export function MarketingTab({ co }: { co: Company }) {
   const s = useGame();
@@ -364,8 +364,7 @@ export function ManageTab({ co }: { co: Company }) {
           <Act label="Pedir ofertas a compradores" help="accion_vender_empresa" className="btn" onClick={() => runCo(co.id, (st, c) => requestSaleOffer(st, c))} />
         )}
       </div>
-      {lf.canRaiseEquity && !co.parentId && <IpoCard co={co} />}
-      {lf.canRaiseEquity && <BondsCard co={co} />}
+      {lf.canRaiseEquity && <CapitalMarketsCards co={co} />}
       <DealsCard co={co} />
       {!co.parentId && <MergeCard co={co} />}
       {lf.canRaiseEquity && (

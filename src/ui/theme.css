@@ -452,6 +452,12 @@ button.holding-row { border: 0; border-bottom: 1px solid var(--line); background
 .menu-card { padding: 4px 6px; gap: 0; }
 .menu-row { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font: inherit; color: inherit; padding: 11px 8px; min-height: 58px; border-radius: 10px; transition: background 0.15s ease; }
 .menu-row:last-child { border-bottom: 0; }
+.menu-later > summary { list-style: none; cursor: pointer; }
+.menu-later > summary::-webkit-details-marker { display: none; }
+.menu-later > summary .menu-title { color: var(--muted); }
+.menu-later[open] > summary { border-bottom: 1px solid var(--line); }
+.menu-later[open] .later-chevron { transform: rotate(90deg); }
+.later-chevron { transition: transform 0.15s ease; }
 .menu-row:active { background: var(--surface-2); }
 .menu-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--surface-2); color: var(--accent); display: grid; place-items: center; flex: none; overflow: hidden; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }

@@ -61,6 +61,37 @@ export function IpoCard({ co }: { co: Company }) {
   );
 }
 
+/**
+ * BOLSA Y BONOS: mientras ninguna de las dos se pueda usar, una sola tarjeta corta con lo
+ * que falta (en vez de dos tarjetas que dicen "todavía no"). Cuando una se habilita, se
+ * muestran las completas.
+ */
+export function CapitalMarketsCards({ co }: { co: Company }) {
+  const s = useGame();
+  const ipoWhy = co.parentId ? null : ipoBlocker(s, co);
+  const bondWhy = bondBlocker(s, co);
+  const hasBonds = co.loans.some((l) => l.bullet && l.balance > 0);
+  const ipoUsable = !co.parentId && (!!co.listed || !ipoWhy);
+  if (ipoUsable || !bondWhy || hasBonds) {
+    return (
+      <>
+        {!co.parentId && <IpoCard co={co} />}
+        <BondsCard co={co} />
+      </>
+    );
+  }
+  return (
+    <div className="card">
+      <CardHead title="Más adelante: bolsa y bonos" term="salida_bolsa" />
+      <p className="small">Una corporación con historia y ganancias puede conseguir capital del mercado: vender acciones al público o pedir prestado con bonos.</p>
+      <ul className="reqs small">
+        {!co.parentId && ipoWhy && <li><strong>Salir a bolsa:</strong> {ipoWhy} <InfoButton term="salida_bolsa" /></li>}
+        <li><strong>Emitir bonos:</strong> {bondWhy} <InfoButton term="bonos_corporativos" /></li>
+      </ul>
+    </div>
+  );
+}
+
 /** PROVEEDORES PROPIOS: acuerdos entre tus empresas. */
 export function DealsCard({ co }: { co: Company }) {
   const s = useGame();

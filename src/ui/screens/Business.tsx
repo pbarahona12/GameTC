@@ -196,7 +196,7 @@ function Found({ parentId }: { parentId: number | null }) {
         <p className="small">
           Costos fijos del primer mes ≈ <strong>{fmtMoney(monthly)}</strong> (alquiler, servicios, administración y sueldos). {working > 0 ? <>El capital de trabajo cubre ≈ <strong>{(working / monthly).toFixed(1)} meses</strong> sin ventas.</> : <span className="loss">No alcanza para instalarse.</span>} Capital recomendado para este sector: {fmtMoney(costs.recommended, { decimals: false })}.
         </p>
-        {total < costs.recommended && total >= costs.total && <p className="small warn">Por debajo de lo recomendado: la empresa puede quedarse sin caja antes de ganar clientes.</p>}
+        {total >= costs.total && (total < costs.recommended || working < monthly * 6) && <p className="small warn">{working < monthly * 3 ? 'Con menos de 3 meses de caja, casi todas las empresas quiebran antes de ganar suficientes clientes.' : 'Por debajo de lo recomendado: la empresa puede quedarse sin caja antes de ganar clientes.'} Lo prudente es cubrir al menos 6 meses de costos sin ventas.</p>}
         <ForecastPanel target={{ kind: 'nueva', sector, legalForm: form, capital, jurisdiction: jur }} title="¿Cómo le iría? Proyección a 12 meses" onResult={(f) => setFc({ key: `${sector}|${form}|${capital}|${jur}`, f })} />
         <ConfirmButton
           label="Fundar empresa"

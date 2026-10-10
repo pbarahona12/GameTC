@@ -33,6 +33,7 @@ Guía para docentes: `docs/DOCENTES.md`.
 - Recorrido de punta a punta (Playwright): pasa.
 - Auditoría de caos (8 semillas × 10 años, ahora también con decisiones, fusiones, bonos, salida a bolsa, equipo directivo, proveedores propios, sucesiones y guerras de precios): invariantes contables intactos todos los meses.
 - Bots: jugador nuevo que tarda 3 semanas en postularse sin atrasos en 4 meses; dominancia entre estilos y años con pérdida en `docs/BALANCE.md`; bots de 60 años opcionales (`URT_LONG=1`, `docs/BALANCE_LARGO.md`).
+- Rendimiento (Node, un núcleo, bot con empleo, empresa, inversiones e inmuebles): 0,6–0,9 ms por día de juego. Guardado comprimido: 709 KB a los 10 años, 920 KB a los 20, 1.034 KB a los 30 y 1.084 KB a los 40 (143–175 ms por guardado); el crecimiento se aplana porque las velas semanales y el libro se compactan. El paquete principal (≈ 840 KB) es casi todo motor: dividirlo no acelera el arranque.
 - Origen herencia: medido con los bots, no tiene una penalización estructural (los meses de bajo desempeño son iguales a los del egresado). Donde termina peor es porque con más efectivo se pagan más estudios a la vez y aparecen atrasos; el juego lo advierte al elegir el origen. `docs/BALANCE.md` lo mide y una comprobación impide que su patrimonio mediano baje del 60 % del egresado.
 
 ### Pendiente

@@ -70,7 +70,12 @@ export const STAGES: StageDef[] = [
     n: 6, name: 'Empresario emergente', description: 'Ingresos más allá del salario.',
     criteria: (s, m) => [nw(s, m, 150_000), { label: 'Ingresos pasivos (intereses, alquileres, dividendos o ganancias de tus empresas) ≥ 20 % de tus gastos', met: m.passiveMonthly >= m.recurringMonthly * 0.2 }, { label: 'Deuda / activos < 50 %', met: m.debtToAssets < 0.5 }],
   },
-  { n: 7, name: 'Magnate regional', description: 'Un patrimonio que ya mueve tu región.', criteria: (s, m) => [nw(s, m, 1_000_000), { label: 'Al menos una empresa propia con ganancias en los últimos 3 meses', met: s.companies.some((c) => c.status === 'active' && c.history.length >= 3 && c.history.slice(-3).reduce((a, h) => a + h.netIncome, 0) > 0) }] },
+  // 1.4: antes pedía $1 M y una empresa sí o sí; los bots mostraron 10–25 años sin etapa nueva
+  // y que el inversor o el inmobiliario nunca llegaban. Ahora cuentan también las rentas.
+  { n: 7, name: 'Magnate regional', description: 'Medio millón y dinero que trabaja sin vos: tu nombre empieza a sonar en tu ciudad.', criteria: (s, m) => [nw(s, m, 500_000), {
+    label: 'Una empresa propia con ganancias en los últimos 3 meses, o ingresos pasivos que cubran todos tus gastos',
+    met: s.companies.some((c) => c.status === 'active' && c.history.length >= 3 && c.history.slice(-3).reduce((a, h) => a + h.netIncome, 0) > 0) || (m.recurringMonthly > 0 && m.passiveMonthly >= m.recurringMonthly),
+  }] },
   { n: 8, name: 'Empresario nacional', description: 'Tu nombre se conoce en todo el país.', criteria: (s, m) => [nw(s, m, 10_000_000), { label: 'Reputación ≥ 60', met: s.player.attributes.reputation >= 60 }] },
   { n: 9, name: 'Grupo empresarial', description: 'Varias empresas bajo tu control.', criteria: (s, m) => [nw(s, m, 50_000_000), { label: '3 empresas activas o más', met: s.companies.filter((c) => c.status === 'active').length >= 3 }] },
   { n: 10, name: 'Corporación internacional', description: 'Operaciones en varias jurisdicciones.', criteria: (s, m) => [nw(s, m, 250_000_000), { label: 'Empresas o inmuebles en 2 jurisdicciones', met: jurisdictionsPresent(s) >= 2 }] },
