@@ -7,7 +7,7 @@ import { amortizedPayment, amortizationSchedule } from '../finance/loans';
 import { Cents, roundCents, clamp } from '../money';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
-import { addMonths, dayOf } from '../time/calendar';
+import { addMonths, dayOf, last90Start } from '../time/calendar';
 import { LEGAL_FORM_BY_ID, CORPORATE_LOSS_CARRY_YEARS } from '../../content/sectors';
 import { recordInquiry } from '../finance/credit';
 import { settleArrears } from './common';
@@ -52,8 +52,9 @@ export interface CoLoanOffer {
 export function quoteCoLoan(state: GameState, co: Company, bank: BizBank, amount: Cents, term: number): CoLoanOffer {
   const reasons: string[] = [];
   const m = coMetrics(state, co);
-  const is = coIncomeStatement(co, Math.max(co.openDay, state.day - 89), state.day);
-  const monthsData = Math.max(1, (state.day - Math.max(co.openDay, state.day - 89) + 1) / 30.4);
+  const from90 = Math.max(co.openDay, last90Start(state.day));
+  const is = coIncomeStatement(co, from90, state.day);
+  const monthsData = Math.max(1, (state.day - from90 + 1) / 30.44);
   // Libros inflados (fraude ficticio): el banco ve un EBITDA mayor al real.
   const ebitdaMonthly = (is.ebitda / monthsData) * (1 + clamp(co.irregular.inflatedBooks, 0, 1));
   const bs = coBalanceSheet(co);
@@ -141,7 +142,7 @@ export function prepayCoLoan(state: GameState, co: Company, loanId: number, amou
 // ------------------------------------------------------------ Impuestos
 
 /**
- * Cierre fiscal anual (1 de enero, para el año que terminó):
+ * Cierre fiscal anual (31 de diciembre, para el año que termina):
  *  - SRL y corporación: 25 % sobre el beneficio antes de impuestos, restando
  *    pérdidas de hasta 5 años anteriores. Vence el 30 de abril.
  *  - Individual y sociedad: sin impuesto empresarial; la parte del jugador del
@@ -208,6 +209,7 @@ export function processCoTaxes(state: GameState, co: Company): void {
       });
       co.arrears.push({ id: state.meta.nextId++, kind: 'impuestos', amount: f.outstanding + fee, since: state.day, label: `Impuesto empresarial ${f.year}` });
       coLog(state, co, 'danger', '🏛️', `no pudo pagar el impuesto empresarial de ${f.year}: multa del 5 % y deuda vencida.`);
+      f.late = true;
     }
     f.outstanding = 0;
   }

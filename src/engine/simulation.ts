@@ -11,7 +11,7 @@ import { fileAnnualReturn, processTaxes } from './tax/taxEngine';
 import { monthlyAttributes, monthlyRandomEvents, yearStartMacro } from './world';
 import { incomeStatement, cashFlowStatement, balanceSheet } from './reports/statements';
 import { updateProgression } from './progression/progression';
-import { companiesDay, companiesMonthEnd, companiesYearStart, refreshListings } from './business/simulate';
+import { companiesDay, companiesMonthEnd, refreshListings } from './business/simulate';
 import { monthlyMacro } from './economy/economy';
 import { investmentsDay } from './invest';
 import { realEstateDay } from './realestate/realestate';
@@ -41,11 +41,7 @@ import { sagaDay, sagaMonth } from './saga/index';
 export function advanceDay(state: GameState): void {
   state.day++;
   const g = dateOf(state.day);
-  if (g.m === 1 && g.d === 1) {
-    companiesYearStart(state); // antes de la declaración personal (empresas transparentes)
-    fileAnnualReturn(state);
-    yearStartMacro(state);
-  }
+  if (g.m === 1 && g.d === 1) yearStartMacro(state);
   if (g.d === 1) {
     monthlyMacro(state);
     worldMonth(state);
@@ -81,6 +77,9 @@ export function advanceDay(state: GameState): void {
     possessionsMonth(state);
     monthlyAttributes(state);
     refreshCreditScore(state);
+    // 31 de diciembre: la declaración del año (con el sueldo, los intereses y las empresas
+    // transparentes de diciembre ya registrados) queda en los números de diciembre.
+    if (dateOf(state.day).m === 12) fileAnnualReturn(state);
     takeSnapshot(state);
     sagaMonth(state); // antes del progreso: los logros de clasificación se ven el mismo día
     updateProgression(state);

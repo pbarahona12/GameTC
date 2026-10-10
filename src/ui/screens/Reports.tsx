@@ -6,7 +6,7 @@ import { balanceSheet, transactions, ledgerCsv, IncomeStatement, Line } from '..
 import { ACCOUNTS, ACCOUNT_IDS, AccountId } from '../../engine/ledger/accounts';
 import { startOfMonth, startOfYear, dateOf, dayOf, formatDate, formatMonth, addMonths, isLastDayOfMonth } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../engine/format';
-import { payTaxes } from '../../engine/tax/taxEngine';
+import { payTaxes, passThroughYearToDate } from '../../engine/tax/taxEngine';
 import { residence } from '../../engine/tax/taxEngine';
 import { practice } from '../../engine/skills/skills';
 import { Money, InfoButton, Tabs, Seg, LineChart, Legend, Pill, Empty, Learn } from '../components/common';
@@ -24,12 +24,18 @@ function periodRange(day: number, p: Period): [number, number] {
   }
 }
 
-/** Período comparable anterior (misma longitud). */
+/**
+ * Período comparable anterior. Meses y años completos se comparan con el mes o el año
+ * completo anterior (los sueldos se cobran el último día: comparar "los mismos días" dejaba
+ * afuera un sueldo). Un mes o un año en curso se compara con el mismo tramo del anterior.
+ */
 function previousRange(from: number, to: number, p: Period): [number, number] | null {
-  if (p === 'all') return null;
-  if (p === 'month' || p === 'prev') { const s = addMonths(from, -1); return s < 0 ? null : [s, s + (to - from)]; }
-  const s = addMonths(from, -12);
-  return s < 0 && from === 0 ? null : [Math.max(0, s), Math.max(0, s + (to - from))];
+  if (p === 'all' || from <= 0) return null;
+  const clip = (a: number, b: number): [number, number] | null => (b < 0 ? null : [Math.max(0, a), Math.min(b, from - 1)]);
+  if (p === 'prev' || (p === 'month' && isLastDayOfMonth(to))) return clip(startOfMonth(from - 1), from - 1);
+  if (p === 'month') return clip(addMonths(from, -1), addMonths(to, -1));
+  if (p === 'lastyear') return clip(startOfYear(from - 1), from - 1);
+  return clip(addMonths(from, -12), addMonths(to, -12));
 }
 
 function PeriodPicker({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
@@ -196,6 +202,7 @@ function Tax() {
   const s = useGame();
   const { toDate, projected } = useDerived(taxProjectionOf);
   const y = s.tax.ytd;
+  const biz = (y.business ?? 0) + passThroughYearToDate(s);
   return (
     <>
       <div className="card">
@@ -204,10 +211,14 @@ function Tax() {
           <dt>Salarios brutos</dt><dd>{fmtMoney(y.wages)}</dd>
           <dt>Bonos y comisiones</dt><dd>{fmtMoney(y.bonuses)}</dd>
           <dt>Intereses (sin retención)</dt><dd>{fmtMoney(y.interest)}</dd>
+          {(y.bondInterest ?? 0) !== 0 && <><dt>Cupones de bonos</dt><dd>{fmtMoney(y.bondInterest ?? 0)}</dd></>}
+          {(toDate.rentalNet ?? 0) !== 0 && <><dt>Alquileres netos (después de gastos y depreciación)</dt><dd>{fmtMoney(toDate.rentalNet ?? 0)}</dd></>}
+          {biz !== 0 && <><dt>Tu parte de empresas transparentes <InfoButton term="forma_legal" /></dt><dd>{fmtMoney(biz)}</dd></>}
           <dt>Deducción jubilación <InfoButton term="deduccion" /></dt><dd>−{fmtMoney(toDate.deductions)}</dd>
           <dt>Base imponible</dt><dd>{fmtMoney(toDate.taxable)}</dd>
           <dt>Impuesto calculado</dt><dd>{fmtMoney(toDate.taxBeforeCredits)}</dd>
           <dt>Crédito educativo <InfoButton term="credito_fiscal" /></dt><dd>−{fmtMoney(toDate.credits)}</dd>
+          {(toDate.capitalGainsTax ?? 0) > 0 && <><dt>Impuesto a las ganancias de capital <InfoButton term="ganancia_capital" /></dt><dd>{fmtMoney(toDate.capitalGainsTax ?? 0)}</dd></>}
           <dt>Retenido <InfoButton term="retencion" /></dt><dd>{fmtMoney(y.withheld)}</dd>
           <dt>Tasa marginal · efectiva</dt><dd>{fmtPct(toDate.marginalRate)} · {fmtPct(toDate.effectiveRate)}</dd>
         </div>
@@ -223,13 +234,13 @@ function Tax() {
           <span className="stripe" />
           <div className="small">
             <strong>Proyección a diciembre (estimación)</strong>
-            <div>Si tu sueldo se mantiene: impuesto {fmtMoney(projected.taxAfterCredits)}, retenciones {fmtMoney(projected.withheld)} → {projected.balance >= 0 ? <span className="loss">pagarías {fmtMoney(projected.balance)}</span> : <span className="gain">te devolverían {fmtMoney(-projected.balance)}</span>} en la declaración.</div>
+            <div>Si tu sueldo se mantiene: impuesto {fmtMoney(projected.taxAfterCredits)}{projected.capitalGainsTax ? <> + {fmtMoney(projected.capitalGainsTax)} por ganancias de capital</> : null}, retenciones {fmtMoney(projected.withheld)} → {projected.balance >= 0 ? <span className="loss">pagarías {fmtMoney(projected.balance)}</span> : <span className="gain">te devolverían {fmtMoney(-projected.balance)}</span>} en la declaración.</div>
           </div>
         </div>
       </div>
       <div className="card">
         <div className="card-head"><h2>Declaraciones</h2><InfoButton term="declaracion_fiscal" /></div>
-        {s.tax.filings.length === 0 && <p className="small muted">La primera declaración se presenta automáticamente el 1 de enero.</p>}
+        {s.tax.filings.length === 0 && <p className="small muted">La primera declaración se presenta automáticamente el 31 de diciembre.</p>}
         {s.tax.filings.slice().reverse().map((f) => (
           <div key={f.year} className="stack" style={{ gap: 6, borderBottom: '1px solid var(--line)', paddingBottom: 10 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -239,6 +250,7 @@ function Tax() {
             <div className="kv">
               <dt>Ingresos</dt><dd>{fmtMoney(f.grossIncome)}</dd>
               <dt>Impuesto final</dt><dd>{fmtMoney(f.taxAfterCredits)}</dd>
+              {(f.capitalGainsTax ?? 0) > 0 && <><dt>Ganancias de capital</dt><dd>{fmtMoney(f.capitalGainsTax ?? 0)}</dd></>}
               <dt>Retenido</dt><dd>{fmtMoney(f.withheld)}</dd>
               <dt>Saldo</dt><dd>{f.balance >= 0 ? fmtMoney(f.balance) : `devolución ${fmtMoney(-f.balance)}`}</dd>
               {f.penalties > 0 && <><dt>Multas</dt><dd className="loss">{fmtMoney(f.penalties)}</dd></>}

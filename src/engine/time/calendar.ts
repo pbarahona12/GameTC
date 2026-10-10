@@ -33,18 +33,21 @@ export function isLastDayOfMonth(day: number): boolean {
 }
 
 /**
- * Comienzo de la ventana de "últimos 30 días" que contiene exactamente un cierre de mes.
- * Sueldos, alquileres y cargas se pagan el último día del mes: una ventana fija de 30 días
- * a veces no tiene ninguno (del 1 al 30 de un mes de 31) y a veces dos (fin de enero y de
- * febrero), y el resultado salía inflado o hundido. Así la ventana mide 28–31 días.
+ * Comienzo de la ventana de "últimos 30 días" que contiene exactamente un cierre de mes y
+ * exactamente un día 1. Sueldos y cargas se pagan el último día del mes; alquiler,
+ * servicios, administración y depreciación, el día 1. Una ventana fija de 30 días a veces
+ * no tenía nómina (del 1 al 30 de un mes de 31), a veces tenía dos (fin de enero y de
+ * febrero) y a veces dos alquileres: el resultado salía inflado o hundido. Mide 28–31 días.
  */
 export function last30Start(day: number): number {
-  let from = day - 29;
-  const ends: number[] = [];
-  for (let d = from; d <= day; d++) if (isLastDayOfMonth(d)) ends.push(d);
-  if (ends.length === 0) from -= 1;
-  else if (ends.length > 1) from = ends[0] + 1;
-  return from;
+  if (isLastDayOfMonth(day)) return startOfMonth(day);
+  const prevEnd = startOfMonth(day) - 1; // último cierre antes de hoy
+  return Math.min(prevEnd, Math.max(startOfMonth(prevEnd) + 1, day - 29));
+}
+
+/** Comienzo de una ventana de ~90 días con exactamente tres cierres de mes y tres días 1. */
+export function last90Start(day: number): number {
+  return last30Start(last30Start(last30Start(day) - 1) - 1);
 }
 
 /** Suma meses conservando el día del mes (ajustado al último día si no existe). */

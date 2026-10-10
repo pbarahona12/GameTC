@@ -12,7 +12,7 @@ import { daysToBankruptcy } from '../../engine/business/finance';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { attachForecast, type BusinessForecast } from '../../engine/advisor/businessForecast';
 import { isOpen } from '../../engine/business/common';
-import { formatDate } from '../../engine/time/calendar';
+import { formatDate, last90Start } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../engine/format';
 import { spendable } from '../../engine/finance/payments';
 import { usd, Cents } from '../../engine/money';
@@ -249,7 +249,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
         const co = l.company;
         const sec = SECTOR_BY_ID[co.sector];
         const v = valuation(s, co);
-        const is = coIncomeStatement(co, Math.max(co.openDay, s.day - 89), s.day);
+        const is = coIncomeStatement(co, Math.max(co.openDay, last90Start(s.day)), s.day);
         const b = co.ledger.balances;
         const offer = offers[l.id] ?? l.askPrice;
         const fee = Math.round(offer * 0.03);
@@ -270,7 +270,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               <dt>Patrimonio contable</dt><dd>{fmtMoney(v.book)}</dd>
               <dt>Ventas anualizadas</dt><dd>{fmtMoney(v.revenueAnnual)}</dd>
               <dt>EBITDA anualizado <InfoButton term="ebitda" /></dt><dd className={v.ebitdaAnnual >= 0 ? '' : 'loss'}>{fmtMoney(v.ebitdaAnnual)}</dd>
-              <dt>Resultado neto 90 días</dt><dd className={is.netIncome >= 0 ? 'gain' : 'loss'}>{fmtMoney(is.netIncome)}</dd>
+              <dt>Resultado neto (últimos 3 meses)</dt><dd className={is.netIncome >= 0 ? 'gain' : 'loss'}>{fmtMoney(is.netIncome)}</dd>
               <dt>Caja · deudas</dt><dd>{fmtMoney(b.cash)} · {fmtMoney(b.loans + b.payables + b.arrears + b.taxes_payable)}</dd>
               <dt>Empleados · reputación</dt><dd>{co.employees.length} · {Math.round(co.reputation)}/100</dd>
             </div>

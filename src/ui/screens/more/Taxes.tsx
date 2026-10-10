@@ -70,7 +70,7 @@ export function TaxesScreen() {
         <Learn term="jurisdiccion" />
       </section>
       <div className="grid2">
-        <Stat label="Impuesto estimado del año" term="declaracion_fiscal" value={<Money c={proj.projected.taxAfterCredits} />} sub={`Retenido hasta hoy ${fmtMoney(s.tax.ytd.withheld, { decimals: false })}`} />
+        <Stat label="Impuesto estimado del año" term="declaracion_fiscal" value={<Money c={proj.projected.taxAfterCredits + (proj.projected.capitalGainsTax ?? 0)} />} sub={`Retenido hasta hoy ${fmtMoney(s.tax.ytd.withheld, { decimals: false })}${proj.projected.capitalGainsTax ? ` · incluye ${fmtMoney(proj.projected.capitalGainsTax, { decimals: false })} por ganancias de capital` : ''}`} />
         <Stat label="Saldo estimado al declarar" term="declaracion_fiscal" value={<Money c={proj.projected.balance} colored />} sub={proj.projected.balance > 0 ? 'A pagar' : proj.projected.balance < 0 ? 'A devolver' : 'Sin saldo'} />
         <Stat label="Ganancias de capital (año)" term="ganancia_capital" value={<Money c={(s.tax.ytd.gainsShort ?? 0) + (s.tax.ytd.gainsLong ?? 0)} colored sign />} sub={`Impuesto est. ${fmtMoney(proj.projected.capitalGainsTax ?? 0, { decimals: false })}`} />
         {s.realEstate.properties.some((p) => p.owner.kind === 'personal' && (p.lease || p.listedForRent)) && <Stat label="Deducciones de alquileres" term="deduccion_documental" value={fmtPct(capture, 0)} sub={capture < 1 ? 'Solo afecta la depreciación e intereses de inmuebles alquilados: un contador reclama más' : 'Completo'} />}
