@@ -2,8 +2,8 @@ import { forecastMonthEnd } from '../advisor/businessForecast';
 import { compactCompany, NPC_KEEP_MONTHS } from '../ledger/compaction';
 import type { GameState } from '../state';
 import type { Company, Listing } from './types';
-import { SECTORS, BizSectorId, LegalForm, LEGAL_FORM_BY_ID } from '../../content/sectors';
-import { isOpen, sectorOf, px, maintenanceCost, coEquity, hasManager } from './common';
+import { SECTORS, BizSectorId, LegalForm } from '../../content/sectors';
+import { isOpen, sectorOf, px, maintenanceCost, coEquity, hasManager, adminFee } from './common';
 import { dailyOperations, monthStartCosts, monthlyStorage, monthlyAssets } from './operations';
 import { runPayroll, monthlyStaff, generateCandidates, hire } from './staff';
 import { processCoLoans, processCoTaxes, insolvencyCheck, closeCompanyYear } from './finance';
@@ -18,8 +18,6 @@ import { coPost } from './companyLedger';
 import { dateOf, startOfMonth } from '../time/calendar';
 import { randInt, randRange, nextRandom } from '../rng';
 import { roundCents } from '../money';
-import { jurisdictionById } from '../../content/jurisdictions';
-import { dealDiscount } from '../saga/integration';
 
 /** Día de todas las empresas del jugador. */
 export function companiesDay(state: GameState): void {
@@ -28,11 +26,7 @@ export function companiesDay(state: GameState): void {
 }
 
 /** Administración mensual: forma legal + agente residente si la empresa está registrada fuera de tu residencia. */
-export function adminFee(state: GameState, co: Company): number {
-  const base = roundCents(px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin) * (1 - dealDiscount(state, co, 'gestion')));
-  const foreign = !co.npc && co.jurisdiction !== state.tax.jurisdiction ? px(state, jurisdictionById(co.jurisdiction).foreignCompanyAdmin) : 0;
-  return base + foreign;
-}
+export { adminFee } from './common';
 
 export function companyDay(state: GameState, co: Company, monthStart: boolean): void {
   if (!isOpen(co)) return;

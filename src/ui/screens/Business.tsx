@@ -252,7 +252,8 @@ function Market({ buyerId }: { buyerId: number | null }) {
         const is = coIncomeStatement(co, Math.max(co.openDay, last90Start(s.day)), s.day);
         const b = co.ledger.balances;
         const offer = offers[l.id] ?? l.askPrice;
-        const fee = Math.round(offer * 0.03);
+        const pay = Math.min(offer, l.askPrice); // ofrecer más que lo pedido no sube el precio
+        const fee = Math.round(pay * 0.03);
         return (
           <div className="card" key={l.id}>
             <div className="co-head">
@@ -289,7 +290,7 @@ function Market({ buyerId }: { buyerId: number | null }) {
               help="accion_comprar_empresa"
               disabled={!(offer > 0)}
               confirmLabel="Confirmar"
-              detail={<>Pagarías {fmtMoney(offer)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
+              detail={<>Pagarías {fmtMoney(pay)} + {fmtMoney(fee)} de costos legales (3 %). {offer < l.askPrice ? 'El vendedor puede rechazar la contraoferta (una sola vez).' : ''}{!(hiredPro(s, 'abogado', buyer ?? 'personal') ?? hiredPro(s, 'abogado', 'personal')) ? ' Sin un abogado contratado, si la empresa tiene una contingencia oculta (juicios o deudas del dueño anterior), la paga la empresa después de comprarla.' : ''}</>}
               onConfirm={() => {
                 const r = store.run((st) => {
                   const res = buyListing(st, l.id, offer, buyer);

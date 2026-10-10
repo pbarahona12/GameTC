@@ -6,6 +6,7 @@ import { coPost, CoAccountId, CO_ACCOUNT_IDS, CO_CHART } from './companyLedger';
 import type { CashFlowClass } from '../ledger/core';
 import { addLog } from '../log';
 import { dealDiscount } from '../saga/integration';
+import { jurisdictionById } from '../../content/jurisdictions';
 
 export const ARREARS_FEE = 0.03;
 
@@ -208,10 +209,18 @@ export function premisesBase(state: GameState, co: Company): { rent: number; uti
   return { rent: 80 + 150 * subs, utilities: 20 + 30 * subs };
 }
 
-/** Costos fijos mensuales (sin sueldos): alquiler, servicios, mantenimiento, administración, préstamos. */
+/** Administración legal y contable del mes (con el descuento de un proveedor propio y el recargo por estar en otro país). */
+export function adminFee(state: GameState, co: Company): number {
+  const base = roundCents(px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin) * (1 - dealDiscount(state, co, 'gestion')));
+  const foreign = !co.npc && co.jurisdiction !== state.tax.jurisdiction ? px(state, jurisdictionById(co.jurisdiction).foreignCompanyAdmin) : 0;
+  return base + foreign;
+}
+
+/** Costos fijos mensuales (sin sueldos): alquiler, servicios, mantenimiento, administración, préstamos. Igual que lo que se paga el día 1. */
 export function monthlyFixed(state: GameState, co: Company): Cents {
   const pb = premisesBase(state, co);
-  let t = px(state, pb.rent) + px(state, pb.utilities) + px(state, LEGAL_FORM_BY_ID[co.legalForm].monthlyAdmin);
+  const ownPremises = (state.realEstate?.properties ?? []).some((p) => p.usedBy === co.id);
+  let t = (ownPremises ? 0 : px(state, pb.rent)) + px(state, pb.utilities) + adminFee(state, co);
   t += maintenanceCost(state, co);
   for (const l of co.loans) if (l.balance > 0) t += l.payment;
   return t;

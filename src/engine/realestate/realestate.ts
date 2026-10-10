@@ -3,7 +3,7 @@ import type { Property, PropertyType, PropertyOwner, Mortgage, Lease, ZoneState,
 import { ZONES, ZONE_BY_ID, ZoneDef, PROPERTY_TYPE_NAMES, MORTGAGE_BANKS, MORTGAGE_BANK_BY_ID, MortgageBank, BUILD_COST, TENANT_NAMES } from '../../content/realestate';
 import { jurisdictionById } from '../../content/jurisdictions';
 import { Cents, clamp, roundCents, usd } from '../money';
-import { addMonths, dateOf, formatDate } from '../time/calendar';
+import { addMonths, dateOf, formatDate, daysInMonth } from '../time/calendar';
 import { housingDrift, vacancyPressure, creditSpread, creditTightness } from '../economy/economy';
 import { chance, randInt, randNormal, randRange } from '../rng';
 import { post } from '../ledger/ledger';
@@ -403,7 +403,7 @@ function monthlyProperty(state: GameState, p: Property): void {
   p.nextTaxAmount = roundCents((p.appraisal * jurisdictionById(p.jurisdiction).propertyTaxRate) / 4);
   // 4. Depreciación fiscal (base) y contable (empresas)
   if (p.owner.kind === 'personal' && isRental(p) && p.type !== 'terreno') {
-    state.tax.ytd.rentalBuildingDays = (state.tax.ytd.rentalBuildingDays ?? 0) + p.costBasis * (1 - p.landShare) * 30;
+    state.tax.ytd.rentalBuildingDays = (state.tax.ytd.rentalBuildingDays ?? 0) + p.costBasis * (1 - p.landShare) * daysInMonth(dateOf(state.day - 1).y, dateOf(state.day - 1).m); // el mes que terminó
   }
   if (p.owner.kind === 'company' && p.type !== 'terreno') {
     const co = ownerCompany(state, p.owner);
@@ -641,7 +641,7 @@ function foreclose(state: GameState, p: Property, m: Mortgage): void {
       else lines.push({ account: 'other_income', credit: deficiency });
     }
     post(state.ledger, { day: state.day, memo: `Ejecución hipotecaria de ${p.name}`, cf: 'investing', tag: 'mortgage:foreclosure', lines });
-    addGain(state, p, realized);
+    addGain(state, p, realized - costs); // como en una venta: los gastos del remate reducen la ganancia
     state.credit.defaults++;
     state.credit.arrearsEvents += deficiency > 0 && m.recourse ? 1 : 0;
     refreshCreditScore(state);
