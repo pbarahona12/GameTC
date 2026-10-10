@@ -9,7 +9,7 @@ import { accrueRewards } from '../finance/cardRewards';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
 import { addLog } from '../log';
-import { imageScore, storeDiscount, treatment, Treatment, wornStyle, itemDef } from './effects';
+import { storeImage, storeDiscount, treatment, Treatment, wornStyle, itemDef } from './effects';
 import { practice } from '../skills/skills';
 
 /**
@@ -51,8 +51,9 @@ export function treatmentText(state: GameState, store: StoreDef): string {
   const t = treatment(state, store.tier);
   const req = TIER_IMAGE_REQ[store.tier];
   if (t === 'preferente') return `Te reconocen como cliente preferente: ${fmtPct(storeDiscount(state, store.tier), 0)} de descuento en todo.`;
-  if (t === 'normal') return `Atención correcta. Con imagen ${req + 20} o más serías cliente preferente (con descuento).`;
-  return `Te atienden con desgano y no te muestran la colección exclusiva. Necesitás imagen ${req} (tenés ${imageScore(state)}).`;
+  // En la tienda cuenta la imagen con la que te ven (tu imagen + lo que suma tu tarjeta).
+  if (t === 'normal') return `Atención correcta. Si te vieran con imagen ${req + 20} o más serías cliente preferente (con descuento); hoy te ven ${storeImage(state)}.`;
+  return `Te atienden con desgano y no te muestran la colección exclusiva. Necesitan verte con imagen ${req} (hoy te ven ${storeImage(state)}, contando tu tarjeta).`;
 }
 
 export function installmentOptions(state: GameState, item: ItemDef, amount: Cents): InstallmentQuote[] {

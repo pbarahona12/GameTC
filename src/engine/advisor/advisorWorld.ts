@@ -7,7 +7,7 @@ import { fmtMoney, fmtPct } from '../format';
 import { positions, investmentsValue } from '../invest/portfolio';
 import { propertyReport, marketRent } from '../realestate/realestate';
 import { projectCurrentYear, compareJurisdictions, taxObligations, residence } from '../tax/taxEngine';
-import { legalRiskSummary, heatLabel, openCases, convictionProbability } from '../legal/legal';
+import { legalRiskSummary, heatLabel, openCases, estimatedConviction } from '../legal/legal';
 import { formatDate } from '../time/calendar';
 import { PHASES, SECTOR_CYCLICALITY } from '../economy/economy';
 import { isOpen } from '../business/common';
@@ -282,13 +282,16 @@ export function analyzeWorld(state: GameState): Insight[] {
   // ------------------------------------------------ Legal
   const lr = legalRiskSummary(state);
   for (const c of openCases(state)) {
-    const p = convictionProbability(state, c);
+    const est = estimatedConviction(state, c); // lo que estima tu abogado (no el valor real)
+    const stageName = ({ investigacion: 'investigación', imputacion: 'imputación', juicio: 'juicio', sentencia: 'sentencia', cerrado: 'cerrado' } as Record<string, string>)[c.stage] ?? c.stage;
     out.push({
       id: `case-${c.id}`, severity: 'critical', category: 'legal', term: 'defensa_legal',
       title: `⚖️ Proceso ${c.kind === 'fiscal' ? 'fiscal' : 'penal'} abierto: ${c.title}`,
-      what: `Etapa: ${c.stage}. Próximo paso: ${formatDate(c.nextStepDay)}.`,
+      what: `Etapa: ${stageName}. Próximo paso: ${formatDate(c.nextStepDay)}.`,
       why: c.origin,
-      data: [H('Abogado', c.lawyerHireId ? 'Asignado' : 'Defensor público'), H('Preparación de la defensa', `${Math.round(c.defense)}/100`), ...(c.reviewed ? [E('Probabilidad de condena (según tu abogado)', fmtPct(p, 0))] : [])],
+      data: c.kind === 'fiscal'
+        ? [H('Abogado', c.lawyerHireId ? 'Asignado (baja la multa)' : 'Sin abogado')]
+        : [H('Abogado', c.lawyerHireId ? 'Asignado' : 'Defensor público'), H('Preparación de la defensa', `${Math.round(c.defense)}/100`), ...(c.reviewed && est ? [E('Probabilidad de condena (según tu abogado)', `${fmtPct(est.estimate, 0)} ± ${fmtPct(est.error, 0)}`)] : [])],
       consequence: 'Multas, restitución, decomiso, antecedentes y posible prisión (ficticia).',
       options: [{ label: 'Gestionar la defensa', pros: 'Un buen abogado y preparación bajan la probabilidad de condena.', cons: 'Honorarios; nunca garantiza la absolución.', tab: 'more', sub: 'legal' }],
       ifNothing: 'El caso avanzará con un defensor público.',

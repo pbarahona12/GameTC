@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { usd } from '../../../engine/money';
+import { difficultyOf } from '../../../engine/economy/difficulty';
 import { useGame, useUI, store } from '../../store';
 import { navStore } from '../../nav';
 import { CardHead, InfoButton, Pill, Act, ConfirmButton, Seg, Empty, Stat, Bar, AmountInput, Money } from '../../components/common';
@@ -26,6 +28,9 @@ function CaseCard({ c }: { c: LegalCase }) {
   const est = estimatedConviction(s, c);
   const closed = c.stage === 'cerrado';
   const canAppeal = closed && c.outcome?.verdict === 'condenado' && !c.appealed && s.day - c.outcome.day <= 30;
+  // Para apelar sirve el abogado del caso o uno personal (no el de una empresa).
+  const appealLawyer = lawyer ?? lawyers.find((h) => h.scope === 'personal');
+  const fiscal = c.kind === 'fiscal';
   return (
     <div className="card" style={{ borderColor: closed ? undefined : 'var(--loss)' }}>
       <div className="card-head">
@@ -37,6 +42,15 @@ function CaseCard({ c }: { c: LegalCase }) {
       </div>
       {!closed && (
         <>
+          {fiscal ? (
+            <>
+              <div className="kv">
+                <dt>Etapa <InfoButton term="investigacion" /></dt><dd>{STAGE[c.stage]} · resolución el {formatDate(c.nextStepDay)}</dd>
+                <dt>Representación <InfoButton term="abogado" /></dt><dd>{lawyer ? lawyer.pro.name : 'Sin abogado'}</dd>
+              </div>
+              <p className="tiny muted">En un proceso fiscal no hay juicio: al terminar la investigación, la autoridad te cobra el impuesto omitido más una multa del 50 %. Con un abogado asignado la multa baja (más cuanto mejor es); cobra su seguimiento.</p>
+            </>
+          ) : (<>
           <div className="kv">
             <dt>Etapa <InfoButton term={c.stage === 'investigacion' ? 'investigacion' : c.stage === 'imputacion' ? 'imputacion' : 'juicio'} /></dt><dd>{STAGE[c.stage]} · próximo paso {formatDate(c.nextStepDay)}</dd>
             <dt>Preparación de la defensa <InfoButton term="defensa_legal" /></dt><dd><Bar value={c.defense / 100} tone="gain" /> {Math.round(c.defense)}/100</dd>
@@ -45,6 +59,7 @@ function CaseCard({ c }: { c: LegalCase }) {
             <dt>Representación <InfoButton term="abogado" /></dt><dd>{lawyer ? lawyer.pro.name : 'Defensor público'}</dd>
           </div>
           <p className="tiny muted">La condena depende de las pruebas, la defensa y el azar: incluso con el mejor abogado la probabilidad nunca baja del 5 % si hay pruebas, y nunca supera el 95 %.</p>
+          </>)}
           {lawyers.length > 0 && (
             <div className="chips">
               {lawyers.map((h) => <button key={h.id} aria-pressed={c.lawyerHireId === h.id} onClick={() => store.run((x) => assignLawyer(x, c.id, h.id))} style={c.lawyerHireId === h.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{h.pro.name}</button>)}
@@ -52,14 +67,16 @@ function CaseCard({ c }: { c: LegalCase }) {
             </div>
           )}
           {lawyers.length === 0 && <button className="btn sm ghost" onClick={() => navStore.go('more', 'pros')}>Contratar un abogado</button>}
-          <div className="btn-row">
-            <Act label="Revisar expediente" help="accion_revisar_caso" className="btn sm" disabled={!lawyer || c.reviewed} onClick={() => store.run((x) => reviewCase(x, c.id))} />
-            <Act label={`Preparar defensa${lawyer ? ` (${fmtMoney(lawyer.pro.fee, { decimals: false })})` : ''}`} help="accion_preparar_defensa" className="btn sm" disabled={!lawyer} onClick={() => store.run((x) => prepareDefense(x, c.id))} />
-          </div>
+          {!fiscal && (
+            <div className="btn-row">
+              <Act label="Revisar expediente" help="accion_revisar_caso" className="btn sm" disabled={!lawyer || c.reviewed} onClick={() => store.run((x) => reviewCase(x, c.id))} />
+              <Act label={`Preparar defensa${lawyer ? ` (${fmtMoney(lawyer.pro.fee, { decimals: false })})` : ''}`} help="accion_preparar_defensa" className="btn sm" disabled={!lawyer} onClick={() => store.run((x) => prepareDefense(x, c.id))} />
+            </div>
+          )}
           {c.plea && c.stage === 'imputacion' && (
             <div className="card flat" style={{ padding: 12, gap: 6 }}>
               <strong className="small">Oferta de acuerdo de la fiscalía <InfoButton term="accion_aceptar_acuerdo" /></strong>
-              <span className="small">Multa {fmtMoney(c.plea.fine)}{c.plea.prisonMonths ? ` y ${c.plea.prisonMonths} meses de prisión` : ' sin prisión'} · vence {formatDate(c.plea.expires)}</span>
+              <span className="small">Multa y restitución {fmtMoney(c.plea.fine)}{c.plea.prisonMonths ? ` y ${c.plea.prisonMonths} meses de prisión` : ' sin prisión'} · vence {formatDate(c.plea.expires)}</span>
               <div className="btn-row">
                 <Act label="Negociar" help="accion_negociar_acuerdo" className="btn sm" disabled={!lawyer || (c.negotiations ?? 0) >= 2} onClick={() => store.run((x) => negotiatePlea(x, c.id))} />
                 <ConfirmButton label="Aceptar acuerdo" help="accion_aceptar_acuerdo" className="btn sm" detail="Aceptás la responsabilidad con una pena reducida y cierta. Queda en tus antecedentes." onConfirm={() => store.run((x) => acceptPlea(x, c.id))} />
@@ -68,7 +85,7 @@ function CaseCard({ c }: { c: LegalCase }) {
             </div>
           )}
           {c.stage === 'investigacion' && s.options.illegalEnabled && (
-            <ConfirmButton label="Sobornar al investigador" help="accion_soborno" className="btn sm ghost" detail="Si lo rechaza, la acusación se fortalece mucho. Si acepta, es un delito nuevo que puede descubrirse." onConfirm={() => store.run((x) => bribeInvestigator(x, c.id))} />
+            <ConfirmButton label="Sobornar al investigador" help="accion_soborno" className="btn sm ghost" detail={`Cuesta ${fmtMoney(usd(15000 * s.macro.priceIndex), { decimals: false })} (se pierden aunque lo rechace). Si lo rechaza, la acusación se fortalece mucho. Si acepta, es un delito nuevo que puede descubrirse.`} onConfirm={() => store.run((x) => bribeInvestigator(x, c.id))} />
           )}
         </>
       )}
@@ -81,7 +98,8 @@ function CaseCard({ c }: { c: LegalCase }) {
             {c.outcome.seized > 0 && <><dt>Decomiso</dt><dd>{fmtMoney(c.outcome.seized)}</dd></>}
             {c.outcome.prisonMonths > 0 && <><dt>Prisión</dt><dd>{c.outcome.prisonMonths} meses{c.outcome.suspended ? ' (en suspenso)' : ''}</dd></>}
           </div>
-          {canAppeal && <Act label="Apelar la sentencia" help="accion_apelar" className="btn sm" disabled={!lawyer && lawyers.length === 0} onClick={() => store.run((x) => appeal(x, c.id))} />}
+          {canAppeal && <Act label={`Apelar la sentencia${appealLawyer ? ` (${fmtMoney(appealLawyer.pro.fee * 2, { decimals: false })})` : ''}`} help="accion_apelar" className="btn sm" disabled={!appealLawyer} onClick={() => store.run((x) => appeal(x, c.id))} />}
+          {canAppeal && !appealLawyer && <span className="tiny muted">Para apelar necesitás un abogado personal (Más → Profesionales). Tenés 30 días desde la sentencia.</span>}
         </>
       )}
     </div>
@@ -111,7 +129,7 @@ function GreyZone() {
 
       <strong className="small">Operación clandestina <InfoButton term="accion_clandestino" /></strong>
       <div className="chips">{Object.entries(VENTURES).map(([k, v]) => <button key={k} aria-pressed={venture === k} onClick={() => setVenture(k)} style={venture === k ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>{v.name.replace(' (ficticia)', '').replace(' (ficticio)', '')}</button>)}</div>
-      <span className="tiny muted">{VENTURES[venture].description} Rendimiento esperado {fmtPct(VENTURES[venture].expected, 0)} en {VENTURES[venture].days} días · riesgo de allanamiento {fmtPct(VENTURES[venture].risk, 0)}.</span>
+      <span className="tiny muted">{VENTURES[venture].description} Rendimiento esperado {fmtPct(VENTURES[venture].expected, 0)} en {VENTURES[venture].days} días · riesgo de allanamiento {fmtPct(VENTURES[venture].risk * difficultyOf(s).enforcement, 0)}.</span>
       <AmountInput id="illegal-amt" value={amount} onChange={setAmount} />
       <div className="btn-row">
         <ConfirmButton label="Invertir en la operación" help="accion_clandestino" className="btn sm" detail="Se paga con efectivo no declarado si alcanza; si no, desde tu cuenta (deja más rastro)." onConfirm={() => store.run((x) => startVenture(x, venture, amount))} />
@@ -133,12 +151,12 @@ function GreyZone() {
                 <Seg items={[{ id: '0', label: 'Nada' }, { id: '0.2', label: '+20 %' }, { id: '0.4', label: '+40 %' }]} value={String(co.irregular.inflatedBooks)} onChange={(v) => store.run((x) => setCompanyIrregular(x, co.id, { inflatedBooks: Number(v) }))} />
               </div>
               <div className="btn-row">
-                <ConfirmButton label="Retirar caja sin declarar" help="accion_retiro_no_declarado" className="btn sm" detail={`Retira ${fmtMoney(amount)} de ${co.name} como efectivo no declarado (evita la retención de dividendos). Los empleados pueden notarlo.`} onConfirm={() => store.run((x) => skimCash(x, co.id, amount))} />
+                <ConfirmButton label="Retirar caja sin declarar" help="accion_retiro_no_declarado" className="btn sm" detail={`Salen ${fmtMoney(amount)} de la caja de ${co.name}${co.ownership < 1 ? `; a vos te llegan ${fmtMoney(Math.round(amount * co.ownership))} (tu parte del ${fmtPct(co.ownership, 0)})` : ''} como efectivo no declarado (evita la retención de dividendos). Los empleados pueden notarlo.`} onConfirm={() => store.run((x) => skimCash(x, co.id, amount))} />
                 {sectorOf(co).model !== 'holding' && <ConfirmButton label="Lavar a través de la empresa" help="accion_lavado" className="btn sm ghost" disabled={undeclared <= 0} detail={`Registra ${fmtMoney(Math.min(amount, undeclared))} como ventas falsas: tributan y el crecimiento anómalo puede llamar la atención.`} onConfirm={() => store.run((x) => launderThroughCompany(x, co.id, Math.min(amount, undeclared)))} />}
               </div>
               <div className="btn-row">
-                {co.openDay > s.day && <ConfirmButton label="Sobornar para agilizar permisos" help="accion_soborno" className="btn sm ghost" detail="El funcionario puede rechazarlo y denunciarte." onConfirm={() => store.run((x) => bribe(x, 'permisos', co.id))} />}
-                {['consultora', 'muebles', 'saas'].includes(co.sector) && <ConfirmButton label="Sobornar por un contrato público" help="accion_soborno" className="btn sm ghost" detail="Seis meses de ventas extra si sale bien; una denuncia si sale mal." onConfirm={() => store.run((x) => bribe(x, 'contrato', co.id))} />}
+                {co.openDay > s.day && <ConfirmButton label="Sobornar para agilizar permisos" help="accion_soborno" className="btn sm ghost" detail={`Cuesta ${fmtMoney(usd(1500 * s.macro.priceIndex), { decimals: false })} (se pierden aunque lo rechace). El funcionario puede rechazarlo y denunciarte.`} onConfirm={() => store.run((x) => bribe(x, 'permisos', co.id))} />}
+                {['consultora', 'muebles', 'saas'].includes(co.sector) && <ConfirmButton label="Sobornar por un contrato público" help="accion_soborno" className="btn sm ghost" detail={`Cuesta ${fmtMoney(usd(4500 * s.macro.priceIndex), { decimals: false })} (se pierden aunque lo rechace). Seis meses de ventas extra si sale bien; una denuncia si sale mal.`} onConfirm={() => store.run((x) => bribe(x, 'contrato', co.id))} />}
               </div>
             </>
           )}
@@ -202,7 +220,7 @@ export function LegalScreen() {
               <div className="btn-row">
                 <Act label="Pagar" help="accion_resolver_inspeccion" className="btn sm" onClick={() => store.run((x) => resolveInspection(x, i.id, 'pagar'))} />
                 <Act label="Impugnar con abogado" help="accion_resolver_inspeccion" className="btn sm ghost" onClick={() => store.run((x) => resolveInspection(x, i.id, 'impugnar'))} />
-                {s.options.illegalEnabled && <ConfirmButton label="Sobornar al inspector" help="accion_soborno" className="btn sm ghost" detail="Si lo rechaza, además de la multa se abre una causa penal." onConfirm={() => store.run((x) => resolveInspection(x, i.id, 'sobornar'))} />}
+                {s.options.illegalEnabled && <ConfirmButton label="Sobornar al inspector" help="accion_soborno" className="btn sm ghost" detail={`Cuesta ${fmtMoney(Math.round(i.fine * 0.4), { decimals: false })} (40 % de la multa, se pierden aunque lo rechace). Si lo rechaza, además de la multa se abre una causa penal.`} onConfirm={() => store.run((x) => resolveInspection(x, i.id, 'sobornar'))} />}
               </div>
             </div>
           ))}
@@ -231,7 +249,7 @@ export function LegalScreen() {
       {L.ventures.length > 0 && (
         <div className="card">
           <CardHead title="Operaciones clandestinas en curso" term="negocio_clandestino" />
-          {L.ventures.map((v) => <p className="small" key={v.id}>{fmtMoney(v.invested)} invertidos · se resuelve el {formatDate(v.resolveDay)} · riesgo {fmtPct(v.risk, 0)}</p>)}
+          {L.ventures.map((v) => <p className="small" key={v.id}>{fmtMoney(v.invested)} invertidos · se resuelve el {formatDate(v.resolveDay)} · riesgo {fmtPct(v.risk * difficultyOf(s).enforcement, 0)}</p>)}
         </div>
       )}
 

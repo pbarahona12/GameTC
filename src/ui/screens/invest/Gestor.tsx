@@ -135,6 +135,7 @@ export function GestorScreen() {
       {hires.map((h) => <MandateCard key={h.id} h={h} />)}
       <div className="card">
         <CardHead title={hires.length ? 'Otros gestores disponibles' : 'Gestores disponibles'} right={<span className="tiny muted">Nuevos el {formatDate(nextRefresh(s))}</span>} />
+        {hires.length > 0 && <p className="small muted">Podés tener un solo gestor personal. Para cambiarlo, despedí al actual en su tarjeta (arriba): vende lo que administra y el dinero vuelve a tu cuenta.</p>}
         {market.length === 0 && <Empty icon="gestor">No hay gestores disponibles ahora. El mercado de profesionales se renueva cada 60 días.</Empty>}
         {market.map((p) => (
           <div className="card flat" key={p.id} style={{ padding: 12, gap: 6 }}>
@@ -147,7 +148,7 @@ export function GestorScreen() {
             </div>
             <span className="small">{feeLabel(p)}</span>
             <span className="tiny muted">La reputación estima su calidad con error; la experiencia sí es un dato. Los más reconocidos cobran más.</span>
-            <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" onClick={() => store.run((x) => hirePro(x, p.id, 'personal'))} />
+            <Act label="Contratar" help="accion_contratar_pro" className="btn sm primary" disabled={hires.length > 0} onClick={() => store.run((x) => hirePro(x, p.id, 'personal'))} />
           </div>
         ))}
       </div>

@@ -125,8 +125,7 @@ function assignManager(state: GameState, pro: Professional, companyId: number): 
 export function firePro(state: GameState, hireId: number): ActionResult {
   const h = state.pros.hires.find((x) => x.id === hireId);
   if (!h) return FAIL('Contratación inexistente.');
-  const c = state.legal?.cases.find((x) => x.lawyerHireId === hireId && x.stage !== 'cerrado');
-  if (c) c.lawyerHireId = null;
+  for (const c of state.legal?.cases ?? []) if (c.lawyerHireId === hireId) c.lawyerHireId = null;
   const returned = h.pro.kind === 'gestor' ? closeMandatesOfHire(state, hireId, 'fin del contrato') : 0;
   state.pros.hires = state.pros.hires.filter((x) => x.id !== hireId);
   return OK(`Terminaste la relación con ${h.pro.name}.${returned > 0 ? ` Liquidó tu cuenta y te devolvió ${fmtMoney(returned)}.` : ''}`);

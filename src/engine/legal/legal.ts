@@ -181,7 +181,7 @@ export function startVenture(state: GameState, kind: string, amount: Cents): Act
   if (!pay.ok) return FAIL(`Necesitás ${fmtMoney(amount)}.`);
   const act = addAct(state, { kind: 'clandestino', label: v.name, benefit: 0, amount, evidence: pay.traced ? 50 : 35, severity: v.severity + (amount > usd(100000) ? 1 : 0), witnesses: randInt(state, 2, 5), jurisdiction: state.tax.jurisdiction });
   state.legal.ventures.push({ id: state.meta.nextId++, invested: amount, day: state.day, resolveDay: state.day + v.days, risk: v.risk, expected: v.expected, actId: act.id });
-  return OK(`Operación iniciada: se resuelve en ${v.days} días. Rendimiento esperado ${fmtPct(v.expected, 0)}, riesgo de allanamiento ${fmtPct(v.risk, 0)} (sin garantías).`);
+  return OK(`Operación iniciada: se resuelve en ${v.days} días. Rendimiento esperado ${fmtPct(v.expected, 0)}, riesgo de allanamiento ${fmtPct(v.risk * difficultyOf(state).enforcement, 0)} (sin garantías).`);
 }
 
 /** Depositar efectivo no declarado en el banco: los bancos reportan depósitos grandes. */
@@ -567,11 +567,10 @@ function processFines(state: GameState): void {
         f.dueDay = state.day + 30;
         continue;
       }
-      f.garnishing = true;
     }
     if (!f.garnishing) {
       f.garnishing = true;
-      addLog(state, 'danger', '🔨', `EMBARGO: venció "${f.label}" sin pagar. Se embargarán tus cuentas y, si no alcanza, tus inversiones.`, undefined, 'legal');
+      addLog(state, 'danger', '🔨', f.installment ? `EMBARGO: no alcanzó para la cuota de "${f.label}". Se embarga todo el saldo pendiente de tus cuentas y, si no alcanza, de tus inversiones.` : `EMBARGO: venció "${f.label}" sin pagar. Se embargarán tus cuentas y, si no alcanza, tus inversiones.`, undefined, 'legal');
       recordLate(state);
       refreshCreditScore(state);
     }
@@ -694,6 +693,7 @@ export function assignLawyer(state: GameState, caseId: number, hireId: number | 
 export function reviewCase(state: GameState, caseId: number): ActionResult {
   const c = state.legal.cases.find((x) => x.id === caseId && x.stage !== 'cerrado');
   if (!c) return FAIL('Caso inexistente o cerrado.');
+  if (c.kind === 'fiscal') return FAIL('En un proceso fiscal no hay juicio: la autoridad liquida el impuesto y la multa al terminar la investigación. Lo que cuenta es tener un abogado asignado (baja la multa).');
   const l = lawyerOf(state, c);
   if (!l) return FAIL('Necesitás un abogado asignado para revisar el expediente.');
   chargeLawyer(state, c, 0.5, 'Revisión del expediente');
@@ -714,6 +714,7 @@ export function estimatedConviction(state: GameState, c: LegalCase): { estimate:
 export function prepareDefense(state: GameState, caseId: number): ActionResult {
   const c = state.legal.cases.find((x) => x.id === caseId && x.stage !== 'cerrado');
   if (!c) return FAIL('Caso inexistente o cerrado.');
+  if (c.kind === 'fiscal') return FAIL('En un proceso fiscal no hay juicio que preparar: con un abogado asignado, la multa final es menor.');
   const l = lawyerOf(state, c);
   if (!l) return FAIL('Necesitás un abogado asignado.');
   const cost = l.fee;
@@ -762,11 +763,12 @@ export function appeal(state: GameState, caseId: number): ActionResult {
   if (!c || !c.outcome) return FAIL('Solo se apela una condena.');
   if (state.day - c.outcome.day > 30) return FAIL('El plazo para apelar (30 días) venció.');
   if (c.appealed) return FAIL('Ya apelaste esta sentencia.');
-  c.appealed = true;
   const l = lawyerOf(state, c) ?? hiredPro(state, 'abogado', 'personal');
-  if (!l) return FAIL('Necesitás un abogado para apelar.');
+  if (!l) return FAIL('Necesitás un abogado personal para apelar (contratalo en Profesionales).');
   const cost = l.fee * 2;
   if (!canPayFromChecking(state, cost)) return FAIL(`La apelación cuesta ${fmtMoney(cost)}.`);
+  // Recién ahora se usa la apelación: sin abogado o sin dinero, todavía podés intentarla.
+  c.appealed = true;
   post(state.ledger, { day: state.day, memo: `Apelación (${l.name})`, cf: 'operating', tag: 'legal:fees', lines: [{ account: 'legal_costs', debit: cost }, { account: 'checking', credit: cost }] });
   if (!chance(state, clamp(0.15 + l.quality / 400, 0.15, 0.4))) return FAIL('La cámara de apelaciones confirmó la sentencia.');
   // Reducción a la mitad de la multa pendiente y de la prisión.

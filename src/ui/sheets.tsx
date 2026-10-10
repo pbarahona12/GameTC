@@ -182,7 +182,7 @@ function Scenarios() {
         <option value="rate_shock">Suben (o bajan) las tasas de interés</option>
         <option value="market_crash">Caída de la bolsa</option>
         <option value="buy_property">Comprar un inmueble con hipoteca (60 %)</option>
-        <option value="sell_portfolio">Vender toda mi cartera financiera hoy</option>
+        <option value="sell_portfolio">Vender hoy mis acciones, fondos y bonos</option>
       </select>
       {kind === 'rate_shock' && <Seg items={[{ id: -20, label: '−2 pp' }, { id: 10, label: '+1 pp' }, { id: 20, label: '+2 pp' }, { id: 40, label: '+4 pp' }]} value={pct} onChange={setPct} />}
       {kind === 'market_crash' && <Seg items={[{ id: 15, label: '−15 %' }, { id: 30, label: '−30 %' }, { id: 50, label: '−50 %' }]} value={pct} onChange={setPct} />}

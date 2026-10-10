@@ -1,13 +1,14 @@
 import type { GameState } from '../state';
 import { computeMetrics, Metrics } from '../reports/metrics';
 import { fmtMoney, fmtPct } from '../format';
-import { statementRemaining, minRemaining, cardBalance } from '../finance/creditCard';
+import { statementRemaining, minRemaining, cardBalance, effectiveApr } from '../finance/creditCard';
 import { savingsRate, depositRate } from '../finance/banking';
-import { projectCurrentYear, taxesOutstanding } from '../tax/taxEngine';
+import { projectCurrentYear, taxesOutstanding, residence } from '../tax/taxEngine';
+import { jurisdictionById } from '../../content/jurisdictions';
 import { medicalRisk } from '../world';
-import { formatDate } from '../time/calendar';
+import { formatDate, dayOf, dateOf } from '../time/calendar';
 import { BANK_BY_ID } from '../../content/banks';
-import { roundCents } from '../money';
+import { roundCents, usd } from '../money';
 import { insuranceCost } from '../finance/budget';
 import { analyzeCompany, portfolioInsights } from '../business/advisor';
 import { analyzeWorld } from './advisorWorld';
@@ -138,7 +139,7 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
     const minLeft = minRemaining(state);
     const daysLeft = card.dueDay - state.day;
     if (remaining > 0 && daysLeft <= 7) {
-      const interestIfMin = roundCents((remaining - minLeft) * card.apr / 12);
+      const interestIfMin = roundCents((remaining - minLeft) * effectiveApr(state) / 12);
       out.push({
         id: 'card-due', severity: b.checking < minLeft ? 'critical' : 'warning', category: 'credito', term: 'tarjeta_credito',
         title: '💳 Vence tu tarjeta',
@@ -149,7 +150,7 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
         timeframe: `${daysLeft} días`,
         options: [
           { label: 'Pagar el total', pros: 'Cero intereses y mejor puntaje.', cons: 'Usa más liquidez hoy.', tab: 'finance' },
-          { label: 'Pagar el mínimo', pros: 'Protege tu liquidez.', cons: `El resto genera intereses al ${fmtPct(card.apr)} anual.`, tab: 'finance' },
+          { label: 'Pagar el mínimo', pros: 'Protege tu liquidez.', cons: `El resto genera intereses al ${fmtPct(effectiveApr(state))} anual.`, tab: 'finance' },
           { label: 'Activar débito automático', pros: 'Nunca te olvidás.', cons: 'Necesitás fondos en la cuenta corriente al vencimiento.', tab: 'finance' },
         ],
         ifNothing: card.autopay !== 'none' ? 'El débito automático intentará pagar al vencimiento.' : 'Se cobrará un recargo por mora y bajará tu puntaje.',
@@ -165,11 +166,11 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
       title: '📉 Estás pagando intereses de tarjeta',
       what: `Tu tarjeta tiene ${fmtMoney(cardBal)} de saldo y perdiste el período de gracia.`,
       why: 'El último resumen no se pagó completo: los intereses corren sobre el saldo promedio diario.',
-      data: [H('Saldo', fmtMoney(cardBal)), H('Tasa anual', fmtPct(card.apr)), E('Costo anual si el saldo se mantiene', fmtMoney(roundCents(cardBal * card.apr)))],
+      data: [H('Saldo', fmtMoney(cardBal)), H('Tasa anual', fmtPct(effectiveApr(state))), E('Costo anual si el saldo se mantiene', fmtMoney(roundCents(cardBal * effectiveApr(state))))],
       consequence: 'Es una de las deudas más caras: cada mes pagás intereses sobre intereses.',
       options: [
         { label: 'Pagar la tarjeta completa', pros: 'Recuperás el período de gracia en el siguiente ciclo.', cons: 'Reduce liquidez.', tab: 'finance' },
-        { label: 'Refinanciar con un préstamo más barato', pros: `Un préstamo bancario suele costar mucho menos que ${fmtPct(card.apr)}.`, cons: 'Agrega una cuota fija y una consulta de crédito.', tab: 'finance' },
+        { label: 'Refinanciar con un préstamo más barato', pros: `Un préstamo bancario suele costar mucho menos que ${fmtPct(effectiveApr(state))}.`, cons: 'Agrega una cuota fija y una consulta de crédito.', tab: 'finance' },
       ],
       ifNothing: 'El saldo seguirá generando intereses mes a mes.',
     });
@@ -267,7 +268,7 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
       what: `Debés ${fmtMoney(owed)} de la declaración ${f.year}. Vence el ${formatDate(f.dueDay)}.`,
       why: 'Tus retenciones del año no alcanzaron para cubrir el impuesto total (por ejemplo, por intereses sin retención o bonos).',
       data: [H('Impuesto calculado', fmtMoney(f.taxAfterCredits)), H('Retenido', fmtMoney(f.withheld)), H('Multas acumuladas', fmtMoney(f.penalties))],
-      consequence: 'Pagar tarde suma una multa del 5 % y 1 % mensual.',
+      consequence: (() => { const jj = jurisdictionById(f.jurisdiction ?? state.tax.jurisdiction); return `Pagar tarde suma una multa del ${fmtPct(jj.latePenaltyRate, 0)} y ${fmtPct(jj.lateMonthlyInterest, 2)} mensual.`; })(),
       options: [{ label: 'Pagar desde Informes → Impuestos', pros: 'Evita multas.', cons: 'Reduce liquidez.', tab: 'reports' }],
       ifNothing: 'Se intentará cobrar automáticamente al vencimiento; si no hay fondos, se aplican multas.',
     });
@@ -280,7 +281,7 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
         what: `Si el año sigue así, la declaración de enero daría un saldo a pagar de unos ${fmtMoney(projected.balance)}.`,
         why: 'Hay ingresos sin retención (intereses, pagos extraordinarios) o tu retención mensual quedó corta.',
         data: [E('Impuesto anual proyectado', fmtMoney(projected.taxAfterCredits)), E('Retenciones proyectadas', fmtMoney(projected.withheld))],
-        consequence: 'Tendrás que pagar esa diferencia antes del 30 de abril.',
+        consequence: (() => { const d = residence(state).filingDeadline; return `Tendrás que pagar esa diferencia antes del ${formatDate(dayOf(dateOf(state.day).y + 1, d.month, d.day))}.`; })(),
         options: [
           { label: 'Aumentar el aporte a jubilación', pros: 'Es deducible y reduce la base imponible.', cons: 'Ese dinero queda inmovilizado.', tab: 'finance' },
           { label: 'Reservar el monto en ahorro', pros: 'Evitás sorpresas.', cons: 'Ninguno relevante.', tab: 'finance' },
@@ -313,11 +314,11 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
     out.push({
       id: 'insurance', severity: 'warning', category: 'bienestar', term: 'seguro',
       title: '🩺 Sin seguro médico',
-      what: 'No tenés seguro médico: un problema de salud se paga completo ($300 a $2,500).',
+      what: `No tenés seguro médico: un problema de salud se paga completo (${fmtMoney(usd(300 * state.macro.priceIndex), { decimals: false })} a ${fmtMoney(usd(2500 * state.macro.priceIndex), { decimals: false })}).`,
       why: job ? 'Tu empleo no incluye seguro.' : 'No tenés empleo con cobertura.',
       data: [E('Probabilidad mensual de imprevisto', fmtPct(med.probability, 1)), H('Salud', `${Math.round(a.health)}/100`), H('Liquidez', fmtMoney(m.liquid))],
       consequence: 'Un imprevisto puede consumir gran parte de tu liquidez.',
-      options: [{ label: 'Contratar seguro privado', pros: 'Reduce el costo de un imprevisto a un copago de $40–150.', cons: `Cuesta ${fmtMoney(insuranceCost(state))} al mes.`, tab: 'finance' }],
+      options: [{ label: 'Contratar seguro privado', pros: `Reduce el costo de un imprevisto a un copago de ${fmtMoney(usd(40 * state.macro.priceIndex), { decimals: false })}–${fmtMoney(usd(150 * state.macro.priceIndex), { decimals: false })}.`, cons: `Cuesta ${fmtMoney(insuranceCost(state))} al mes.`, tab: 'finance' }],
       ifNothing: 'Asumís el riesgo completo.',
     });
   }
