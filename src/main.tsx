@@ -8,6 +8,10 @@ import { store } from './ui/store';
 import { otaBoot, markHealthy, failBoot, autoCheck } from './persistence/ota';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { navStore } from './ui/nav';
+import { installGlobalErrorLog } from './persistence/errorLog';
+
+// Registro local de errores (Ajustes → Guardado y copias): nunca sale del dispositivo solo.
+installGlobalErrorLog(() => store.getSnapshot().state?.day);
 
 // Arranque: primero se revisa si esta página es una actualización recién instalada
 // (para poder volver atrás si falla), después se carga la partida.
@@ -36,7 +40,9 @@ void import('@capacitor/core').then(async ({ Capacitor }) => {
     else if (ui.absence) store.dismissAbsence();
     else if (!navStore.back()) void store.save().then(() => CapApp.minimizeApp());
   });
-  CapApp.addListener('pause', () => void store.save());
+  // Segundo plano: pausa y guarda; al volver, la ausencia se simula sin dejar vencer decisiones.
+  CapApp.addListener('pause', () => store.enterBackground());
+  CapApp.addListener('resume', () => void store.resumeFromBackground());
 });
 
 createRoot(document.getElementById('root')!).render(

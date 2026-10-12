@@ -146,7 +146,8 @@ function AbsenceReport() {
   const important = r.logs.filter((l) => l.kind !== 'info').slice(-12).reverse();
   return (
     <Sheet title="Mientras no estabas" onClose={() => store.dismissAbsence()}>
-      <p className="muted small">Pasaron {days} día{days === 1 ? '' : 's'} de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes).</p>
+      <p className="muted small">Pasaron {days} día{days === 1 ? '' : 's'} de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes). Mientras no estás, ninguna decisión ni pago de tu agenda vence: el tiempo se detiene antes.</p>
+      {r.note && <p className="small warn">{r.note}</p>}
       <dl className="kv">
         <dt>Patrimonio neto</dt>
         <dd>{fmtMoney(r.netWorthBefore)} → {fmtMoney(r.netWorthAfter)}</dd>

@@ -1,18 +1,27 @@
 # Verificación, compilación Android y publicación.
 #
-# - En CUALQUIER rama y en pull requests: tipos, lint, pruebas, compilación web, prueba
-#   de punta a punta (Playwright) y APK.
+# Dos variantes del mismo juego (ver src/distribution.ts):
+#   · play   → AAB para Google Play. Sin actualizaciones propias ni enlaces a APK
+#              (`npm run build:play` lo comprueba sobre el paquete).
+#   · github → APK de GitHub Releases, con las actualizaciones firmadas por internet.
+#
+# - En CUALQUIER rama y en pull requests: tipos, lint, pruebas, compilación de ambas
+#   variantes, prueba de punta a punta (Playwright, sobre la de Play) y APK de prueba.
 #   Nada se publica.
 # - Solo en push a main (job "publicar"):
-#     · Release v<versión> con la APK (y el AAB/APK de publicación si hay llave de firma)
-#       y sus huellas SHA256SUMS. Si la Release de esa versión ya existe, NO se reemplaza:
-#       hay que subir la versión en package.json.
+#     · Release v<versión> con la APK de GitHub y sus huellas SHA256SUMS, si existe la
+#       llave propia de GitHub. Si la Release ya existe, NO se reemplaza.
 #     · Actualización por internet firmada (ECDSA P-256) en la rama ota-channel, si está
 #       el secreto URT_OTA_SIGNING_KEY. Sin firma no se publica nada.
+#   El AAB de Play queda como artefacto del CI (para subirlo a Play Console), no en la Release.
+#
+# Firma: nunca con una llave de depuración ni con un certificado de
+# android/compromised-signing-certs.txt (scripts/check-signing.sh lo rechaza).
 #
 # Secretos (Settings → Secrets and variables → Actions), ver docs/PUBLICAR.md:
-#   URT_KEYSTORE_BASE64, URT_KEYSTORE_PASSWORD, URT_KEY_ALIAS, URT_KEY_PASSWORD (opcional)
-#   URT_OTA_SIGNING_KEY
+#   Play (llave de subida):  URT_KEYSTORE_BASE64, URT_KEYSTORE_PASSWORD, URT_KEY_ALIAS, URT_KEY_PASSWORD (opcional)
+#   GitHub (llave propia):   URT_GITHUB_KEYSTORE_BASE64, URT_GITHUB_KEYSTORE_PASSWORD, URT_GITHUB_KEY_ALIAS, URT_GITHUB_KEY_PASSWORD (opcional)
+#   Actualizaciones:         URT_OTA_SIGNING_KEY
 #
 # El runner ubuntu-24.04 trae el SDK de Android en $ANDROID_HOME con las licencias aceptadas.
 name: Android y publicación
@@ -39,6 +48,9 @@ jobs:
     timeout-minutes: 40
     env:
       HAS_RELEASE_KEY: ${{ secrets.URT_KEYSTORE_BASE64 != '' && secrets.URT_KEYSTORE_PASSWORD != '' && secrets.URT_KEY_ALIAS != '' }}
+      HAS_GITHUB_KEY: ${{ secrets.URT_GITHUB_KEYSTORE_BASE64 != '' && secrets.URT_GITHUB_KEYSTORE_PASSWORD != '' && secrets.URT_GITHUB_KEY_ALIAS != '' }}
+      # Anuncios reales solo en lo que se publica (push a main); en el resto, anuncios de prueba.
+      VITE_ADS_LIVE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
@@ -68,12 +80,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      - name: Compilación web
-        env:
-          # Anuncios reales solo en lo que se publica (push a main); en el resto, anuncios de prueba.
-          VITE_ADS_LIVE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        run: npm run build
-      - name: Prueba de punta a punta (Playwright)
+      - name: Compilación web para Google Play (sin actualizaciones propias ni enlaces a APK)
+        run: npm run build:play
+      - name: Prueba de punta a punta (Playwright, variante de Play)
         run: |
           npx playwright install --with-deps chromium
           npm run e2e
@@ -91,17 +100,15 @@ jobs:
           test -d "$ANDROID_HOME" || { echo "::error::No se encontró el SDK de Android en el runner"; exit 1; }
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/play" "$RUNNER_TEMP/github"
 
-      - name: APK de actualización (firma fija de las instalaciones existentes)
+      - name: APK de prueba (llave de depuración del runner; NO se distribuye)
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
-          mkdir -p "$RUNNER_TEMP/out"
-          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/out/ultimate-realistic-tycoon.apk"
-          "$APKSIGNER" verify --print-certs "$RUNNER_TEMP/out/ultimate-realistic-tycoon.apk" | head -3
 
-      - name: AAB y APK de publicación (llave de publicación)
+      - name: AAB para Google Play (llave de subida)
         if: env.HAS_RELEASE_KEY == 'true'
         working-directory: android
         env:
@@ -111,27 +118,73 @@ jobs:
           URT_KEY_PASSWORD: ${{ secrets.URT_KEY_PASSWORD }}
         run: |
           umask 077
-          echo "$URT_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          trap 'rm -f "$RUNNER_TEMP/release.jks"' EXIT
-          export URT_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
-          ./gradlew bundleRelease assembleRelease --no-daemon --stacktrace
-          "$APKSIGNER" verify app/build/outputs/apk/release/app-release.apk
-          jarsigner -verify app/build/outputs/bundle/release/app-release.aab > /dev/null
-          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/out/ultimate-realistic-tycoon-play.aab"
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/out/ultimate-realistic-tycoon-release.apk"
+          echo "$URT_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/play.jks"
+          trap 'rm -f "$RUNNER_TEMP/play.jks"' EXIT
+          export URT_KEYSTORE_FILE="$RUNNER_TEMP/play.jks"
+          ./gradlew bundleRelease --no-daemon --stacktrace
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify "$AAB" > /dev/null
+          ../scripts/check-signing.sh "$AAB"
+          # El paquete web DENTRO del AAB tampoco puede traer actualizaciones propias.
+          rm -rf "$RUNNER_TEMP/aab-web" && mkdir -p "$RUNNER_TEMP/aab-web"
+          unzip -q "$AAB" 'base/assets/public/*' -d "$RUNNER_TEMP/aab-web"
+          node ../scripts/verifyDistribution.mjs play "$RUNNER_TEMP/aab-web"
+          cp "$AAB" "$RUNNER_TEMP/play/ultimate-realistic-tycoon-play.aab"
 
-      - name: Aviso de firma de publicación
+      - name: Aviso de firma de Play
         if: env.HAS_RELEASE_KEY != 'true'
-        run: echo "::notice title=Firma de publicación::No se generaron el AAB ni la APK de publicación porque faltan los secretos URT_KEYSTORE_BASE64, URT_KEYSTORE_PASSWORD y URT_KEY_ALIAS. Ver docs/PUBLICAR.md."
+        run: echo "::notice title=Firma de Play::No se generó el AAB porque faltan los secretos URT_KEYSTORE_BASE64, URT_KEYSTORE_PASSWORD y URT_KEY_ALIAS. Ver docs/PUBLICAR.md."
+
+      - name: Compilación web para GitHub (con actualizaciones firmadas)
+        env:
+          VITE_DISTRIBUTION: github
+        run: |
+          npm run build:github
+          npx cap sync android
+
+      - name: APK para GitHub Releases (llave propia de GitHub, distinta de la de Play)
+        if: env.HAS_GITHUB_KEY == 'true'
+        working-directory: android
+        env:
+          URT_KEYSTORE_BASE64: ${{ secrets.URT_GITHUB_KEYSTORE_BASE64 }}
+          URT_KEYSTORE_PASSWORD: ${{ secrets.URT_GITHUB_KEYSTORE_PASSWORD }}
+          URT_KEY_ALIAS: ${{ secrets.URT_GITHUB_KEY_ALIAS }}
+          URT_KEY_PASSWORD: ${{ secrets.URT_GITHUB_KEY_PASSWORD }}
+        run: |
+          umask 077
+          echo "$URT_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/github.jks"
+          trap 'rm -f "$RUNNER_TEMP/github.jks"' EXIT
+          export URT_KEYSTORE_FILE="$RUNNER_TEMP/github.jks"
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$APKSIGNER" verify "$APK"
+          ../scripts/check-signing.sh "$APK"
+          cp "$APK" "$RUNNER_TEMP/github/ultimate-realistic-tycoon.apk"
+
+      - name: Aviso de firma de GitHub
+        if: env.HAS_GITHUB_KEY != 'true'
+        run: echo "::notice title=Firma de GitHub::No se generó la APK de GitHub porque faltan los secretos URT_GITHUB_KEYSTORE_BASE64, URT_GITHUB_KEYSTORE_PASSWORD y URT_GITHUB_KEY_ALIAS. La llave pública que se usaba hasta la 1.4.0 ya no firma nada. Ver docs/PUBLICAR.md."
 
       - name: Huellas SHA-256
-        working-directory: ${{ runner.temp }}/out
-        run: sha256sum * | tee SHA256SUMS
+        run: |
+          for d in play github; do
+            if ls "$RUNNER_TEMP/$d"/* > /dev/null 2>&1; then (cd "$RUNNER_TEMP/$d" && sha256sum * | tee SHA256SUMS); fi
+          done
 
-      - uses: actions/upload-artifact@v4
+      - name: Artefacto de Play (AAB para subir a Play Console; no se publica en Releases)
+        if: env.HAS_RELEASE_KEY == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: android-${{ steps.ver.outputs.version }}
-          path: ${{ runner.temp }}/out/
+          name: play-${{ steps.ver.outputs.version }}
+          path: ${{ runner.temp }}/play/
+          if-no-files-found: error
+
+      - name: Artefacto de GitHub (APK que se publica en Releases)
+        if: env.HAS_GITHUB_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-${{ steps.ver.outputs.version }}
+          path: ${{ runner.temp }}/github/
           if-no-files-found: error
 
   publicar:
@@ -144,14 +197,17 @@ jobs:
     env:
       VERSION: ${{ needs.verificar.outputs.version }}
       HAS_OTA_KEY: ${{ secrets.URT_OTA_SIGNING_KEY != '' }}
+      HAS_GITHUB_KEY: ${{ secrets.URT_GITHUB_KEYSTORE_BASE64 != '' && secrets.URT_GITHUB_KEYSTORE_PASSWORD != '' && secrets.URT_GITHUB_KEY_ALIAS != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
+        if: env.HAS_GITHUB_KEY == 'true'
         with:
-          name: android-${{ needs.verificar.outputs.version }}
+          name: github-${{ needs.verificar.outputs.version }}
           path: out
 
       - name: Release v${{ needs.verificar.outputs.version }} (sin reemplazar una existente)
+        if: env.HAS_GITHUB_KEY == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -161,8 +217,12 @@ jobs:
             exit 0
           fi
           NOTES=$(node -e "const c=require('./src/content/changelog.json').find(e=>e.version===process.env.VERSION); console.log(c.items.map(i=>'- '+i).join('\n'))")
-          printf '%s\n\n%s\n' "$NOTES" "La APK ultimate-realistic-tycoon.apk se instala encima de la versión anterior y conserva la partida. Verificá la descarga con SHA256SUMS." > "$RUNNER_TEMP/notes.md"
+          printf '%s\n\n%s\n' "$NOTES" "La APK ultimate-realistic-tycoon.apk está firmada con la llave de GitHub (no con la llave pública que se usaba hasta la 1.4.0). Si tu instalación es anterior y Android no deja instalarla encima: exportá la partida (Ajustes → Guardado y copias), desinstalá la app vieja, instalá esta e importá la partida. Verificá la descarga con SHA256SUMS." > "$RUNNER_TEMP/notes.md"
           gh release create "$TAG" out/* --title "Ultimate Realistic Tycoon $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA" --latest
+
+      - name: Aviso de Release
+        if: env.HAS_GITHUB_KEY != 'true'
+        run: echo "::notice title=Sin Release::No se publicó la Release porque falta la llave de GitHub (secretos URT_GITHUB_KEYSTORE_*). Ver docs/PUBLICAR.md."
 
       - uses: actions/setup-node@v5
         if: env.HAS_OTA_KEY == 'true'
@@ -175,6 +235,8 @@ jobs:
         env:
           URT_OTA_SIGNING_KEY: ${{ secrets.URT_OTA_SIGNING_KEY }}
           VITE_ADS_LIVE: 'true'
+          # La actualización por internet es para la APK de GitHub (scripts/ota.mjs lo comprueba).
+          VITE_DISTRIBUTION: github
         run: |
           npm ci
           BUILD=$(node -p "const [a,b,c]=require('./package.json').version.split(/[.-]/).map(Number); a*10000+b*100+c")

@@ -13,7 +13,7 @@ import { sectionsFromStage } from '../engine/progression/unlocks';
 import { TUTORIAL, CHAPTERS, nextMission, isMissionDone, missionProgress } from '../engine/progression/tutorial';
 import { SKILL_BY_ID } from '../content/skills';
 import { LIFESTYLES } from '../content/lifestyle';
-import { BANKS, BANK_BY_ID } from '../content/banks';
+import { BANKS } from '../content/banks';
 import { fmtMoney } from '../engine/format';
 import { usd } from '../engine/money';
 import { formatDate } from '../engine/time/calendar';
@@ -25,10 +25,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { IllegalToggle } from './components/IllegalToggle';
 import { APP_VERSION } from '../version';
 import { LEGAL, PRIVACY, TERMS, LICENSES } from '../content/legal';
-import { AD_REWARDS, STUDY_SKIP_DAYS, DEBT_ADS_NEEDED, adRewardsLeft, cashRewardAmount, debtCutAmount, grantAdReward, reducibleLoans, skippableCourses, type AdRewardKind } from '../engine/rewards';
+import { AD_REWARDS, STUDY_SKIP_DAYS, adRewardsBlocked, adRewardsLeft, grantAdReward, skippableCourses, type AdRewardKind } from '../engine/rewards';
 import { COURSE_BY_ID } from '../content/courses';
 import { showRewardedAd, todayKey, ADS_LIVE } from './ads';
-import { applyUpdate, checkForUpdate, OTA_REPO, dismissUpdateNotes } from '../persistence/ota';
+import { applyUpdate, checkForUpdate, APK_DOWNLOAD_URL, dismissUpdateNotes } from '../persistence/ota';
+import { SELF_UPDATES } from '../distribution';
+import { readErrors, clearErrors, errorLogText, onErrorsChanged } from '../persistence/errorLog';
+import { exportToFile } from '../persistence/platformStorage';
 import { useOta } from './useOta';
 import { goToMission } from './missions';
 import { LogRow } from './screens/Home';
@@ -270,7 +273,43 @@ function SettingsSection({ id, icon, title, summary, open, onToggle, children }:
   );
 }
 
+/**
+ * Registro local de errores: queda en el teléfono y solo sale si el jugador lo copia
+ * o lo exporta (por ejemplo, para mandarlo a soporte).
+ */
+function ErrorLogPanel() {
+  const [list, setList] = useState(readErrors);
+  useEffect(() => onErrorsChanged(() => setList(readErrors())), []);
+  const text = errorLogText(list);
+  return (
+    <>
+      <span className="eyebrow">Registro de errores</span>
+      <p className="tiny muted">{list.length ? `${list.length} error${list.length === 1 ? '' : 'es'} registrado${list.length === 1 ? '' : 's'} en este dispositivo (el último: ${new Date(list[list.length - 1].at).toLocaleString()}).` : 'Sin errores registrados.'} Solo datos técnicos (mensaje, versión y día de juego); nunca se envía solo: lo compartís vos si querés pedir ayuda.</p>
+      {list.length > 0 && (
+        <div className="btn-row">
+          <button className="btn sm" onClick={async () => { try { await navigator.clipboard.writeText(text); store.toast('Registro copiado.', 'ok'); } catch { store.toast('No se pudo copiar.', 'error'); } }}>Copiar</button>
+          <button className="btn sm" onClick={async () => { const r = await exportToFile(text, `urt-errores-${new Date().toISOString().slice(0, 10)}.txt`); store.toast(r.message, r.ok ? 'ok' : 'error'); }}>Exportar</button>
+          <button className="btn sm ghost" onClick={() => clearErrors()}>Borrar</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function UpdatesPanel() {
+  if (!SELF_UPDATES) {
+    return (
+      <>
+        <div className="kv"><dt>Versión del juego</dt><dd>{APP_VERSION}</dd></div>
+        <p className="small muted">Las actualizaciones se instalan desde Google Play. La app nunca descarga versiones nuevas por su cuenta.</p>
+      </>
+    );
+  }
+  return <SelfUpdatesPanel />;
+}
+
+/** Solo la APK de GitHub: actualizaciones firmadas por internet (ver persistence/ota.ts). */
+function SelfUpdatesPanel() {
   const ota = useOta();
   const [busy, setBusy] = useState(false);
   const c = ota.check;
@@ -300,7 +339,7 @@ function UpdatesPanel() {
             </div>
           )}
           {c?.kind === 'failed-before' && <p className="small warn">La versión {c.manifest.version} no pudo iniciar en tu teléfono la última vez. Podés intentarlo de nuevo con "Buscar actualización".</p>}
-          {c?.kind === 'needs-apk' && <p className="small warn">La versión {c.manifest.version} necesita instalar una APK nueva (cambió algo del sistema). Se instala encima de la actual y conserva tu partida: <a href={`https://github.com/${OTA_REPO}/releases/latest`} target="_blank" rel="noreferrer">descargala acá</a>.</p>}
+          {c?.kind === 'needs-apk' && APK_DOWNLOAD_URL && <p className="small warn">La versión {c.manifest.version} necesita instalar una APK nueva (cambió algo del sistema). Antes, exportá tu partida (Ajustes → Guardado y copias). Si Android no deja instalarla encima de la actual (pasa con las APK firmadas con la llave anterior), desinstalá la vieja, instalá la nueva e importá la partida: <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer">descargala acá</a>.</p>}
           {(ota.phase === 'error' || c?.kind === 'error') && <p className="small loss">{ota.message ?? (c?.kind === 'error' ? c.message : '')}</p>}
           <span className="act"><button className="btn" disabled={busy || ota.phase === 'checking'} onClick={() => void checkForUpdate(true)}>{ota.phase === 'checking' ? 'Buscando…' : 'Buscar actualización'}</button><InfoButton term="accion_buscar_actualizacion" /></span>
         </>
@@ -406,6 +445,7 @@ function SettingsView() {
         <Switch checked={st.successToasts} onChange={() => store.updateSettings({ successToasts: !st.successToasts })} label="Confirmaciones de acciones exitosas" sub="Los errores siempre se muestran." />
         <span className="small">Progreso sin conexión (1 día cada 10 minutos reales, tope):</span>
         <Seg items={[{ id: 0, label: 'Nada' }, { id: 7, label: '7 días' }, { id: 30, label: '30 días' }, { id: 90, label: '90 días' }]} value={st.offlineMaxDays} onChange={(v) => store.updateSettings({ offlineMaxDays: v })} />
+        <p className="tiny muted">El tiempo no avanza si tenés una decisión pendiente, y se detiene antes de cualquier vencimiento de tu agenda o si aparece algo que decidir. Al pasar la app a segundo plano, el tiempo se pausa.</p>
         <p className="tiny muted">Las alertas del Asesor se eligen en el Asesor → Categorías.</p>
       </SettingsSection>
       <SettingsSection id="save" icon="disk" title="Guardado y copias" summary={<>{ui.slots.length} {ui.slots.length === 1 ? 'partida' : 'partidas'} · <SavedAgo className="" /></>} open={open === 'save'} onToggle={toggle}>
@@ -443,10 +483,11 @@ function SettingsView() {
         <span className="eyebrow">Importar una partida</span>
         <p className="tiny muted">{store.canCreateSlot() ? 'La partida importada se abre como una partida nueva: la actual queda guardada.' : 'Ya tenés el máximo de partidas: borrá una para importar otra.'}</p>
         <ImportControls disabled={!store.canCreateSlot()} />
+        <ErrorLogPanel />
       </SettingsSection>
       <SettingsSection id="updates" icon="update" title="Actualizaciones" summary={ota.check?.kind === 'available' ? `Versión ${ota.check.manifest.version} disponible` : `Versión ${APP_VERSION}`} open={open === 'updates'} onToggle={toggle}>
         <UpdatesPanel />
-        <Switch checked={st.autoUpdate} onChange={() => store.updateSettings({ autoUpdate: !st.autoUpdate })} label="Buscar actualizaciones al abrir la app" sub="Solo consulta si hay una versión nueva; nunca instala sin que lo confirmes." term="actualizaciones" />
+        {SELF_UPDATES && <Switch checked={st.autoUpdate} onChange={() => store.updateSettings({ autoUpdate: !st.autoUpdate })} label="Buscar actualizaciones al abrir la app" sub="Solo consulta si hay una versión nueva; nunca instala sin que lo confirmes." term="actualizaciones" />}
       </SettingsSection>
       <button className="btn sm ghost" onClick={() => navStore.open({ kind: 'legal' })}><Icon name="shield" size={15} /> Privacidad, términos y licencias</button>
       <p className="tiny faint" style={{ textAlign: 'center' }}>Ultimate Realistic Tycoon · versión {APP_VERSION} · simulación ficticia.</p>
@@ -600,59 +641,43 @@ function WhatsNewSheet() {
   );
 }
 
-/** Recompensas opcionales por ver un anuncio (solo Android). */
+/** Recompensas opcionales por ver un anuncio (solo Android). Nunca dan dinero ni perdonan deudas. */
 function RewardsView() {
   const s = useGame();
   const [busy, setBusy] = useState<AdRewardKind | null>(null);
   const [courseId, setCourseId] = useState<string>('');
   const today = todayKey();
   const courses = skippableCourses(s);
-  const loans = reducibleLoans(s);
-  const progress = s.meta.ads?.debtProgress;
-  const [loanPick, setLoanPick] = useState<number | null>(null);
-  const loanId = loanPick ?? progress?.loanId ?? loans[0]?.id;
-  const loan = loans.find((l) => l.id === loanId);
+  const blocked = adRewardsBlocked(s);
   const watch = async (kind: AdRewardKind) => {
     setBusy(kind);
     const outcome = await showRewardedAd();
     setBusy(null);
-    if (outcome === 'rewarded') store.run((x) => grantAdReward(x, kind, todayKey(), { courseId: courseId || courses[0]?.courseId, loanId }));
+    if (outcome === 'rewarded') store.run((x) => grantAdReward(x, kind, todayKey(), { courseId: courseId || courses[0]?.courseId }));
     else if (outcome === 'closed') store.toast('Cerraste el anuncio antes de terminar: no hay recompensa.', 'info');
     else store.toast('No hay un anuncio disponible ahora. Probá en un rato (hace falta internet).', 'error');
   };
   const rows: Array<{ kind: AdRewardKind; detail: string; disabled?: string }> = [
-    { kind: 'cash', detail: `Recibís ${fmtMoney(cashRewardAmount(s))} (una semana de tu sueldo, o $100 sin empleo). Tributa como otros ingresos.` },
     { kind: 'news', detail: 'Tu próximo análisis de una noticia tiene la mitad del error. Nunca da certeza.', disabled: s.meta.ads?.newsBoost ? 'Ya tenés uno pendiente' : undefined },
     { kind: 'study', detail: `Adelanta hasta ${STUDY_SKIP_DAYS / 30} meses un curso en curso. Las matrículas de esos meses se pagan igual.`, disabled: courses.length ? undefined : 'No tenés cursos en curso' },
-    {
-      kind: 'debt',
-      detail: loan
-        ? `Con ${DEBT_ADS_NEEDED} anuncios el saldo baja ${fmtMoney(debtCutAmount(s, loan.balance))} (la mitad, con tope). La cuota no cambia: terminás antes. Una vez por préstamo. Llevás ${progress?.loanId === loan.id ? progress.watched : 0} de ${DEBT_ADS_NEEDED}.`
-        : 'Reduce a la mitad el saldo de un préstamo personal (con tope), una vez por préstamo.',
-      disabled: loan ? undefined : 'No tenés préstamos para reducir',
-    },
   ];
   return (
     <Sheet title="Recompensas">
-      <p className="small muted">Opcional: mirá un anuncio corto y elegí una ayuda. El juego nunca te obliga a ver anuncios ni los muestra solo.</p>
+      <p className="small muted">Opcional: mirá un anuncio corto y elegí una ayuda. El juego nunca te obliga a ver anuncios ni los muestra solo, y un anuncio nunca te da dinero ni te perdona deudas: cada número de la partida lo ganaste jugando.</p>
+      {blocked && <p className="small warn">{blocked}</p>}
       {rows.map((r) => {
         const left = adRewardsLeft(s, r.kind, today);
         return (
           <div className="card" key={r.kind}>
-            <div className="card-head"><h2 style={{ flex: 1 }}>{AD_REWARDS[r.kind].title}</h2><span className="tiny muted">{left} de {AD_REWARDS[r.kind].perDay} hoy</span></div>
+            <div className="card-head"><h2 style={{ flex: 1 }}>{AD_REWARDS[r.kind].title}</h2>{!blocked && <span className="tiny muted">{left} de {AD_REWARDS[r.kind].perDay} hoy</span>}</div>
             <p className="small muted">{r.detail}</p>
             {r.kind === 'study' && courses.length > 1 && (
               <select className="input" aria-label="Curso a adelantar" value={courseId || courses[0].courseId} onChange={(e) => setCourseId(e.target.value)}>
                 {courses.map((a) => <option key={a.courseId} value={a.courseId}>{COURSE_BY_ID[a.courseId].name}</option>)}
               </select>
             )}
-            {r.kind === 'debt' && loans.length > 1 && (
-              <select className="input" aria-label="Préstamo a reducir" value={loanId} onChange={(e) => setLoanPick(Number(e.target.value))}>
-                {loans.map((l) => <option key={l.id} value={l.id}>{BANK_BY_ID[l.bankId]?.name ?? 'Préstamo'} · saldo {fmtMoney(l.balance)}</option>)}
-              </select>
-            )}
-            <button className="btn primary" disabled={!!busy || left === 0 || !!r.disabled} onClick={() => void watch(r.kind)}>
-              <Icon name="play" size={15} /> {busy === r.kind ? 'Cargando anuncio…' : r.disabled ?? (left === 0 ? 'Volvé mañana' : 'Ver anuncio')}
+            <button className="btn primary" disabled={!!busy || !!blocked || left === 0 || !!r.disabled} onClick={() => void watch(r.kind)}>
+              <Icon name="play" size={15} /> {busy === r.kind ? 'Cargando anuncio…' : blocked ? 'No disponible en desafíos' : r.disabled ?? (left === 0 ? 'Volvé mañana' : 'Ver anuncio')}
             </button>
           </div>
         );

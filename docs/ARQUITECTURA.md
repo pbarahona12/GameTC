@@ -7,7 +7,7 @@
 | Lenguaje | TypeScript estricto | Tipos para un dominio con muchas entidades financieras; errores detectados al compilar. |
 | Interfaz | React 18 + CSS propio | UI tipo aplicación bancaria: tarjetas, listas, formularios, gráficos. Sin frameworks de estilos pesados. |
 | Empaquetado | Vite | Compilación rápida; modo `single` genera un HTML autocontenido. |
-| Móvil | Capacitor 6 | Proyecto Android nativo real (APK/AAB), almacenamiento nativo, botón atrás, sin depender de internet. |
+| Móvil | Capacitor 8 | Proyecto Android nativo real (APK/AAB), almacenamiento nativo, botón atrás, sin depender de internet. |
 | Pruebas | Vitest | Ejecuta el motor económico en Node en milisegundos. |
 | Gráficos | SVG propio (`LineChart`) | Liviano, accesible y coherente con el tema. |
 

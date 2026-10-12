@@ -2,7 +2,7 @@
 
 Simulador móvil de finanzas personales, carrera, empresas, inversiones, bienes raíces, impuestos internacionales, grupos empresariales y un sistema legal ficticio. Cada movimiento de dinero pasa por un **libro mayor de partida doble**: nada aparece ni desaparece sin un asiento contable que lo explique.
 
-**Estado:** versión 1.3 (robustez) — sobre la 1.2 (tiendas, personaje e imagen, tarjetas por niveles, noticias calibradas, rivales, misiones, actualizaciones dentro de la app) suma una **red de seguridad del simulador** (un día que falla vuelve atrás y se pausa), **hasta 3 partidas** con copias por tiempo real, **montos sin ambigüedad**, correcciones del motor, **Android 16** (Capacitor 8), **actualizaciones firmadas**, CI/CD endurecido, rediseño de la barra superior, la primera partida y la navegación, **accesibilidad** (contraste AA, zoom) y una **prueba de punta a punta**. Ver [`docs/ESTADO.md`](docs/ESTADO.md) y [`src/content/changelog.json`](src/content/changelog.json).
+**Estado:** versión 1.4 con la **fase 0 de la auditoría** (variante para Google Play sin actualizaciones propias ni enlaces a APK, progreso sin conexión que no deja vencer decisiones, anuncios que nunca dan dinero, llave de firma de GitHub nueva y registro local de errores). La 1.3 (robustez), sobre la 1.2 (tiendas, personaje e imagen, tarjetas por niveles, noticias calibradas, rivales, misiones, actualizaciones dentro de la app) suma una **red de seguridad del simulador** (un día que falla vuelve atrás y se pausa), **hasta 3 partidas** con copias por tiempo real, **montos sin ambigüedad**, correcciones del motor, **Android 16** (Capacitor 8), **actualizaciones firmadas**, CI/CD endurecido, rediseño de la barra superior, la primera partida y la navegación, **accesibilidad** (contraste AA, zoom) y una **prueba de punta a punta**. Ver [`docs/ESTADO.md`](docs/ESTADO.md) y [`src/content/changelog.json`](src/content/changelog.json).
 
 ## Requisitos
 
@@ -42,14 +42,14 @@ npm run build:single   # un único index.html autocontenido en dist-single/ (vis
 
 ## Generar la APK de Android
 
-> La APK se compila en GitHub Actions. No se probó en un teléfono físico desde el entorno de desarrollo. Proyecto Capacitor 8 (`webDir: dist`, plugins app, filesystem, preferences, share), minSdk 24, target/compile 36, AGP 8.13, Gradle 8.14, Java 21; la versión sale solo de `package.json` (`version`, `nativeCode`). Ícono y pantalla de inicio propios (`npm run icons`) y **firma fija** para instalar encima sin perder la partida. Guía completa: [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
+> La APK se compila en GitHub Actions. No se probó en un teléfono físico desde el entorno de desarrollo. Proyecto Capacitor 8 (`webDir: dist`, plugins app, filesystem, preferences, share), minSdk 24, target/compile 36, AGP 8.13, Gradle 8.14, Java 21; la versión sale solo de `package.json` (`version`, `nativeCode`). Ícono y pantalla de inicio propios (`npm run icons`). Dos variantes del mismo juego: **Play** (`npm run build:play`, sin actualizaciones propias) y **GitHub** (`npm run build:github`, con actualizaciones firmadas por internet). La llave fija que estuvo en el repositorio hasta la 1.4.0 era pública y se retiró: ya no firma nada que se distribuya. Guía completa: [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
 
 ### Opción A — sin instalar nada (GitHub Actions, recomendada)
 
 1. Cada push (cualquier rama) corre tipos, lint, pruebas, e2e y compila la APK; solo un push a `main` publica la Release (workflow **Android y publicación**).
 2. Descargala desde **Releases** (`https://github.com/pbarahona12/gametc/releases/latest`, directo desde el teléfono) o desde los artefactos de la ejecución.
-3. Se instala **encima** de la versión anterior (misma firma): la partida se conserva. Solo al pasar de la 1.1 a la 1.2 hay que exportar la partida, reinstalar e importarla (la 1.1 tenía una firma al azar).
-4. Si configurás los secretos de firma de publicación, el mismo flujo genera el **AAB firmado para Play Store** (ver `docs/PUBLICAR.md`).
+3. La APK de Releases se firma con la llave propia de GitHub (secretos `URT_GITHUB_KEYSTORE_*`). Las instalaciones firmadas con la llave pública anterior (hasta la 1.4.0) no la aceptan encima: exportá la partida, desinstalá, instalá la nueva e importá la partida (una sola vez).
+4. Con los secretos `URT_KEYSTORE_*`, el mismo flujo genera el **AAB firmado para Play Store** como artefacto del CI (ver `docs/PUBLICAR.md`).
 
 ### Opción B — en tu computadora
 
@@ -57,16 +57,16 @@ npm run build:single   # un único index.html autocontenido en dist-single/ (vis
 2. En la carpeta del proyecto:
    ```bash
    npm install
-   npm run build
+   npm run build:play          # o build:github para la variante con actualizaciones por internet
    npx cap sync android
    cd android && ./gradlew assembleDebug        # en Windows: gradlew.bat assembleDebug
    ```
-   Resultado: `android/app/build/outputs/apk/debug/app-debug.apk` (firmada con la llave fija del repositorio).
+   Resultado: `android/app/build/outputs/apk/debug/app-debug.apk`, firmada con la llave de depuración de tu computadora: sirve para probar, **no para distribuir**.
 3. Instalación: abrí la APK en el teléfono (habilitá "instalar apps desconocidas") o `adb install -r app-debug.apk`.
 
 ### Actualizaciones sin reinstalar
 
-La app busca versiones nuevas del juego y las instala en segundos. Cada actualización llega **firmada** (ECDSA P-256): la app verifica la firma con la clave pública incluida, además del tamaño y el SHA-256, y vuelve atrás sola si la versión nueva no carga la partida. Las publica solo el CI desde `main`, con la clave privada guardada como secreto (nunca en el repositorio). Ver [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
+Solo la APK de GitHub (variante `github`): busca versiones nuevas del juego y las instala en segundos. La versión de Google Play se actualiza únicamente desde la tienda. Cada actualización llega **firmada** (ECDSA P-256): la app verifica la firma con la clave pública incluida, además del tamaño y el SHA-256, y vuelve atrás sola si la versión nueva no carga la partida. Las publica solo el CI desde `main`, con la clave privada guardada como secreto (nunca en el repositorio). Ver [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
 
 ### Problemas frecuentes
 
@@ -132,4 +132,4 @@ android/             Proyecto nativo generado por Capacitor
 
 ## Modelo de negocio
 
-Juego completo sin pagos, sin anuncios y sin cuenta externa. Funciona sin conexión.
+Juego completo sin pagos y sin cuenta externa. En Android hay anuncios recompensados opcionales (Google AdMob, solo si tocás «Ver anuncio») que dan información o tiempo de estudio: nunca dinero ni perdón de deudas, y nunca durante un desafío. Funciona sin conexión.

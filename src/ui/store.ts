@@ -3,7 +3,8 @@ import type { GameState, LogItem, LogCategory } from '../engine/state';
 import { logCategory } from '../engine/log';
 import { newGame, NewGameOptions } from '../engine/state';
 import type { ActionResult } from '../engine/result';
-import { advanceDaySafe, simulateDaysSafe, lastLogIdOf, SimReport, DayFailure } from '../engine/simulation';
+import { advanceDaySafe, lastLogIdOf, SimReport, DayFailure } from '../engine/simulation';
+import { simulateAbsence, describeAbsenceStop } from '../engine/absence';
 import { refreshListings } from '../engine/business/simulate';
 import { updateProgression } from '../engine/progression/progression';
 import { checkInvariants } from '../engine/invariants';
@@ -14,6 +15,7 @@ import { balanceSheet } from '../engine/reports/statements';
 import { offlineDays, DEFAULT_OFFLINE } from '../persistence/offline';
 import { createStorage, exportToFile } from '../persistence/platformStorage';
 import { APP_VERSION } from '../version';
+import { recordError } from '../persistence/errorLog';
 import { syncSystemBars, syncThemeColor } from './systemBars';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
@@ -104,7 +106,8 @@ export interface UIState {
   speed: Speed;
   settings: Settings;
   toasts: Toast[];
-  absence: SimReport | null;
+  /** Lo que pasó mientras la app estaba cerrada o en segundo plano (y por qué se detuvo). */
+  absence: (SimReport & { note: string | null }) | null;
   loadNotice: string | null;
   storageKind: string;
   lastSaved: number | null;
@@ -251,7 +254,8 @@ export class GameStore {
     if (!this.listenersAttached && typeof document !== 'undefined') {
       this.listenersAttached = true;
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') void this.save();
+        if (document.visibilityState === 'hidden') this.enterBackground();
+        else void this.resumeFromBackground();
       });
       window.addEventListener('pagehide', () => void this.save());
       // Con el tema "Sistema", seguir al teléfono si cambia entre claro y oscuro.
@@ -291,12 +295,16 @@ export class GameStore {
       if (!active) return;
       const report = await withTimeout(loadGame(this.kv, slotKeys(active)), BOOT_TIMEOUTS.load, 'La lectura de la partida');
       if (report.state) await this.applyLoaded(report);
-      else if (report.problems.length) this.ui.bootError = { kind: 'unreadable', message: 'Encontramos tu partida, pero ninguna de sus copias se pudo leer.', details: report.problems };
+      else if (report.problems.length) {
+        this.ui.bootError = { kind: 'unreadable', message: 'Encontramos tu partida, pero ninguna de sus copias se pudo leer.', details: report.problems };
+        recordError(new Error(report.problems.join(' | ')), 'arranque');
+      }
     } catch (e) {
       const err = e as Error;
       const kind: BootError['kind'] = err?.name === 'BootTimeout' ? 'timeout' : this.kv ? 'unexpected' : 'storage';
       const message = kind === 'timeout' ? `${err.message} Puede ser un problema momentáneo del teléfono.` : kind === 'storage' ? 'No se pudo acceder al almacenamiento del dispositivo.' : 'Ocurrió un error inesperado al abrir la partida.';
       this.ui.bootError = { kind, message, details: [`${err?.name ?? 'Error'}: ${err?.message ?? String(e)}`] };
+      recordError(e, 'arranque');
     }
   }
 
@@ -316,12 +324,54 @@ export class GameStore {
     this.ui.loadNotice = notices.join(' ') || null;
     const days = offlineDays(state.meta.lastRealTime, Date.now(), { ...DEFAULT_OFFLINE, maxDays: this.ui.settings.offlineMaxDays });
     if (days > 0) {
-      const run = simulateDaysSafe(state, days, this.opts.step);
-      this.ui.state = run.state;
-      this.ui.absence = run.daysDone > 0 ? run.report : null;
-      if (run.failure) this.onSimFailure(run.failure, 'offline');
+      this.applyAbsence(state, days);
       await this.save();
     }
+  }
+
+  /**
+   * Días que pasaron sin el jugador (app cerrada o en segundo plano). Nunca deja
+   * vencer una decisión ni un pago de la agenda: ver engine/absence.ts.
+   */
+  private applyAbsence(state: GameState, days: number) {
+    const run = simulateAbsence(state, days, this.opts.step);
+    const note = describeAbsenceStop(run.stop);
+    this.ui.state = run.state;
+    this.ui.absence = run.daysDone > 0 ? { ...run.report, note } : null;
+    if (run.daysDone === 0 && note) this.ui.loadNotice = [this.ui.loadNotice, note].filter(Boolean).join(' ');
+    if (run.daysDone > 0) this.touch();
+    if (run.failure) this.onSimFailure(run.failure, 'offline');
+  }
+
+  /** Momento en que la app pasó a segundo plano (null = está a la vista). */
+  private hiddenAt: number | null = null;
+
+  /**
+   * La app pasa a segundo plano: se pausa el tiempo (nada corre sin que el
+   * jugador lo vea) y se guarda. Al volver se aplica la misma regla que al abrir.
+   */
+  enterBackground(now = Date.now()) {
+    // Puede llegar dos veces (visibilidad de la página y evento "pause" de Android).
+    this.hiddenAt ??= now;
+    if (this.ui.speed !== 0) {
+      this.ui.speed = 0;
+      this.accumulator = 0;
+      this.emit();
+    }
+    void this.save();
+  }
+
+  /** Vuelve de segundo plano: los días de ausencia se simulan con las reglas de absence.ts. */
+  async resumeFromBackground(now = Date.now()) {
+    const since = this.hiddenAt;
+    this.hiddenAt = null;
+    const s = this.ui.state;
+    if (since === null || !s || this.ui.simError) return;
+    const days = offlineDays(since, now, { ...DEFAULT_OFFLINE, maxDays: this.ui.settings.offlineMaxDays });
+    if (days <= 0) return;
+    this.applyAbsence(s, days);
+    this.emit();
+    await this.save();
   }
 
   private syncSlots() {
@@ -570,6 +620,7 @@ export class GameStore {
     this.ui.speed = 0;
     this.accumulator = 0;
     console.error(`[URT] Falló la simulación del día ${f.day}:`, f.message, f.stack ?? '');
+    recordError(Object.assign(new Error(f.message), { name: f.name, stack: f.stack ?? undefined }), `simulación (${context})`, { day: f.day });
     // La partida restaurada es consistente: se guarda para no perder el progreso previo.
     if (this.ui.ready) void this.save();
   }
@@ -591,6 +642,7 @@ export class GameStore {
   /** Un error de la interfaz: se pausa el tiempo para que nada avance sin que el jugador lo vea. */
   pauseForError(error: Error) {
     console.error('[URT] Error de interfaz:', error);
+    recordError(error, 'interfaz', { day: this.ui.state?.day });
     if (this.ui.speed !== 0) {
       this.ui.speed = 0;
       this.accumulator = 0;
@@ -719,6 +771,7 @@ export class GameStore {
     } else {
       this.dirty = true;
       this.ui.saveError = r.error;
+      recordError(new Error(r.error), 'guardado', { day: s.day });
       this.toast(r.error, 'error');
     }
     this.emit();

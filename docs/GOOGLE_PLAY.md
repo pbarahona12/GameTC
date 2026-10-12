@@ -1,20 +1,21 @@
 # Publicar en Google Play: requisitos y respuestas
 
-Revisado el 2026-10-02 contra la documentación de Google Play. Esto **no es asesoramiento legal**: las políticas cambian y conviene confirmarlas en Play Console al publicar.
+Revisado el 2026-10-02 contra la documentación de Google Play; actualizado el 2026-10-12 con la fase 0 de la auditoría (variante de Play, anuncios sin dinero, ausencia sin castigos, registro local de errores). Esto **no es asesoramiento legal**: las políticas cambian y conviene confirmarlas en Play Console al publicar.
 
 ## Estado del juego frente a los requisitos
 
 | Requisito | Estado |
 |---|---|
 | Nivel de API objetivo (apps nuevas: API 36 desde el 31-08-2026) | Cumple: target/compile 36 |
-| Formato AAB firmado | Cumple: el CI genera `ultimate-realistic-tycoon-play.aab` |
+| Formato AAB firmado | Preparado: el CI genera `ultimate-realistic-tycoon-play.aab` (artefacto `play-<versión>`) con la llave de subida; no se compiló en este entorno (sin SDK de Android) |
+| Sin actualizaciones por fuera de Play (política de abuso de dispositivo y red) | Cumple en la variante `play`: `ota.ts` se reemplaza al compilar por `ota.play.ts` y `npm run build:play` falla si el paquete contiene la descarga desde GitHub o el enlace a APK. El CI repite la comprobación sobre el contenido del AAB |
 | Política de privacidad pública (URL) y dentro de la app | Texto listo (`src/content/legal.ts`), visible en la app (Más → Privacidad y términos). La página pública se genera con `npm run legal` cuando estén el nombre y el correo de contacto, y se publica con GitHub Pages |
 | Formulario de Seguridad de los datos | Respuestas abajo |
 | Cuestionario de clasificación (IARC) | Guía abajo |
 | Cuentas personales nuevas: prueba cerrada con **12 testers durante 14 días seguidos** antes de producción | Pendiente (se hace en Play Console) |
 | Público objetivo | 13+ (no apto para el programa de Familias) |
 | Permisos | Internet; el SDK de AdMob agrega el del ID de publicidad (`AD_ID`) |
-| Anuncios | Solo recompensados, opcionales, con consentimiento UMP en EEE/Reino Unido/Suiza; anuncios de prueba fuera de `main` |
+| Anuncios | Solo recompensados, opcionales, con consentimiento UMP en EEE/Reino Unido/Suiza; anuncios de prueba fuera de `main`. Las recompensas son información (análisis de noticias) o tiempo de estudio: **nunca dinero ni perdón de deudas**, y ninguna durante un desafío |
 
 ## Seguridad de los datos (Data safety)
 
@@ -29,6 +30,17 @@ La app tiene **anuncios recompensados opcionales de Google AdMob** (solo si el j
   - **Información y rendimiento de la app → registros de fallos y diagnósticos**: análisis, prevención de fraude.
 - Datos cifrados en tránsito: **sí**. Se pueden solicitar borrados: el desarrollador no guarda datos; los del SDK los gestiona Google (enlazar su política).
 - Partidas: quedan en el dispositivo, no se recopilan.
+- Registro local de errores (Ajustes → Guardado y copias): queda en el dispositivo y la app nunca lo envía. Solo sale si el jugador lo copia o lo exporta con el menú de compartir del sistema, por decisión propia; por eso no se declara como dato recopilado por el desarrollador. Si algún día se envía a un servidor, hay que declararlo (registros de fallos y diagnósticos) y actualizar la política.
+- La variante de Play **no** se conecta a GitHub (no busca actualizaciones): la única conexión es la del SDK de anuncios cuando el jugador toca «Ver anuncio».
+
+### Comportamiento real frente a lo declarado (comprobar antes de cada envío)
+
+| Qué hace la app (variante `play`) | Dónde se comprueba | Declaración |
+|---|---|---|
+| Carga un anuncio solo al tocar «Ver anuncio» | `src/ui/ads.ts`, `RewardsView` en `src/ui/sheets.tsx` | Contiene anuncios: sí |
+| La recompensa no da dinero ni cancela deudas | `src/engine/rewards.ts`, `tests/rewards.test.ts` | Ficha y política: «recompensas que no tocan la economía» |
+| No descarga código ni páginas nuevas | `npm run build:play`, `tests/distribution.test.ts` | Sin actualizaciones por fuera de Play |
+| Partidas y registro de errores solo en el dispositivo | `src/persistence/`, `src/persistence/errorLog.ts` | No se recopilan |
 - La app no tiene cuentas (no aplica el borrado de cuenta).
 
 Revisar la guía vigente de Google antes de enviar: <https://support.google.com/admob/answer/11994880>.
@@ -88,12 +100,12 @@ APRENDÉ JUGANDO
 
 PENSADO PARA EL TELÉFONO
 • Funciona sin conexión. Tu partida queda en tu dispositivo.
-• El tiempo corre aunque cierres la app (y te cuenta qué pasó mientras no estabas).
+• El tiempo corre aunque cierres la app (y te cuenta qué pasó mientras no estabas), pero nunca decide por vos: se detiene si hay algo pendiente.
 • Tema claro y oscuro, texto grande, alto contraste y modo para daltonismo.
 • Modo tranquilo para empezar sin castigos duros.
 
 IMPORTANTE
-Todo es ficticio: empresas, personas, países y mercados. No hay dinero real, no se puede apostar ni retirar nada, y nada de lo que pasa en el juego es asesoramiento financiero. Tiene anuncios recompensados opcionales: solo se muestran si tocás "Ver anuncio". Incluye, desactivadas al empezar, actividades ilegales ficticias con consecuencias.
+Todo es ficticio: empresas, personas, países y mercados. No hay dinero real, no se puede apostar ni retirar nada, y nada de lo que pasa en el juego es asesoramiento financiero. Tiene anuncios recompensados opcionales: solo se muestran si tocás "Ver anuncio" y nunca dan dinero del juego. Incluye, desactivadas al empezar, actividades ilegales ficticias con consecuencias.
 ```
 
 ### Capturas (8, en orden)
