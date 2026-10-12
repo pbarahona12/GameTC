@@ -9,7 +9,7 @@ import { refreshListings } from '../engine/business/simulate';
 import { updateProgression } from '../engine/progression/progression';
 import { checkInvariants } from '../engine/invariants';
 import { takeSnapshot } from '../engine/snapshot';
-import { loadGame, saveGame, KV, serializeCompact, listBackups, restoreBackup, deleteSlot, snapshotBeforeUpdate, collectRawCopies, rescueBundle, parseImport, slotKeys, allKeys, clearPreupdate, type LoadReport } from '../persistence/save';
+import { loadGame, saveGame, KV, serializeCompact, listBackups, restoreBackup, deleteSlot, deserializeHeader, snapshotBeforeUpdate, collectRawCopies, rescueBundle, parseImport, slotKeys, allKeys, clearPreupdate, type LoadReport } from '../persistence/save';
 import { readRegistry, writeRegistry, newSlotId, upsertSlot, removeSlot, MAX_SLOTS, type SlotRegistry, type SlotMeta } from '../persistence/slots';
 import { balanceSheet } from '../engine/reports/statements';
 import { offlineDays, DEFAULT_OFFLINE } from '../persistence/offline';
@@ -121,6 +121,17 @@ export interface UIState {
   activeSlot: string | null;
   /** Al elegir "Nueva partida" con otra abierta: a cuál se puede volver. */
   returnSlot: string | null;
+  /** Archivo de partida abierto desde otra app ("Abrir con…"), esperando confirmación. */
+  incomingImport: IncomingImport | null;
+}
+
+/** Partida recibida desde otra app (WhatsApp, Archivos, Drive…). */
+export interface IncomingImport {
+  text: string;
+  /** Nombre del archivo, si se conoce. */
+  label: string;
+  /** Datos de la cabecera para mostrar antes de importar (null si no se reconoce). */
+  summary: { name?: string; day?: number; netWorth?: number } | null;
 }
 
 /** Texto para soporte: qué falló, dónde y en qué versión (sin datos personales). */
@@ -184,7 +195,7 @@ export class GameStore {
   private lastSaveAttempt = 0;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   ui: UIState = {
-    version: 0, gameRev: 0, ready: false, state: null, speed: 0, settings: DEFAULT_SETTINGS, toasts: [], absence: null, loadNotice: null, storageKind: '', lastSaved: null, saveError: null, saveBytes: null, simError: null, bootError: null, slots: [], activeSlot: null, returnSlot: null,
+    version: 0, gameRev: 0, ready: false, state: null, speed: 0, settings: DEFAULT_SETTINGS, toasts: [], absence: null, loadNotice: null, storageKind: '', lastSaved: null, saveError: null, saveBytes: null, simError: null, bootError: null, slots: [], activeSlot: null, returnSlot: null, incomingImport: null,
   };
 
   subscribe = (l: Listener) => {
@@ -867,6 +878,30 @@ export class GameStore {
     this.toast('Partida importada y verificada. Se abrió como una partida nueva.', 'ok');
     this.emit();
     return { ok: true, message: 'Partida importada.' };
+  }
+
+  /**
+   * Una partida llegó desde otra app ("Abrir con Ultimate Realistic Tycoon"). No se
+   * importa sola: se muestra qué partida es y el jugador confirma (ver IncomingImportSheet).
+   */
+  offerImport(text: string, label: string) {
+    const head = deserializeHeader(text);
+    this.ui.incomingImport = { text, label, summary: head ? { name: head.name, day: head.day, netWorth: head.netWorth } : null };
+    this.emit();
+  }
+
+  dismissIncomingImport() {
+    this.ui.incomingImport = null;
+    this.emit();
+  }
+
+  async acceptIncomingImport(): Promise<ActionResult> {
+    const inc = this.ui.incomingImport;
+    if (!inc) return { ok: false, error: 'No hay ninguna partida para importar.' };
+    const r = await this.importText(inc.text);
+    if (r.ok) this.ui.incomingImport = null;
+    this.emit();
+    return r;
   }
 
   async backups() {

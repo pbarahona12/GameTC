@@ -9,6 +9,7 @@ import { otaBoot, markHealthy, failBoot, autoCheck } from './persistence/ota';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { navStore } from './ui/nav';
 import { installGlobalErrorLog } from './persistence/errorLog';
+import { installOpenWith } from './ui/openWith';
 
 // Registro local de errores (Ajustes → Guardado y copias): nunca sale del dispositivo solo.
 installGlobalErrorLog(() => store.getSnapshot().state?.day);
@@ -26,6 +27,8 @@ void (async () => {
   if (!ui.state && ui.bootError) failBoot('La versión nueva no pudo leer la partida.');
   else requestAnimationFrame(() => markHealthy(() => void store.onUpdateConfirmed()));
   if (store.getSnapshot().settings.autoUpdate !== false) setTimeout(() => void autoCheck(), 4000);
+  // «Abrir con…» desde WhatsApp, Archivos o Drive (después de cargar la partida).
+  void installOpenWith();
 })();
 
 // Botón "atrás" de Android: hoja de arriba → hoja anterior → lugar anterior → Inicio → guarda y minimiza.
@@ -38,6 +41,7 @@ void import('@capacitor/core').then(async ({ Capacitor }) => {
     if (cel?.size === 'big') store.quick((st) => dismissCelebration(st, cel.id));
     else if (ui.simError) store.dismissSimError();
     else if (ui.absence) store.dismissAbsence();
+    else if (ui.incomingImport) store.dismissIncomingImport();
     else if (!navStore.back()) void store.save().then(() => CapApp.minimizeApp());
   });
   // Segundo plano: pausa y guarda; al volver, la ausencia se simula sin dejar vencer decisiones.

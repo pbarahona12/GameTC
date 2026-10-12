@@ -373,8 +373,8 @@ function ImportControls({ disabled }: { disabled: boolean }) {
   }
   return (
     <>
-      <label className="small" htmlFor="import-file">Desde un archivo .json</label>
-      <input id="import-file" type="file" disabled={disabled} accept=".json,application/json,text/plain" className="small" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setPending({ text: await f.text(), label: `«${f.name}»` }); }} />
+      <label className="small" htmlFor="import-file">Desde un archivo (el .json que exportaste, aunque venga de WhatsApp o Drive)</label>
+      <input id="import-file" type="file" disabled={disabled} className="small" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setPending({ text: await f.text(), label: `«${f.name}»` }); }} />
       <textarea className="input" aria-label="Texto de una partida exportada" disabled={disabled} placeholder="…o pegá aquí el texto de una partida exportada" value={pasted} onChange={(e) => setPasted(e.target.value)} style={{ minHeight: 60, padding: 8, fontSize: 12 }} />
       <span className="act"><button className="btn sm" disabled={disabled || !pasted.trim()} onClick={() => setPending({ text: pasted, label: 'el texto pegado' })}>Importar y verificar</button><InfoButton term="accion_exportar" /></span>
     </>

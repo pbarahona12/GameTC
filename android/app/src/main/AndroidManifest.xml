@@ -25,6 +25,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- «Abrir con Ultimate Realistic Tycoon»: una partida exportada (.json) tocada en
+                 WhatsApp, Archivos o Drive. La app pide confirmación antes de importarla
+                 (src/ui/openWith.ts). WhatsApp suele entregar los .json como octet-stream. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
         </activity>
 
         <!-- AdMob: identificador de la app (público). Los anuncios son solo recompensados y opcionales. -->
