@@ -473,7 +473,7 @@ function SettingsView() {
             </div>
           ))}
         </div>
-        <button className="btn sm" onClick={() => setExportText(store.exportText())}>Mostrar como texto</button>
+        <button className="btn sm" onClick={async () => setExportText(await store.exportText())}>Mostrar como texto</button>
         {exportText && (
           <>
             <textarea className="input" aria-label="Partida exportada como texto" readOnly value={exportText} style={{ minHeight: 90, padding: 8, fontSize: 11 }} onFocus={(e) => e.target.select()} />

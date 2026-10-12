@@ -9,7 +9,7 @@ import { refreshListings } from '../engine/business/simulate';
 import { updateProgression } from '../engine/progression/progression';
 import { checkInvariants } from '../engine/invariants';
 import { takeSnapshot } from '../engine/snapshot';
-import { loadGame, saveGame, KV, serialize, listBackups, restoreBackup, deleteSlot, snapshotBeforeUpdate, collectRawCopies, rescueBundle, parseImport, slotKeys, allKeys, clearPreupdate, type LoadReport } from '../persistence/save';
+import { loadGame, saveGame, KV, serializeCompact, listBackups, restoreBackup, deleteSlot, snapshotBeforeUpdate, collectRawCopies, rescueBundle, parseImport, slotKeys, allKeys, clearPreupdate, type LoadReport } from '../persistence/save';
 import { readRegistry, writeRegistry, newSlotId, upsertSlot, removeSlot, MAX_SLOTS, type SlotRegistry, type SlotMeta } from '../persistence/slots';
 import { balanceSheet } from '../engine/reports/statements';
 import { offlineDays, DEFAULT_OFFLINE } from '../persistence/offline';
@@ -807,12 +807,16 @@ export class GameStore {
     }
   }
 
-  exportText(): string | null {
-    return this.ui.state ? serialize(this.ui.state, Date.now()) : null;
+  /**
+   * Partida exportada (archivo o texto). Va comprimida con gzip, como el guardado
+   * interno: pesa unas 4 veces menos y cualquier versión desde la 1.3 la importa.
+   */
+  async exportText(): Promise<string | null> {
+    return this.ui.state ? serializeCompact(this.ui.state, Date.now()) : null;
   }
 
   async exportFile(): Promise<void> {
-    const text = this.exportText();
+    const text = await this.exportText();
     if (!text || !this.ui.state) return;
     const safe = this.ui.state.player.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'partida';
     const r = await exportToFile(text, `urt-${safe}-dia-${this.ui.state.day}.json`);
