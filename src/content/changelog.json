@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.5.0",
+    "date": "2026-10-12",
+    "items": [
+      "Cerrar la app ya no decide por vos: si tenés una oferta, una decisión o un acuerdo pendiente, el tiempo te espera; y se detiene antes de cualquier vencimiento de tu agenda o si aparece algo nuevo para decidir.",
+      "Al pasar la app a segundo plano el tiempo queda en pausa; al volver, lo que pasó mientras no estabas sigue las mismas reglas.",
+      "Las recompensas por anuncios ya no dan dinero ni perdonan deudas: dan información (análisis de noticias) o tiempo de estudio. Durante un desafío no hay recompensas, así los resultados se comparan de igual a igual.",
+      "Abrí una partida tocando el archivo en WhatsApp, Archivos o Drive («Abrir con Ultimate Realistic Tycoon»). Antes de cargarla te muestra cuál es.",
+      "Importar una partida ya no falla con archivos descargados de WhatsApp, y las partidas exportadas pesan unas 4 a 5 veces menos.",
+      "Registro de errores en Ajustes → Guardado y copias: queda solo en tu teléfono y lo compartís vos si querés pedir ayuda.",
+      "La APK de GitHub se firma con una llave nueva y privada. Si tu app es anterior y Android no deja instalar la nueva encima: exportá la partida, desinstalá, instalá la nueva e importá la partida (una sola vez)."
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-10-10",
     "items": [

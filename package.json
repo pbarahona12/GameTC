@@ -1,12 +1,15 @@
 {
   "name": "ultimate-realistic-tycoon",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:single": "tsc -b && vite build --mode single",
+    "build:play": "VITE_DISTRIBUTION=play npm run build && node scripts/verifyDistribution.mjs play dist",
+    "build:github": "VITE_DISTRIBUTION=github npm run build && node scripts/verifyDistribution.mjs github dist",
+    "verify:play": "node scripts/verifyDistribution.mjs play dist",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
@@ -54,6 +57,6 @@
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^2.1.9"
   },
-  "nativeCode": 6,
+  "nativeCode": 7,
   "otaMinNativeCode": 6
 }

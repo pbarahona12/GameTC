@@ -4,7 +4,9 @@
  * que se enlazan en Google Play.
  *
  * Describen lo que la app hace HOY: sin cuentas, sin compras ni analíticas propias;
- * anuncios recompensados de Google AdMob solo cuando el jugador elige verlos. Si eso
+ * anuncios recompensados de Google AdMob solo cuando el jugador elige verlos. Hay dos
+ * variantes (src/distribution.ts): la de Google Play no busca actualizaciones por su
+ * cuenta; la APK de GitHub sí (en GitHub). Los textos cubren las dos. Si eso
  * cambia, estos textos (y el formulario de Seguridad de los datos de Play Console)
  * deben cambiar ANTES de publicar esa versión.
  */
@@ -19,7 +21,7 @@ export const LEGAL = {
   developer: 'Paolo Barahona',
   contact: 'paolobaraho415@gmail.com',
   country: 'El Salvador',
-  updated: '2026-10-02',
+  updated: '2026-10-12',
 };
 
 /** ¿Están los datos de contacto que exige Google Play? */
@@ -47,17 +49,20 @@ export const PRIVACY: LegalSection[] = [
     paragraphs: [
       'Tus partidas (nombre y aspecto del personaje que inventás, y todo lo que pasa en la simulación) y tus ajustes se guardan solamente en tu dispositivo, en el almacenamiento privado de la app.',
       'El nombre del personaje es ficticio: no hace falta que uses tu nombre real.',
+      'Si la app encuentra un error, guarda en tu dispositivo un registro técnico breve de los últimos errores (mensaje, versión del juego y día de la partida; sin datos personales). No se envía a nadie: lo ves en Ajustes → Guardado y copias, y solo sale del dispositivo si vos lo copiás o lo exportás para pedir ayuda. Podés borrarlo cuando quieras.',
     ],
   },
   {
     title: 'Conexión a internet',
     paragraphs: [
-      'La app se conecta a internet para buscar actualizaciones del juego, descargándolas de GitHub (servicio de GitHub, Inc.), y para cargar un anuncio cuando elegís verlo. En la búsqueda de actualizaciones no se envía ningún dato de tu partida ni datos personales; como en cualquier conexión, GitHub recibe datos técnicos como la dirección IP, que trata según su propia política de privacidad. Podés desactivar la búsqueda automática en Ajustes → Actualizaciones.',
+      'La versión de Google Play se conecta a internet solo para cargar un anuncio cuando elegís verlo. Se actualiza únicamente desde Google Play: no descarga versiones del juego por su cuenta.',
+      'La versión que se instala desde GitHub (fuera de la tienda) además busca actualizaciones del juego y las descarga de GitHub (servicio de GitHub, Inc.). En esa búsqueda no se envía ningún dato de tu partida ni datos personales; como en cualquier conexión, GitHub recibe datos técnicos como la dirección IP, que trata según su propia política de privacidad. Podés desactivar la búsqueda automática en Ajustes → Actualizaciones.',
     ],
   },
   {
     title: 'Anuncios (Google AdMob)',
     paragraphs: [
+      'Los anuncios son solo recompensados y opcionales: aparecen únicamente si tocás «Ver anuncio» y nunca interrumpen el juego. La recompensa es información o tiempo de estudio dentro de la partida; nunca dinero del juego ni perdón de deudas, y durante un desafío no hay recompensas.',
       'Si elegís ver un anuncio a cambio de una recompensa, el anuncio lo muestra Google AdMob (Google LLC). Para mostrarlo, medirlo y evitar fraudes, Google puede recopilar y usar el identificador de publicidad del dispositivo, la dirección IP, información del dispositivo y de la app, y datos sobre la interacción con el anuncio, según la política de privacidad de Google (https://policies.google.com/privacy) y cómo usa Google la información de los sitios y apps que usan sus servicios (https://policies.google.com/technologies/partner-sites).',
       'Si vivís en el Espacio Económico Europeo, el Reino Unido o Suiza, antes del primer anuncio se te pide el consentimiento para anuncios personalizados. Podés restablecer o limitar el identificador de publicidad en la configuración de Android (Google → Anuncios). Si nunca tocás «Ver anuncio», la app no carga anuncios.',
     ],
@@ -71,7 +76,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Permisos',
-    paragraphs: ['La app usa el acceso a internet (actualizaciones y anuncios opcionales) y el permiso del identificador de publicidad que agrega el SDK de Google AdMob. No accede a tu ubicación, contactos, cámara, micrófono, fotos ni a otras apps.'],
+    paragraphs: ['La app usa el acceso a internet (anuncios opcionales y, solo en la versión de GitHub, actualizaciones) y el permiso del identificador de publicidad que agrega el SDK de Google AdMob. No accede a tu ubicación, contactos, cámara, micrófono, fotos ni a otras apps.'],
   },
   {
     title: 'Niñas, niños y adolescentes',

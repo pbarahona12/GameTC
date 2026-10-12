@@ -1,9 +1,9 @@
 import { ageOf, monthlyDeathRisk } from '../engine/saga/life';
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { store, useUI, useDerived, NEXT_SPEED } from './store';
 import { insightsOf } from './derived';
 import { navStore, useNav, Tab } from './nav';
-import { formatDateShort } from '../engine/time/calendar';
+import { formatDate, formatDateShort } from '../engine/time/calendar';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { useOta } from './useOta';
@@ -146,7 +146,8 @@ function AbsenceReport() {
   const important = r.logs.filter((l) => l.kind !== 'info').slice(-12).reverse();
   return (
     <Sheet title="Mientras no estabas" onClose={() => store.dismissAbsence()}>
-      <p className="muted small">Pasaron {days} día{days === 1 ? '' : 's'} de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes).</p>
+      <p className="muted small">Pasaron {days} día{days === 1 ? '' : 's'} de juego con las mismas reglas económicas que en vivo (máximo configurable en Ajustes). Mientras no estás, ninguna decisión ni pago de tu agenda vence: el tiempo se detiene antes.</p>
+      {r.note && <p className="small warn">{r.note}</p>}
       <dl className="kv">
         <dt>Patrimonio neto</dt>
         <dd>{fmtMoney(r.netWorthBefore)} → {fmtMoney(r.netWorthAfter)}</dd>
@@ -166,6 +167,39 @@ function AbsenceReport() {
         ))}
       </div>
       <button className="btn primary block" onClick={() => store.dismissAbsence()}>Continuar</button>
+    </Sheet>
+  );
+}
+
+/** Partida que llegó desde otra app («Abrir con…»): se confirma antes de importar. */
+function IncomingImportSheet() {
+  const ui = useUI();
+  const [busy, setBusy] = useState(false);
+  const inc = ui.incomingImport;
+  if (!inc) return null;
+  const sum = inc.summary;
+  const open = async () => {
+    setBusy(true);
+    const r = await store.acceptIncomingImport();
+    setBusy(false);
+    if (r.ok) navStore.closeAll();
+  };
+  return (
+    <Sheet title="Abrir una partida" onClose={() => store.dismissIncomingImport()}>
+      {sum ? (
+        <dl className="kv">
+          {sum.name && <><dt>Personaje</dt><dd>{sum.name}</dd></>}
+          {sum.day !== undefined && <><dt>Fecha en el juego</dt><dd>{formatDate(sum.day)} (año {Math.floor(sum.day / 365) + 1})</dd></>}
+          {sum.netWorth !== undefined && <><dt>Patrimonio</dt><dd>{fmtMoney(sum.netWorth, { decimals: false })}</dd></>}
+        </dl>
+      ) : (
+        <p className="small">Recibiste {inc.label}. Si es una partida exportada del juego, se puede abrir.</p>
+      )}
+      <p className="small muted">Se verifica la contabilidad y se abre como una partida nueva. {ui.state ? 'La que tenés abierta queda guardada.' : ''}</p>
+      <div className="btn-row">
+        <button className="btn ghost" disabled={busy} onClick={() => store.dismissIncomingImport()}>Cancelar</button>
+        <button className="btn primary" disabled={busy} onClick={() => void open()}>{busy ? 'Abriendo…' : 'Abrir partida'}</button>
+      </div>
     </Sheet>
   );
 }
@@ -196,7 +230,7 @@ export function App() {
     );
   }
   if (!ui.state && ui.bootError) return <><BootErrorScreen /><Toasts /></>;
-  if (!ui.state) return <><DotBudget><Onboarding /></DotBudget><Suspense fallback={null}><SheetHost /></Suspense><Toasts /></>;
+  if (!ui.state) return <><DotBudget><Onboarding /></DotBudget><Suspense fallback={null}><SheetHost /></Suspense><IncomingImportSheet /><Toasts /></>;
   return (
     <div className={`app ${nav.tab === 'home' ? 'home-wide' : ''}`}>
       <TopBar />
@@ -233,6 +267,7 @@ export function App() {
       <BottomNav />
       <Suspense fallback={null}><SheetHost /></Suspense>
       <AbsenceReport />
+      <IncomingImportSheet />
       <SimErrorSheet />
       <Celebrations />
       <Toasts />

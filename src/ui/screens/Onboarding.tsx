@@ -35,7 +35,7 @@ function ImportCard() {
       <p className="small muted">Elegí el archivo .json que exportaste desde Ajustes → Guardado y copias (por ejemplo, desde Descargas o Drive). Se verifica la contabilidad antes de cargarla y se actualiza a esta versión.</p>
       <label className="btn dark block file-btn">
         <Icon name="upload" size={16} /> Elegir archivo de partida
-        <input type="file" accept=".json,application/json,text/plain" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await store.importText(await f.text()); e.target.value = ''; }} />
+        <input type="file" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await store.importText(await f.text()); e.target.value = ''; }} />
       </label>
       <details>
         <summary className="small muted">O pegar el texto exportado</summary>

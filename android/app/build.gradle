@@ -28,19 +28,16 @@ android {
         includeInBundle = true
     }
     // Firma:
-    //  - debug: llave FIJA incluida en el repositorio (urt-debug.keystore). Es la de las APK
-    //    instaladas a mano hasta la 1.2: una APK firmada con ella se instala ENCIMA de la
-    //    anterior y conserva la partida. Es pública: no sirve como firma de publicación.
-    //  - release (Play Store y APK de publicación): la llave real NUNCA se sube al
-    //    repositorio. Se lee de variables de entorno (en GitHub, de los secretos del
-    //    repositorio). Sin ellas, la variante release queda sin firmar y el CI no la publica.
+    //  - debug: la llave de depuración por defecto de cada máquina (~/.android/debug.keystore).
+    //    Las APK de depuración son solo para probar: NUNCA se distribuyen.
+    //    Hasta la 1.4.0 el repositorio incluía una llave fija (urt-debug.keystore, contraseña
+    //    pública) con la que se firmaban las APK de GitHub Releases. Como cualquiera podía
+    //    firmar con ella, se retiró: ver docs/PUBLICAR.md §5 y android/compromised-signing-certs.txt.
+    //  - release (AAB de Play y APK de GitHub): la llave real NUNCA se sube al repositorio.
+    //    Se lee de variables de entorno (en GitHub, de los secretos del repositorio; el CI usa
+    //    una llave distinta para Play y para GitHub). Sin ellas, la variante release queda sin
+    //    firmar y el CI no la publica.
     signingConfigs {
-        debug {
-            storeFile file('urt-debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
         if (System.getenv('URT_KEYSTORE_FILE')) {
             release {
                 storeFile file(System.getenv('URT_KEYSTORE_FILE'))
@@ -51,9 +48,6 @@ android {
         }
     }
     buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

@@ -32,6 +32,8 @@ export const OTA_REPO = 'pbarahona12/gametc';
  */
 export const OTA_CHANNEL = 'ota-channel';
 export const OTA_BASE = `https://raw.githubusercontent.com/${OTA_REPO}/${OTA_CHANNEL}/`;
+/** Descarga de la APK nueva cuando una versión necesita cambios nativos (solo la variante de GitHub). */
+export const APK_DOWNLOAD_URL: string | null = `https://github.com/${OTA_REPO}/releases/latest`;
 const PREF_KEY = 'urt.ota';
 const CONFIRM_AFTER_MS = 6000;
 /** Tiempos y reintentos de red (la conexión del teléfono puede ser mala o cortarse). */

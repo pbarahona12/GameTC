@@ -209,8 +209,18 @@ export interface SafeRun {
   failure: DayFailure | null;
 }
 
-/** Simula varios días con días atómicos: se detiene en el primero que falla. */
-export function simulateDaysSafe(state: GameState, days: number, step?: (s: GameState) => void): SafeRun {
+/**
+ * Simula varios días con días atómicos: se detiene en el primero que falla.
+ * `stopBefore` se consulta antes de cada día y `stopAfter` después de cada día
+ * completado (con el último id de registro previo a ese día); si devuelven true,
+ * la simulación se detiene ahí (lo usa el progreso sin conexión, ver absence.ts).
+ */
+export function simulateDaysSafe(
+  state: GameState,
+  days: number,
+  step?: (s: GameState) => void,
+  hooks: { stopBefore?: (s: GameState) => boolean; stopAfter?: (s: GameState, logIdBefore: number) => boolean } = {},
+): SafeRun {
   const before = balanceSheet(state);
   const lastLogId = lastLogIdOf(state);
   const fromDay = state.day;
@@ -218,6 +228,8 @@ export function simulateDaysSafe(state: GameState, days: number, step?: (s: Game
   let failure: DayFailure | null = null;
   let done = 0;
   for (let i = 0; i < days; i++) {
+    if (hooks.stopBefore?.(cur)) break;
+    const logIdBefore = lastLogIdOf(cur);
     const r = advanceDaySafe(cur, step);
     cur = r.state;
     if (!r.ok) {
@@ -225,6 +237,7 @@ export function simulateDaysSafe(state: GameState, days: number, step?: (s: Game
       break;
     }
     done++;
+    if (hooks.stopAfter?.(cur, logIdBefore)) break;
   }
   return { state: cur, report: simReport(cur, fromDay, before, lastLogId), daysDone: done, failure };
 }

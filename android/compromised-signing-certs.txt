@@ -1,0 +1,7 @@
+# Certificados de firma COMPROMETIDOS: nunca firmar con ellos nada que se distribuya.
+# El CI rechaza cualquier APK o AAB firmado con uno de estos (huella SHA-256 del
+# certificado, sin dos puntos, en minúsculas). Una línea por certificado.
+#
+# urt-debug.keystore (CN=Android Debug, alias androiddebugkey, contraseña "android").
+# Estuvo en el repositorio hasta la 1.4.0 y firmó las APK de GitHub Releases.
+9355ac77add117902083a66c503152a913ad6af0b15fbb1d632822a5af25aec6

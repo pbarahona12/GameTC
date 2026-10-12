@@ -33,8 +33,11 @@ function fail(msg) {
 }
 
 function compile() {
-  if (!process.argv.includes('--no-build')) execSync('npm run build:single', { stdio: 'inherit' });
+  // La actualización por internet es para la APK de GitHub: tiene que seguir siendo
+  // la variante `github` (si no, la versión nueva perdería las actualizaciones).
+  if (!process.argv.includes('--no-build')) execSync('npm run build:single', { stdio: 'inherit', env: { ...process.env, VITE_DISTRIBUTION: 'github' } });
   const html = readFileSync('dist-single/index.html');
+  if (!html.toString('utf8').includes('ota-channel')) fail('dist-single/index.html no es la variante github (compilar con VITE_DISTRIBUTION=github)');
   if (!html.includes('<div id="root">')) fail('dist-single/index.html no parece el juego');
   if (!html.toString('utf8').includes(`"${pkg.version}"`)) fail('la página compilada no contiene la versión de package.json');
   return html;

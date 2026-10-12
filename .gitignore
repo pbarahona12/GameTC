@@ -9,8 +9,8 @@ android/app/src/main/assets/public/
 *.keystore
 .DS_Store
 
-# Llave de depuración fija (pública a propósito: permite actualizar la APK sin perder la partida)
-!android/app/urt-debug.keystore
+# La llave de depuración fija (urt-debug.keystore) se retiró en la fase 0: era pública y
+# firmaba las APK distribuidas. Ninguna llave vuelve a entrar al repositorio.
 # Llaves de publicación: nunca al repositorio
 *.jks
 keystore.b64

@@ -51,7 +51,11 @@ export function agenda(s: GameState): AgendaItem[] {
     if (!c.saleOffer || c.saleOffer.expires < s.day || !c.saleOffer.from) continue;
     out.push({ key: `offer:${c.id}`, icon: 'deal', title: `${c.saleOffer.from} quiere comprar ${c.name}`, detail: `Ofrece ${fmtMoney(c.saleOffer.price, { decimals: false })}`, due: c.saleOffer.expires, tone: 'opportunity', target: { kind: 'tab', tab: 'business', sub: `co:${c.id}:manage` } });
   }
-  // Legal: inspecciones y multas.
+  // Legal: acuerdos ofrecidos por la fiscalía, inspecciones y multas.
+  for (const c of s.legal.cases) {
+    if (!c.plea || c.stage !== 'imputacion' || c.plea.expires < s.day) continue;
+    out.push({ key: `plea:${c.id}`, icon: 'legal', title: `Acuerdo de la fiscalía: ${c.title}`, detail: `Multa y restitución ${fmtMoney(c.plea.fine, { decimals: false })}`, due: c.plea.expires, tone: 'danger', target: { kind: 'tab', tab: 'more', sub: 'legal' } });
+  }
   for (const i of s.legal.inspections) {
     if (i.resolved) continue;
     const co = s.companies.find((c) => c.id === i.companyId);
