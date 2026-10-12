@@ -1,6 +1,6 @@
-# Estado del proyecto — versión 1.4
+# Estado del proyecto — versión 1.5
 
-## Fase 0 de la auditoría maestra: bloqueantes de Google Play (rama `fase0-play`)
+## Versión 1.5: fase 0 de la auditoría maestra (bloqueantes de Google Play)
 
 | Hallazgo | Arreglo | Prueba de regresión |
 |---|---|---|
@@ -9,9 +9,10 @@
 | D7 · actualizaciones propias y enlace a APK en la versión de Play | `src/distribution.ts`, `persistence/ota.play.ts`, alias en `vite.config.ts`; `npm run build:play` verifica el paquete y el CI, el AAB. | `tests/distribution.test.ts`, `scripts/verifyDistribution.mjs` |
 | D8 · llave de firma pública en las APK distribuidas | Se retiró `urt-debug.keystore`; APK de GitHub con llave propia (`URT_GITHUB_KEYSTORE_*`); `scripts/check-signing.sh` rechaza la llave vieja y las de depuración. | Probado con JAR firmados (vieja, nueva, depuración, sin firmar) |
 | Sin registro de errores en teléfonos | `persistence/errorLog.ts`: últimos 20 errores en el dispositivo; Ajustes → Guardado y copias (copiar, exportar, borrar). | `tests/error_log.test.ts` |
+| Importar fallaba con archivos de WhatsApp; exportaciones pesadas (11,7 MB en una partida de 97 años) | Selectores sin filtro de tipo; exportación comprimida (2,2 MB la misma partida); «Abrir con…» desde otras apps (filtro VIEW en el manifiesto, `ui/openWith.ts`) con confirmación. | `tests/export.test.ts`, `tests/open_with.test.ts` |
 | Documentación desalineada | README, ARQUITECTURA, ESTADO, PUBLICAR, GOOGLE_PLAY y política de privacidad (`npm run legal`). | — |
 
-Pendiente de la fase 0 (necesita el SDK de Android, los secretos o un teléfono): compilar y firmar el AAB y la APK de GitHub, revisar 16 KB con APK Analyzer y las pruebas en dispositivo de la auditoría (sección H).
+Verificado: el CI compila y firma el AAB (llave de subida) y la APK de GitHub (llave nueva), y comprueba firmas y contenido. Probado en un Galaxy S24 Ultra: ausencia, pausa en segundo plano, recompensas, registro de errores, «Abrir con…» e importación. Pendiente: 16 KB con APK Analyzer, un teléfono de gama baja (Android 10–12) y el rendimiento con partidas largas: con una partida real de 97 años, a 8× y con la CPU frenada 4–6×, hay congelamientos de 0,4–0,8 s por paso y de 2,6–6,5 s al cerrar el mes (fase 1, E11).
 
 ## Versión 1.4: la historia del magnate (rama `v1.4-experiencia`)
 
