@@ -63,6 +63,39 @@ const H = (label: string, value: string): DataPoint => ({ label, value, kind: 'h
 const E = (label: string, value: string): DataPoint => ({ label, value, kind: 'estimación' });
 const months = (x: number) => (x === Infinity ? '∞' : x < 1 ? `${Math.round(x * 30)} días` : `${x.toFixed(1)} meses`);
 
+/**
+ * 1.6: en imperios grandes, la misma alerta de varias empresas se agrupa en una sola
+ * («4 empresas con pérdidas seguidas»), con el detalle de cada una adentro. Con una o
+ * dos empresas afectadas, se muestran por separado como siempre.
+ */
+export const GROUP_FROM = 3;
+export function groupCompanyInsights(list: Insight[]): Insight[] {
+  const kindOf = (i: Insight) => i.id.replace(/^co\d+-/, '');
+  const byKind = new Map<string, Insight[]>();
+  for (const i of list) {
+    const k = kindOf(i);
+    byKind.set(k, [...(byKind.get(k) ?? []), i]);
+  }
+  const out: Insight[] = [];
+  const rank: Record<Severity, number> = { critical: 0, warning: 1, opportunity: 2, info: 3 };
+  for (const [k, group] of byKind) {
+    if (group.length < GROUP_FROM) {
+      out.push(...group);
+      continue;
+    }
+    const worst = [...group].sort((a, b) => rank[a.severity] - rank[b.severity])[0];
+    const names = group.map((i) => i.title.replace(/^\S+\s/, '').split(':')[0]);
+    out.push({
+      ...worst,
+      id: `grupo-${k}`,
+      title: worst.title.includes(':') ? `${worst.title.split(' ')[0]} ${group.length} empresas: ${worst.title.split(':').slice(1).join(':').trim().replace(/^\d+\s/, '')}` : `${group.length} empresas · ${worst.title}`,
+      what: `${names.slice(0, 5).join(', ')}${names.length > 5 ? ` y ${names.length - 5} más` : ''}.`,
+      data: group.slice(0, 6).map((i) => ({ label: i.title.replace(/^\S+\s/, '').split(':')[0], value: i.what.length > 90 ? `${i.what.slice(0, 87)}…` : i.what, kind: 'hecho' as const })),
+    });
+  }
+  return out;
+}
+
 export function analyze(state: GameState, m: Metrics = computeMetrics(state)): Insight[] {
   const out: Insight[] = [];
   const b = state.ledger.balances;
@@ -336,7 +369,8 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
       ifNothing: 'Riesgo de despido.',
     });
   }
-  if (m.expectedNetPay > 0 && m.recurringMonthly > m.expectedNetPay * 0.7) {
+  // Solo si el sueldo es tu ingreso principal: a un magnate que vive de sus empresas e inversiones no le sirve.
+  if (m.expectedNetPay > 0 && m.recurringMonthly > m.expectedNetPay * 0.7 && m.passiveMonthly < m.expectedNetPay && m.liquid < m.recurringMonthly * 24) {
     out.push({
       id: 'lifestyle', severity: 'warning', category: 'liquidez', term: 'presupuesto',
       title: '🏠 Tu estilo de vida consume casi todo tu sueldo',
@@ -349,7 +383,7 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
     });
   }
   out.push(...analyzeWorld(state));
-  for (const co of state.companies) out.push(...analyzeCompany(state, co));
+  out.push(...groupCompanyInsights(state.companies.flatMap((co) => analyzeCompany(state, co))));
   out.push(...portfolioInsights(state));
   const order: Record<Severity, number> = { critical: 0, warning: 1, opportunity: 2, info: 3 };
   return out.sort((x, y) => order[x.severity] - order[y.severity]);

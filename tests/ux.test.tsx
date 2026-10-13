@@ -191,3 +191,19 @@ describe('Fase 1 · E6: cifras cortas en Inicio', () => {
     expect(fmtMoneyShort(200_000_000, { sign: true })).toBe('+$2 M');
   });
 });
+
+describe('1.6 · Asesor en imperios grandes', () => {
+  it('la misma alerta de 3 o más empresas se agrupa en una; con menos, se muestran por separado', async () => {
+    const { groupCompanyInsights, GROUP_FROM } = await import('../src/engine/advisor/advisor');
+    const mk = (co: number, name: string) => ({ id: `co${co}-losses`, severity: 'warning' as const, category: 'empresa' as const, title: `📉 ${name}: 5 meses seguidos con pérdidas`, what: 'Resultados…', why: '', data: [], consequence: '', options: [], ifNothing: '' });
+    const two = groupCompanyInsights([mk(1, 'A'), mk(2, 'B')]);
+    expect(two).toHaveLength(2);
+    const many = groupCompanyInsights([mk(1, 'Café Uno'), mk(2, 'Café Dos'), mk(3, 'Café Tres'), { ...mk(4, 'Otra'), id: 'co4-cash' }]);
+    expect(GROUP_FROM).toBe(3);
+    expect(many).toHaveLength(2);
+    const g = many.find((i) => i.id === 'grupo-losses')!;
+    expect(g.title).toBe('📉 3 empresas: meses seguidos con pérdidas');
+    expect(g.what).toBe('Café Uno, Café Dos, Café Tres.');
+    expect(g.data).toHaveLength(3);
+  });
+});

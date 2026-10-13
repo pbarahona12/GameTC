@@ -842,3 +842,6 @@ ul.reqs { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px
 .month-line { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .month-line svg { flex: none; color: var(--muted); }
 .next-goal { display: grid; gap: 6px; width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+
+/* Textos largos en Inicio: dos líneas como mucho (el detalle está en Actividad). */
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

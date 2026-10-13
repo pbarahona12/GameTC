@@ -82,7 +82,11 @@ export function analyzeCompany(state: GameState, co: Company): Insight[] {
 
   // 3. Pérdidas recurrentes
   if (m.consecutiveLossMonths >= 2) {
-    const last = co.history.slice(-m.consecutiveLossMonths).map((h) => fmtMoney(h.netIncome, { decimals: false })).join(', ');
+    // Una frase, no la lista de cada mes (con muchos meses en rojo era ilegible).
+    const losses = co.history.slice(-m.consecutiveLossMonths).map((h) => h.netIncome);
+    const total = losses.reduce((a, b) => a + b, 0);
+    const recent = losses.slice(-3).map((x) => fmtMoney(x, { decimals: false })).join(', ');
+    const last = losses.length > 3 ? `${fmtMoney(total, { decimals: false })} en total (promedio ${fmtMoney(Math.round(total / losses.length), { decimals: false })} por mes); los últimos tres: ${recent}` : recent;
     out.push({
       id: id('losses'), severity: m.consecutiveLossMonths >= 4 ? 'critical' : 'warning', category: 'empresa', term: 'punto_equilibrio',
       title: `📉 ${co.name}: ${m.consecutiveLossMonths} meses seguidos con pérdidas`,

@@ -27,7 +27,7 @@ export function LogRow({ l, short = false }: { l: LogItem; short?: boolean }) {
     <div className="row">
       <span className="log-ic" aria-hidden><Icon name={logIcon(l)} size={16} /></span>
       <div className="grow">
-        <div className="small">{l.text}</div>
+        <div className={`small ${short ? 'clamp-2' : ''}`}>{l.text}</div>
         <div className="tiny faint">{formatDate(l.day)}</div>
       </div>
       {l.amount !== undefined && (
@@ -59,7 +59,7 @@ export function Home() {
   const nextStep = nextMission(s);
   const img = imageScore(s);
   const unread = unreadNews(s);
-  const openNews = s.world.news.filter((n) => n.status === 'abierta').slice(-2).reverse();
+  const openNews = s.world.news.filter((n) => n.status === 'abierta').slice(-1).reverse();
 
   const nwLabels = [...hist.map((h) => formatMonth(h.day)), 'Hoy'];
   const openCos = s.companies.filter((c) => c.status === 'active' || c.status === 'insolvent');
@@ -217,7 +217,7 @@ export function Home() {
           </div>
           <div className="card" style={{ paddingBlock: 4 }}>
             <div className="rows">
-              {s.log.slice(-4).reverse().map((l) => <LogRow key={l.id} l={l} short />)}
+              {s.log.slice(-3).reverse().map((l) => <LogRow key={l.id} l={l} short />)}
             </div>
           </div>
         </>
