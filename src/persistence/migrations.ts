@@ -7,6 +7,7 @@ import { emptyYtd } from '../engine/tax/incomeTax';
 import { initWorldV3 } from '../engine/worldInit';
 import { migrateSaga } from '../engine/saga/index';
 import { life, repairHeirEducation } from '../engine/saga/life';
+import { ensureFunds } from '../engine/invest/funds';
 import { ACCOUNT_IDS } from '../engine/ledger/accounts';
 
 /**
@@ -151,6 +152,8 @@ export function migrate(raw: AnyState): { state: GameState; migratedFrom: number
   if (raw.saga && raw.player && !raw.saga.life) life(raw as GameState);
   // 1.6: los herederos de 1.4–1.5 arrastraban los estudios de quien se fue (ver repairHeirEducation).
   if (raw.saga?.life && raw.education) repairHeirEducation(raw as GameState);
+  // 1.6: fondos nuevos en partidas que ya existían.
+  if (raw.funds?.funds && raw.macro) ensureFunds(raw as GameState);
   return { state: raw as GameState, migratedFrom: from === SAVE_VERSION ? null : from };
 }
 

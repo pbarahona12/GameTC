@@ -5,13 +5,14 @@ import { businessesOf } from '../derived';
 import { navStore, useNav } from '../nav';
 import { SECTORS, SECTOR_BY_ID, LEGAL_FORMS, LEGAL_FORM_BY_ID, BizSectorId, LegalForm } from '../../content/sectors';
 import { setupCosts, sectorRequirement, foundCompany, buyListing, foundHolding } from '../../engine/business/ownership';
+import { searchListings, LISTINGS } from '../../engine/business/simulate';
 import { isHolding } from '../../engine/business/groups';
 import { JURISDICTIONS, JURISDICTION_BY_ID, type JurisdictionId } from '../../content/jurisdictions';
 import { valuation, coMetrics, coIncomeStatement } from '../../engine/business/reports';
 import { daysToBankruptcy } from '../../engine/business/finance';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { attachForecast, type BusinessForecast } from '../../engine/advisor/businessForecast';
-import { isOpen } from '../../engine/business/common';
+import { isOpen, px } from '../../engine/business/common';
 import { formatDate, last90Start } from '../../engine/time/calendar';
 import { fmtMoney, fmtPct } from '../../engine/format';
 import { spendable } from '../../engine/finance/payments';
@@ -246,7 +247,20 @@ function Market({ buyerId }: { buyerId: number | null }) {
           </div>
         )}
       </div>
-      {s.listings.length === 0 && <Empty icon="tag">No hay empresas en venta en este momento. Volvé en unas semanas.</Empty>}
+      {s.listings.length === 0 && <Empty icon="tag">No hay empresas en venta en este momento. Pedile a un intermediario que busque, o volvé en unas semanas.</Empty>}
+      {(() => {
+        const last = s.meta.listingSearchDay ?? -Infinity;
+        const wait = last + LISTINGS.searchCooldownDays - s.day;
+        const full = s.listings.length >= LISTINGS.searchMax;
+        return (
+          <div className="card flat" style={{ gap: 6 }}>
+            <span className="small">¿No te convence ninguna? Un intermediario te trae {LISTINGS.searchCount} empresas más por {fmtMoney(px(s, LISTINGS.searchFeeUsd), { decimals: false })} (una vez por mes, hasta {LISTINGS.searchMax} en venta).</span>
+            <button className="btn" disabled={wait > 0 || full} onClick={() => store.run((st) => searchListings(st))}>
+              <Icon name="search" size={15} /> {full ? `Ya hay ${LISTINGS.searchMax} en venta` : wait > 0 ? `Disponible en ${wait} día${wait === 1 ? '' : 's'}` : 'Buscar más empresas'}
+            </button>
+          </div>
+        );
+      })()}
       {s.listings.map((l) => {
         const co = l.company;
         const sec = SECTOR_BY_ID[co.sector];

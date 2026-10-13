@@ -23,8 +23,27 @@ import { residence } from '../tax/taxEngine';
  */
 const START_NAV = 10_000; // $100,00 por participación
 
+function newFund(state: GameState, d: FundDef): FundState {
+  return { id: d.id, nav: START_NAV * state.macro.priceIndex, history: [{ d: state.day, v: START_NAV * state.macro.priceIndex }], lastDistribution: state.day, ref: refValue(state, d), accrued: 0 };
+}
+
 export function initFunds(state: GameState): void {
-  state.funds.funds = FUND_DEFS.map((d) => ({ id: d.id, nav: START_NAV * state.macro.priceIndex, history: [{ d: state.day, v: START_NAV * state.macro.priceIndex }], lastDistribution: state.day, ref: refValue(state, d), accrued: 0 }));
+  state.funds.funds = FUND_DEFS.map((d) => newFund(state, d));
+}
+
+/**
+ * Fondos nuevos de una versión posterior (1.6) en una partida que ya existía: se
+ * lanzan hoy a $100 por participación (a precios de hoy). Idempotente.
+ */
+export function ensureFunds(state: GameState): number {
+  if (!state.funds?.funds) return 0;
+  let added = 0;
+  for (const d of FUND_DEFS) {
+    if (state.funds.funds.some((f) => f.id === d.id)) continue;
+    state.funds.funds.push(newFund(state, d));
+    added++;
+  }
+  return added;
 }
 
 function refValue(state: GameState, d: FundDef): number {
@@ -101,6 +120,12 @@ export function fundsDay(state: GameState): void {
       const r = govBondReturn(state);
       price = r.price;
       income = r.income;
+    } else if (d.kind === 'balanceado') {
+      // 60 % índice (reinvierte dividendos) y 40 % bonos de gobierno (reparte los cupones).
+      const eq = trading ? basketReturn(state, null).price : 0;
+      const b = govBondReturn(state);
+      price = 0.6 * eq + 0.4 * b.price;
+      income = 0.4 * b.income;
     } else if (d.kind === 'monetario') {
       price = Math.max(0, state.macro.policyRate - 0.002) / 365;
     } else if (d.kind === 'inmobiliario') {
@@ -134,7 +159,7 @@ function distribute(state: GameState, f: FundState, d: FundDef): void {
   const gross = roundCents(h.qty * perUnit);
   if (gross <= 0) return;
   // Los repartos de fondos de acciones tributan como dividendos; los de bonos e inmobiliarios, como renta ordinaria.
-  const asDividend = d.kind === 'dividendos';
+  const asDividend = d.kind === 'dividendos' || d.kind === 'sector';
   const tax = asDividend ? roundCents(gross * residence(state).dividendRate) : 0;
   post(state.ledger, {
     day: state.day, memo: `Reparto trimestral de ${d.name}`, cf: 'operating', tag: 'invest:fund_dist',

@@ -338,6 +338,8 @@ export interface MetaState {
   gatesOpened?: string[];
   /** Recompensas por anuncios usadas hoy (día real) y análisis preciso pendiente (1.3). */
   ads?: import('./rewards').AdRewardsState;
+  /** 1.6: último día en que un intermediario buscó empresas en venta. */
+  listingSearchDay?: number;
 }
 
 export interface GameState {

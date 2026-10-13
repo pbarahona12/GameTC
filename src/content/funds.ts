@@ -1,5 +1,5 @@
 /** Fondos de inversión FICTICIOS. */
-export type FundKind = 'indice' | 'sector' | 'dividendos' | 'bonos' | 'monetario' | 'inmobiliario';
+export type FundKind = 'indice' | 'sector' | 'dividendos' | 'bonos' | 'monetario' | 'inmobiliario' | 'balanceado';
 
 export interface FundDef {
   id: string;
@@ -44,6 +44,31 @@ export const FUND_DEFS: FundDef[] = [
     description: 'Invierte en edificios alquilados de varias zonas.',
     howItWorks: 'Reparte los alquileres cada trimestre y su valor sigue los precios inmobiliarios. Comisión de entrada 1 % y anual 0.7 %.',
     risks: 'Cae con los precios de los inmuebles. El reparto es fijo (alrededor del 5 % anual de su valor), aunque suba la vacancia.' },
+  // 1.6: más opciones, con perfiles distintos (y varias que reparten).
+  { id: 'F-BAL', name: 'Fondo Balanceado 60/40', kind: 'balanceado', fee: 0.004, entryFee: 0, risk: 3, distributes: true,
+    description: '60 % en la bolsa (como el índice) y 40 % en bonos de gobierno.',
+    howItWorks: 'Reparte cada trimestre los cupones de sus bonos y reinvierte el resto. Cae menos que el índice en las crisis y sube menos en los auges. Comisión 0.4 %.',
+    risks: 'Pierde cuando caen la bolsa y los bonos a la vez (inflación alta con suba de tasas).' },
+  { id: 'F-ENE', name: 'Fondo Energía', kind: 'sector', fee: 0.007, entryFee: 0, risk: 4, distributes: true, holdings: ['PTRS', 'SOLR'],
+    description: 'Petróleo y energías renovables.',
+    howItWorks: 'Promedio de sus acciones; reparte los dividendos cada trimestre. Comisión 0.7 %.',
+    risks: 'Sigue a los precios de la energía: sube mucho en los auges y cae fuerte en las recesiones.' },
+  { id: 'F-CON', name: 'Fondo Consumo Defensivo', kind: 'sector', fee: 0.006, entryFee: 0, risk: 3, distributes: true, holdings: ['MRKT', 'TOST', 'VERD'],
+    description: 'Supermercados, alimentos y bebidas: lo que la gente compra aunque haya crisis.',
+    howItWorks: 'Promedio de sus acciones; reparte los dividendos cada trimestre. Comisión 0.6 %.',
+    risks: 'Crece despacio. Sufre si sube mucho el costo de los alimentos que venden.' },
+  { id: 'F-FIN', name: 'Fondo Financiero', kind: 'sector', fee: 0.006, entryFee: 0, risk: 4, distributes: true, holdings: ['BVAL', 'CRDN'],
+    description: 'Bancos y financieras de consumo.',
+    howItWorks: 'Promedio de sus acciones; reparte los dividendos cada trimestre. Gana más con tasas altas. Comisión 0.6 %.',
+    risks: 'Cae fuerte cuando sube la morosidad (recesiones).' },
+  { id: 'F-SAL', name: 'Fondo Salud', kind: 'sector', fee: 0.008, entryFee: 0, risk: 4, distributes: false, holdings: ['VITL', 'AURA', 'BIOG'],
+    description: 'Laboratorios, clínicas y biotecnología.',
+    howItWorks: 'Promedio de sus acciones; reinvierte los dividendos. Comisión 0.8 %.',
+    risks: 'Depende de aprobaciones y ensayos: puede saltar o caer de golpe.' },
+  { id: 'F-IND', name: 'Fondo Industria y Transporte', kind: 'sector', fee: 0.008, entryFee: 0.005, risk: 5, distributes: false, holdings: ['ACRV', 'MADN', 'NAVI'],
+    description: 'Acero, madera y transporte marítimo: las empresas más cíclicas.',
+    howItWorks: 'Promedio de sus acciones; reinvierte los dividendos. Comisión de entrada 0.5 % y anual 0.8 %.',
+    risks: 'El más cíclico: gana mucho en los auges y pierde mucho en las recesiones.' },
 ];
 
 export const FUND_BY_ID: Record<string, FundDef> = Object.fromEntries(FUND_DEFS.map((f) => [f.id, f]));

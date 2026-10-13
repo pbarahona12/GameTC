@@ -15,7 +15,10 @@ import { depthOf, groupMonthEnd, icLoansMonthEnd } from './groups';
 import { valuation } from './reports';
 import { inventoryValue, receiveOrders, runReorderRules, payDuePayables } from './inventory';
 import { coPost } from './companyLedger';
-import { dateOf, startOfMonth } from '../time/calendar';
+import { dateOf, startOfMonth, formatDate } from '../time/calendar';
+import { payExpense } from '../finance/payments';
+import { fmtMoney } from '../format';
+import { ActionResult, FAIL, OK } from '../result';
 import { randInt, randRange, nextRandom } from '../rng';
 import { roundCents } from '../money';
 
@@ -131,14 +134,17 @@ export function companiesYearStart(state: GameState): void {
 
 // ------------------------------------------------------------ Mercado de compraventa
 
-const LISTING_NAMES: Record<BizSectorId, string[]> = {
-  cafeteria: ['Café Rincón Verde', 'La Esquina del Grano', 'Cafetería Alborada'],
-  minimarket: ['Minimarket Los Álamos', 'Almacén Santa Fe', 'Súper Barrio Norte'],
-  muebles: ['Muebles Artesanos Unidos', 'Taller El Cedro', 'Carpintería Moderna'],
-  saas: ['Agendly', 'Cobranza Fácil', 'StockSmart'],
-  consultora: ['Consultores del Centro', 'Estudio Contable Ríos', 'Asesoría Integral'],
+export const LISTING_NAMES: Record<BizSectorId, string[]> = {
+  cafeteria: ['Café Rincón Verde', 'La Esquina del Grano', 'Cafetería Alborada', 'Café del Puerto', 'Tostado y Miel', 'La Taza Dorada', 'Café Montaña Azul', 'Brújula Café', 'El Molino de Café', 'Café Plaza Mayor', 'Grano de Oro', 'Café Las Palmas'],
+  minimarket: ['Minimarket Los Álamos', 'Almacén Santa Fe', 'Súper Barrio Norte', 'Despensa La Colonia', 'Mercadito El Sol', 'Autoservicio San Martín', 'Súper La Esperanza', 'Almacén Don Ramón', 'Minimarket Vista Alegre', 'Abarrotes El Porvenir', 'Súper Express Centro', 'Tienda La Cosecha'],
+  muebles: ['Muebles Artesanos Unidos', 'Taller El Cedro', 'Carpintería Moderna', 'Maderas del Sur', 'Taller Nogal', 'Muebles Roble Fino', 'Ebanistería Los Pinos', 'Diseño en Madera', 'Muebles Hogar Real', 'Carpintería La Ceiba', 'Taller San José', 'Muebles Bosque Claro'],
+  saas: ['Agendly', 'Cobranza Fácil', 'StockSmart', 'Nómina Clara', 'Facturo', 'RutaPro', 'ClienteUno', 'TurnoYa', 'InventaApp', 'Contalia', 'PagoSimple', 'EquipoNube'],
+  consultora: ['Consultores del Centro', 'Estudio Contable Ríos', 'Asesoría Integral', 'Grupo Asesor Pacífico', 'Consultora Andina', 'Estrategia y Números', 'Auditores Asociados', 'Asesores Monteverde', 'Gestión Empresarial Sur', 'Estudio Fiscal Lara', 'Consultoría Horizonte', 'Socios en Gestión'],
   holding: [],
 };
+
+/** Cuántas empresas puede haber en venta a la vez y cada cuánto se reponen. */
+export const LISTINGS = { max: 5, refreshEveryDays: 30, searchFeeUsd: 1500, searchCount: 2, searchCooldownDays: 30, searchMax: 8 };
 
 const REASONS = [
   'El dueño se retira y no tiene sucesor.',
@@ -154,9 +160,12 @@ const REASONS = [
  * no inventados. El precio pedido parte de la valoración y del optimismo del vendedor.
  */
 export function generateListing(state: GameState): Listing | null {
-  const sec = SECTORS[randInt(state, 0, SECTORS.length - 1)];
-  const names = LISTING_NAMES[sec.id].filter((n) => !state.listings.some((l) => l.company.name === n) && !state.companies.some((c) => c.name === n));
-  if (!names.length) return null;
+  // Rubro al azar entre los que todavía tienen nombres libres (los que ya son tuyos no se repiten).
+  const free = (id: BizSectorId) => (LISTING_NAMES[id] ?? []).filter((n) => !state.listings.some((l) => l.company.name === n) && !state.companies.some((c) => c.name === n) && !(state.mogul?.assets ?? []).some((a) => a.name === n));
+  const open = SECTORS.filter((x) => free(x.id).length > 0);
+  if (!open.length) return null;
+  const sec = open[randInt(state, 0, open.length - 1)];
+  const names = free(sec.id);
   const forms: LegalForm[] = ['individual', 'srl', 'srl', 'corporacion'];
   const form = forms[randInt(state, 0, forms.length - 1)];
   const name = names[randInt(state, 0, names.length - 1)];
@@ -206,15 +215,41 @@ export function generateListing(state: GameState): Listing | null {
   return { id: state.meta.nextId++, company: co, askPrice: ask, expiresDay: state.day + randInt(state, 45, 90), reason: REASONS[randInt(state, 0, REASONS.length - 1)], negotiated: false, hiddenLiability };
 }
 
-export function refreshListings(state: GameState): void {
-  state.listings = state.listings.filter((l) => l.expiresDay > state.day);
+function addListings(state: GameState, upTo: number, maxNew: number): number {
   let guard = 0;
-  while (state.listings.length < 3 && guard++ < 6) {
+  let added = 0;
+  while (state.listings.length < upTo && added < maxNew && guard++ < maxNew * 3) {
     const l = generateListing(state);
     if (l) {
       compactCompany(state, l.company, NPC_KEEP_MONTHS);
       state.listings.push(l);
+      added++;
     }
   }
+  return added;
+}
+
+/** Quita las ofertas vencidas y repone hasta LISTINGS.max (cada 30 días y al empezar). */
+export function refreshListings(state: GameState): void {
+  state.listings = state.listings.filter((l) => l.expiresDay > state.day);
+  addListings(state, LISTINGS.max, LISTINGS.max);
+}
+
+/**
+ * BUSCAR MÁS EMPRESAS (1.6): un intermediario trae dos empresas más en venta, por una
+ * comisión fija. Una vez por mes; hasta 8 ofertas a la vez. Sirve cuando las que hay
+ * no te convencen: ya no hace falta adelantar meses para que cambien.
+ */
+export function searchListings(state: GameState): ActionResult {
+  if (state.legal?.prison) return FAIL('Desde prisión no podés buscar empresas.');
+  const last = state.meta.listingSearchDay ?? -Infinity;
+  if (state.day - last < LISTINGS.searchCooldownDays) return FAIL(`El intermediario vuelve a buscar desde el ${formatDate(last + LISTINGS.searchCooldownDays)}.`);
+  if (state.listings.length >= LISTINGS.searchMax) return FAIL(`Ya hay ${LISTINGS.searchMax} empresas en venta: revisalas o esperá a que venzan.`);
+  const fee = px(state, LISTINGS.searchFeeUsd);
+  const r = payExpense(state, 'professional_fees', fee, { memo: 'Intermediario: búsqueda de empresas en venta', tag: 'listing_search', method: 'checking', allowArrears: false });
+  if (!r.ok) return FAIL(`La búsqueda cuesta ${fmtMoney(fee)} y no te alcanza.`);
+  state.meta.listingSearchDay = state.day;
+  const added = addListings(state, LISTINGS.searchMax, LISTINGS.searchCount);
+  return OK(added ? `El intermediario encontró ${added} empresa${added > 1 ? 's' : ''} más en venta (comisión ${fmtMoney(fee)}).` : `El intermediario no encontró nada esta vez (comisión ${fmtMoney(fee)}).`);
 }
 

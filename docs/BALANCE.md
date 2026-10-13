@@ -6,33 +6,33 @@ Días de juego (mediana) hasta alcanzar cada etapa. "—" = no la alcanzó en el
 
 | Estilo | Origen | E2 | E3 | E4 | E5 | E6 | E7 | Patrimonio final (mediana) | Quiebras | Años con pérdida | Atrasos |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ejecutivo | egresado | 30 | 850 | 850 | 1672 | 2799 | — | $626,365 | 0 | 0 | 3 |
-| ejecutivo | tecnico | 30 | 58 | 423 | 1307 | 2646 | — | $693,176 | 0 | 0 | 0 |
-| ejecutivo | autodidacta | 30 | 89 | 637 | 1064 | 2037 | 5264 | $663,229 | 0 | 0 | 0 |
-| ejecutivo | herencia | 30 | 58 | 58 | 2037 | 3255 | — | $673,364 | 0 | 0 | 20 |
-| inversionista | egresado | 58 | 576 | 850 | 1491 | 2952 | — | $623,839 | 0 | 0 | 0 |
-| inversionista | tecnico | 30 | 364 | 454 | 1154 | 2556 | 5233 | $1,126,023 | 0 | 0 | 9 |
-| inversionista | autodidacta | 30 | 58 | 484 | 850 | 1945 | 4472 | $1,118,989 | 0 | 0 | 0 |
-| inversionista | herencia | 30 | 58 | 58 | 1307 | 2434 | — | $567,759 | 0 | 0 | 0 |
-| inmobiliario | egresado | 58 | 698 | 942 | 1672 | 2860 | — | $565,528 | 0 | 0 | 4 |
-| inmobiliario | tecnico | 30 | 58 | 423 | 1034 | 2495 | — | $601,405 | 0 | 0 | 0 |
-| inmobiliario | autodidacta | 30 | 58 | 607 | 1064 | 2281 | — | $666,136 | 0 | 0 | 0 |
-| inmobiliario | herencia | 30 | 58 | 58 | 3833 | 3833 | — | $364,333 | 0 | 0 | 1 |
-| emprendedor | egresado | 58 | 820 | 2464 | 2829 | 3590 | 5233 | $910,826 | 0 | 0 | 0 |
-| emprendedor | tecnico | 30 | 58 | 850 | 1034 | 1611 | 4198 | $1,153,638 | 0 | 0 | 0 |
-| emprendedor | autodidacta | 30 | 89 | 850 | 911 | 1672 | 4017 | $1,328,625 | 0 | 0 | 0 |
-| emprendedor | herencia | 30 | 58 | 850 | 1095 | 2037 | 4198 | $1,332,458 | 0 | 0 | 0 |
+| ejecutivo | egresado | 30 | 364 | 850 | 1915 | 3529 | — | $403,683 | 0 | 0 | 0 |
+| ejecutivo | tecnico | 30 | 150 | 484 | 1126 | 2068 | — | $874,874 | 0 | 0 | 0 |
+| ejecutivo | autodidacta | 30 | 58 | 729 | 1064 | 2615 | — | $634,319 | 0 | 0 | 0 |
+| ejecutivo | herencia | 30 | 58 | 58 | 1307 | 3437 | — | $526,356 | 0 | 0 | 6 |
+| inversionista | egresado | 30 | 119 | 820 | 1641 | 3864 | — | $436,996 | 0 | 0 | 0 |
+| inversionista | tecnico | 30 | 58 | 364 | 1126 | 3072 | — | $566,022 | 0 | 0 | 0 |
+| inversionista | autodidacta | 30 | 58 | 454 | 881 | 1856 | 4107 | $1,394,936 | 0 | 0 | 0 |
+| inversionista | herencia | 58 | 58 | 58 | 1550 | 2646 | — | $529,629 | 0 | 0 | 0 |
+| inmobiliario | egresado | 30 | 150 | 820 | 1825 | 4563 | — | $361,558 | 0 | 0 | 0 |
+| inmobiliario | tecnico | 30 | 58 | 545 | 1126 | 2311 | — | $655,689 | 0 | 0 | 0 |
+| inmobiliario | autodidacta | 30 | 58 | 637 | 1095 | 2281 | — | $785,033 | 0 | 0 | 10 |
+| inmobiliario | herencia | 30 | 58 | 119 | 1491 | 3986 | — | $377,746 | 0 | 0 | 0 |
+| emprendedor | egresado | 30 | 180 | 1611 | 1764 | 2250 | 4472 | $1,196,706 | 0 | 0 | 0 |
+| emprendedor | tecnico | 30 | 58 | 881 | 1034 | 1580 | 4168 | $1,230,076 | 0 | 0 | 0 |
+| emprendedor | autodidacta | 30 | 58 | 911 | 942 | 1915 | 4017 | $1,412,227 | 0 | 1 | 0 |
+| emprendedor | herencia | 30 | 58 | 881 | 1095 | 1945 | 4655 | $1,007,976 | 0 | 0 | 0 |
 
 ## Dominancia entre estilos
 
 | Estilo | Patrimonio mediano | Frente a la mediana de los demás |
 |---|---|---|
-| ejecutivo | $673,364 | ×0.75 |
-| inversionista | $899,429 | ×1.34 |
-| inmobiliario | $601,405 | ×0.67 |
-| emprendedor | $1,328,625 | ×1.97 |
+| ejecutivo | $593,458 | ×1.00 |
+| inversionista | $566,022 | ×0.95 |
+| inmobiliario | $595,704 | ×1.00 |
+| emprendedor | $1,230,076 | ×2.07 |
 
-Por qué emprendedor supera 1.5 veces a los demás (×1.97): el bot funda con capital para 6 meses de costos y delega en el mejor gerente que encuentra (así no quebró ninguna vez). El riesgo es real para quien funda sin colchón: medido aparte, fundando solo con el costo de apertura quebraron todas (33 de 33, en los 5 rubros). Con una sola empresa tampoco paga un equipo directivo (hace falta desde la quinta) ni enfrenta una posición dominante: esos costos aparecen al crecer.
+Por qué emprendedor supera 1.5 veces a los demás (×2.07): el bot funda con capital para 6 meses de costos y delega en el mejor gerente que encuentra (así no quebró ninguna vez). El riesgo es real para quien funda sin colchón: medido aparte, fundando solo con el costo de apertura quebraron todas (33 de 33, en los 5 rubros). Con una sola empresa tampoco paga un equipo directivo (hace falta desde la quinta) ni enfrenta una posición dominante: esos costos aparecen al crecer.
 
 «Años con pérdida» cuenta empresas con 12 meses seguidos en rojo al cierre de diciembre.
 
@@ -40,10 +40,10 @@ Por qué emprendedor supera 1.5 veces a los demás (×1.97): el bot funda con ca
 
 | Origen | Patrimonio final (mediana, 4 estilos) | Estilos donde supera al egresado | Sueldo medio 3 primeros años | Cursos a la vez (promedio) | Atrasos |
 |---|---|---|---|---|---|
-| egresado | $626,365 | — | $1,449 | 1.16 | 7 |
-| tecnico | $758,519 | 4 de 4 | $1,742 | 1.31 | 9 |
-| autodidacta | $957,857 | 4 de 4 | $2,118 | 1.22 | 0 |
-| herencia | $673,364 | 2 de 4 | $1,334 | 1.33 | 21 |
+| egresado | $436,996 | — | $1,517 | 1.18 | 0 |
+| tecnico | $874,874 | 4 de 4 | $1,870 | 1.26 | 0 |
+| autodidacta | $914,811 | 4 de 4 | $2,107 | 1.23 | 10 |
+| herencia | $529,629 | 3 de 4 | $1,587 | 1.24 | 6 |
 
 La herencia no tiene una penalización estructural: los meses de bajo desempeño son los mismos que los del egresado (por sobrecarga de trabajo y estudio en ambos casos). Donde termina peor, es porque con más efectivo los bots pagan más estudios a la vez y, en el estilo ejecutivo, acumulan atrasos. El juego lo advierte al elegir el origen.
 

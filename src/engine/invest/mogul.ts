@@ -37,7 +37,11 @@ import { startOfMonth } from '../time/calendar';
  * son activos poco líquidos, con un diferencial compra/venta mayor que la bolsa.
  */
 const UNITS = 10_000;
-const MAX_ACTIVE = 6;
+/** 1.6: hasta 12 activos a la vez (antes 6); como mucho 4 empresas (son las que más pesan). */
+export const MAX_ACTIVE = 12;
+const MAX_COMPANIES = 4;
+/** Si ya tenés al menos esta parte de cada activo, sale uno nuevo al cierre del mes. */
+const FULL_SHARE = 0.2;
 
 export function mogulAsset(state: GameState, id: string): MogulAsset | undefined {
   return state.mogul.assets.find((a) => a.id === id);
@@ -60,7 +64,15 @@ const ROYALTIES = [
   { name: 'Catálogo musical Ritmo Sur', description: 'Derechos de 240 canciones: cobra regalías de radio, plataformas y publicidad. Decae lentamente con los años.', monthly: 9000, decay: 0.05, vol: 0.12, years: 15, risk: 3 },
   { name: 'Viñedo Alto Valle', description: 'Participación en la cosecha y venta de vino de un viñedo. Ingresos variables según el clima.', monthly: 11000, decay: -0.02, vol: 0.3, years: 20, risk: 4 },
   { name: 'Patente Filtro Aqua', description: 'Regalías por una patente de filtros de agua licenciada a fabricantes. Vence en 12 años.', monthly: 7000, decay: 0.02, vol: 0.15, years: 12, risk: 3 },
+  { name: 'Parque Solar Llano Alto', description: 'Venta de energía de un parque solar con contrato a 18 años. Flujo estable que baja un poco cada año por el desgaste de los paneles.', monthly: 14000, decay: 0.01, vol: 0.06, years: 18, risk: 2 },
+  { name: 'Peaje Ruta Costera', description: 'Concesión del peaje de una autopista. Sube con el tránsito y la inflación; vence en 20 años.', monthly: 16000, decay: -0.03, vol: 0.1, years: 20, risk: 2 },
+  { name: 'Cine: «La Última Cosecha»', description: 'Regalías de una película: plataformas, televisión y cines. Ingresos altos al principio que caen rápido.', monthly: 20000, decay: 0.25, vol: 0.35, years: 8, risk: 5 },
+  { name: 'Franquicia Pollos Dorados', description: 'Cobra el 4 % de las ventas de 30 locales franquiciados. Depende del consumo.', monthly: 12000, decay: 0, vol: 0.18, years: 15, risk: 3 },
+  { name: 'Licencia de software ContaFácil', description: 'Regalías de un programa de contabilidad licenciado a bancos. Crece mientras siga vigente la versión.', monthly: 8000, decay: 0.08, vol: 0.2, years: 10, risk: 4 },
+  { name: 'Cantera Piedra Azul', description: 'Regalías por la extracción de piedra para construcción. Sigue a la obra pública y privada.', monthly: 10000, decay: 0.03, vol: 0.25, years: 25, risk: 4 },
+  { name: 'Torres de telefonía Red Sur', description: 'Alquiler de 40 torres a operadores de telefonía. Contratos largos y ajustes por inflación.', monthly: 13000, decay: -0.01, vol: 0.05, years: 20, risk: 2 },
 ];
+const BUILDING_NAMES = ['Edificio Mirador', 'Torre Alameda', 'Galería Norte', 'Residencias del Parque', 'Complejo Puerto Azul', 'Torre Ceiba', 'Edificio Las Acacias', 'Centro Comercial Paseo Sur', 'Residencial Los Robles', 'Oficinas Plaza Libertad', 'Bodegas Logísticas Ruta 5', 'Edificio Bahía'];
 
 function newAsset(state: GameState, kind: MogulAsset['kind']): MogulAsset | null {
   const id = `MX-${state.meta.nextId++}`;
@@ -77,8 +89,8 @@ function newAsset(state: GameState, kind: MogulAsset['kind']): MogulAsset | null
     return a;
   }
   if (kind === 'inmueble') {
-    const names = ['Edificio Mirador', 'Torre Alameda', 'Galería Norte', 'Residencias del Parque', 'Complejo Puerto Azul'];
-    const name = names.filter((n) => !state.mogul.assets.some((x) => x.name === n))[0] ?? `Edificio ${state.meta.nextId}`;
+    const left = BUILDING_NAMES.filter((n) => !state.mogul.assets.some((x) => x.name === n));
+    const name = left.length ? left[randInt(state, 0, left.length - 1)] : `Edificio ${state.meta.nextId}`;
     const p = buildingProperty(state, name);
     p.owner = { kind: 'mogul', id };
     const a: MogulAsset = { ...base, kind, name, description: `Edificio de ${p.m2} m² (${p.type === 'vivienda' ? 'departamentos' : 'locales'}) en ${ZONES.find((z) => z.id === p.zoneId)!.name}, administrado por una inmobiliaria. Reparte el 90 % de su resultado neto.`, nav: 0, risk: 2, spread: 0.03, property: p };
@@ -86,15 +98,16 @@ function newAsset(state: GameState, kind: MogulAsset['kind']): MogulAsset | null
     a.nav = propertyNav(state, a);
     return a;
   }
-  const r = ROYALTIES.filter((x) => !state.mogul.assets.some((a) => a.name === x.name && a.status === 'activo'))[0];
-  if (!r) return null;
+  const avail = ROYALTIES.filter((x) => !state.mogul.assets.some((a) => a.name === x.name && a.status === 'activo'));
+  if (!avail.length) return null;
+  const r = avail[randInt(state, 0, avail.length - 1)];
   const a: MogulAsset = { ...base, kind, name: r.name, description: r.description, nav: 0, risk: r.risk, spread: 0.05, royalty: { monthly: usd(r.monthly * state.macro.priceIndex), decay: r.decay, vol: r.vol, years: r.years } };
   a.nav = royaltyNav(state, a);
   return a;
 }
 
 export function initMogul(state: GameState): void {
-  const kinds: MogulAsset['kind'][] = ['empresa', 'inmueble', 'regalias', 'inmueble', 'regalias', 'empresa'];
+  const kinds: MogulAsset['kind'][] = ['empresa', 'inmueble', 'regalias', 'inmueble', 'regalias', 'empresa', 'regalias', 'inmueble'];
   const saved = state.listings.slice();
   for (const k of kinds) {
     const a = newAsset(state, k);
@@ -182,11 +195,14 @@ export function mogulDay(state: GameState): void {
   }
   if (monthEnd) {
     state.mogul.assets = state.mogul.assets.filter((a) => a.status === 'activo' || state.mogul.holdings[a.id] || state.day - a.createdDay < 400);
-    const active = state.mogul.assets.filter((a) => a.status === 'activo').length;
-    if (active < MAX_ACTIVE && chance(state, 0.15)) {
-      const kinds: MogulAsset['kind'][] = ['empresa', 'inmueble', 'regalias'];
+    const live = state.mogul.assets.filter((a) => a.status === 'activo');
+    // 1.6: si ya tenés una buena parte de todo lo que hay, sale algo nuevo seguro.
+    const ownsAll = live.length > 0 && live.every((a) => (state.mogul.holdings[a.id]?.qty ?? 0) >= a.units * FULL_SHARE);
+    if (live.length < MAX_ACTIVE && (ownsAll || chance(state, 0.3))) {
+      const companies = live.filter((a) => a.kind === 'empresa').length;
+      const kinds: MogulAsset['kind'][] = companies >= MAX_COMPANIES ? ['inmueble', 'regalias'] : ['empresa', 'inmueble', 'regalias'];
       const saved = state.listings.slice();
-      const a = newAsset(state, kinds[randInt(state, 0, 2)]);
+      const a = newAsset(state, kinds[randInt(state, 0, kinds.length - 1)]);
       state.listings = saved;
       if (a) {
         a.history.push({ d: state.day, v: Math.round(a.nav) });

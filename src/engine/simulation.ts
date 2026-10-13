@@ -63,7 +63,7 @@ export function advanceDay(state: GameState): void {
   if (g.d === 15) monthlyRandomEvents(state);
 
   companiesDay(state);
-  if (!state.meta.projection && state.day % 60 === 0) refreshListings(state);
+  if (!state.meta.projection && state.day % 30 === 0) refreshListings(state);
   investmentsDay(state);
   realEstateDay(state);
   legalDay(state);

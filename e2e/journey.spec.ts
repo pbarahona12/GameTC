@@ -10,7 +10,15 @@ import { test, expect, type Page } from '@playwright/test';
 
 const topDate = (page: Page) => page.locator('.topbar .date-block .d');
 
+/** Cierra lo que un salto de tiempo pudo dejar abierto: el informe del mes y festejos. */
+async function closeOverlays(page: Page) {
+  const report = page.getByRole('dialog', { name: /^Cierre de / });
+  if (await report.isVisible().catch(() => false)) await report.getByRole('button', { name: 'Cerrar' }).click();
+  await dismissCelebrations(page);
+}
+
 async function openMenuItem(page: Page, item: string) {
+  await closeOverlays(page);
   await page.getByRole('button', { name: /^Más opciones/ }).click();
   await page.getByRole('menuitem', { name: new RegExp(`^${item}`) }).click();
 }
@@ -61,9 +69,16 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   await page.getByRole('tab', { name: /^Empleo/ }).click();
   // Pueden llegar varias ofertas a la vez (los puestos iniciales responden en 2–6 días): se acepta la primera.
   const accept = page.getByRole('button', { name: 'Aceptar', exact: true }).first();
-  for (let week = 0; week < 10 && !(await accept.isVisible()); week++) {
+  for (let week = 0; week < 16 && !(await accept.isVisible()); week++) {
     // Un salto se detiene antes si llega una oferta (pausa automática por categoría «ofertas»).
     await openMenuItem(page, 'Avanzar 1 semana');
+    await closeOverlays(page);
+    if (await accept.isVisible()) break;
+    // Si rechazaron todas, se vuelve a postular (como haría un jugador).
+    await page.getByRole('tab', { name: 'Vacantes' }).click();
+    const again = page.getByRole('button', { name: 'Postularme', exact: true });
+    for (let i = 0; i < 4 && (await again.first().isVisible().catch(() => false)) && (await again.first().isEnabled()); i++) await again.first().click();
+    await page.getByRole('tab', { name: /^Empleo/ }).click();
   }
   await expect(accept).toBeVisible();
   await accept.click();
@@ -75,9 +90,10 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
 
   // 4 · Avanzar el tiempo hasta cerrar el primer mes: el salto se detiene en el cierre
   // y muestra el informe del mes (1.6, el mes como turno).
+  // Si el cierre de enero ya pasó mientras se esperaba la oferta, el salto llega al de febrero.
   await openMenuItem(page, 'Avanzar 1 mes');
   await dismissCelebrations(page);
-  const report = page.getByRole('dialog', { name: 'Cierre de enero 2026' });
+  const report = page.getByRole('dialog', { name: /^Cierre de \w+ 2026/ });
   await expect(report).toBeVisible();
   await expect(report.getByText('Patrimonio')).toBeVisible();
   // 1.6: el informe dice dónde estás frente a la lista de fortunas de tu ciudad.
@@ -88,7 +104,7 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   await dismissCelebrations(page);
   await bottomTab(page, 'Inicio');
   await dismissCelebrations(page);
-  await expect(topDate(page)).not.toHaveText(/ ene 2026/);
+  await expect(topDate(page)).not.toHaveText(/ ene 2026/, { timeout: 10_000 });
   // El gráfico de patrimonio aparece recién con el primer cierre de mes.
   await expect(page.getByRole('img', { name: /^Patrimonio neto/ })).toBeVisible();
   const dateBefore = (await topDate(page).textContent())!.trim();

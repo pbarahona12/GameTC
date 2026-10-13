@@ -260,7 +260,7 @@ export function projectPortfolio(state: GameState, months = 12): PortfolioProjec
     varSum += (w * (0.03 + stocksW * 0.15)) ** 2;
   }
   // Cada fondo con su propio riesgo: un monetario casi no se mueve; uno sectorial, mucho.
-  const FUND_RISK: Record<string, [number, number]> = { monetario: [0.03, 0.005], bonos: [0.045, 0.06], dividendos: [0.06, 0.12], inmobiliario: [0.06, 0.12], indice: [0.07, 0.16], sector: [0.08, 0.22] };
+  const FUND_RISK: Record<string, [number, number]> = { monetario: [0.03, 0.005], bonos: [0.045, 0.06], dividendos: [0.06, 0.12], inmobiliario: [0.06, 0.12], indice: [0.07, 0.16], sector: [0.08, 0.22], balanceado: [0.06, 0.1] };
   for (const p of positions(state, 'funds')) {
     const w = p.value / total;
     const [m, v] = FUND_RISK[FUND_BY_ID[String(p.id)]?.kind ?? 'indice'] ?? [0.06, 0.14];
