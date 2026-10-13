@@ -45,7 +45,7 @@ test('una oferta pendiente sigue abierta después de 8 horas con la app cerrada'
     await b.click();
   }
   await page.getByRole('tab', { name: /^Empleo/ }).click();
-  const accept = page.getByRole('button', { name: 'Aceptar', exact: true });
+  const accept = page.getByRole('button', { name: 'Aceptar', exact: true }).first();
   for (let week = 0; week < 10 && !(await accept.isVisible()); week++) await openMenuItem(page, 'Avanzar 1 semana');
   await expect(accept).toBeVisible();
   const dateBefore = await topDate(page).textContent();
@@ -64,7 +64,7 @@ test('una oferta pendiente sigue abierta después de 8 horas con la app cerrada'
   await expect(topDate(later)).toHaveText(dateBefore!);
   await bottomTab(later, 'Carrera');
   await later.getByRole('tab', { name: /^Empleo/ }).click();
-  await expect(later.getByRole('button', { name: 'Aceptar', exact: true })).toBeVisible();
+  await expect(later.getByRole('button', { name: 'Aceptar', exact: true }).first()).toBeVisible();
   expect(await savedDay(later)).toBe(dayBefore);
 
   expect(errors).toEqual([]);

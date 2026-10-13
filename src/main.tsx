@@ -41,6 +41,7 @@ void import('@capacitor/core').then(async ({ Capacitor }) => {
     if (cel?.size === 'big') store.quick((st) => dismissCelebration(st, cel.id));
     else if (ui.simError) store.dismissSimError();
     else if (ui.absence) store.dismissAbsence();
+    else if (ui.monthReport) store.closeMonthReport();
     else if (ui.incomingImport) store.dismissIncomingImport();
     else if (!navStore.back()) void store.save().then(() => CapApp.minimizeApp());
   });

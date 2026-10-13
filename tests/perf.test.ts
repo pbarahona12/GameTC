@@ -122,7 +122,7 @@ describe('Dibujar menos a velocidades altas', () => {
     try {
       await st.boot();
       await st.startNewGame({ name: 'Rápida', background: 'herencia', style: 'libre', seed: 'render' });
-      st.updateSettings({ autoPause: false });
+      st.updateSettings({ autoPause: false, monthTurn: false });
       let emits = 0;
       st.subscribe(() => emits++);
       st.setSpeed(8);

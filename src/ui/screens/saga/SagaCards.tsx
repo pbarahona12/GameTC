@@ -111,7 +111,7 @@ export function FirstMonthSummary() {
   );
 }
 
-function AgendaRow({ a, day }: { a: AgendaItem; day: number }) {
+export function AgendaRow({ a, day }: { a: AgendaItem; day: number }) {
   return (
     <button className={`agenda-row tone-${a.tone}`} onClick={() => goTarget(a.target)}>
       <span className="agenda-ic" aria-hidden><Icon name={iconOf(a.icon, 'bell')} size={16} /></span>

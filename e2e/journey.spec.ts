@@ -59,7 +59,8 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
 
   // Las ofertas llegan a la pestaña «Empleo» (su etiqueta muestra cuántas hay).
   await page.getByRole('tab', { name: /^Empleo/ }).click();
-  const accept = page.getByRole('button', { name: 'Aceptar', exact: true });
+  // Pueden llegar varias ofertas a la vez (los puestos iniciales responden en 2–6 días): se acepta la primera.
+  const accept = page.getByRole('button', { name: 'Aceptar', exact: true }).first();
   for (let week = 0; week < 10 && !(await accept.isVisible()); week++) {
     // Un salto se detiene antes si llega una oferta (pausa automática por categoría «ofertas»).
     await openMenuItem(page, 'Avanzar 1 semana');
@@ -72,8 +73,16 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   await page.getByRole('tab', { name: 'Vacantes' }).click();
   await expect(page.getByRole('button', { name: 'Tu puesto actual' })).toBeVisible();
 
-  // 4 · Avanzar el tiempo hasta cerrar el primer mes.
+  // 4 · Avanzar el tiempo hasta cerrar el primer mes: el salto se detiene en el cierre
+  // y muestra el informe del mes (1.6, el mes como turno).
   await openMenuItem(page, 'Avanzar 1 mes');
+  await dismissCelebrations(page);
+  const report = page.getByRole('dialog', { name: 'Cierre de enero 2026' });
+  await expect(report).toBeVisible();
+  await expect(report.getByText('Patrimonio')).toBeVisible();
+  await report.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(report).toBeHidden();
+  await openMenuItem(page, 'Avanzar 1 día');
   await dismissCelebrations(page);
   await bottomTab(page, 'Inicio');
   await dismissCelebrations(page);

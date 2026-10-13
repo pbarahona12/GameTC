@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { store, useUI, useDerived, NEXT_SPEED } from './store';
 import { insightsOf } from './derived';
 import { navStore, useNav, Tab } from './nav';
-import { formatDate, formatDateShort } from '../engine/time/calendar';
+import { formatDate, formatDateShort, formatMonthLong } from '../engine/time/calendar';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { useOta } from './useOta';
@@ -26,6 +26,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { BootErrorScreen, SimErrorSheet } from './screens/Recovery';
 import { logIcon } from './contentIcons';
 import { Celebrations } from './screens/saga/Celebrations';
+import { AgendaRow } from './screens/saga/SagaCards';
 
 const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
   { id: 'home', label: 'Inicio', icon: 'home' },
@@ -171,6 +172,52 @@ function AbsenceReport() {
   );
 }
 
+/**
+ * EL MES COMO TURNO (fase 1 · E5): al cerrar cada mes, un informe breve con un
+ * titular, tres datos, la lista de fortunas, tu némesis, lo proyectado contra lo
+ * real y como mucho dos decisiones. El tiempo queda en pausa hasta que sigas.
+ */
+function MonthReportSheet() {
+  const ui = useUI();
+  const r = ui.monthReport;
+  const s = ui.state;
+  if (!r || !s) return null;
+  const lines: Array<[IconName, string]> = [];
+  if (r.rank) lines.push(['crown', r.rank]);
+  if (r.nemesis) lines.push(['poach', r.nemesis]);
+  if (r.vsPlan) lines.push(['reports', r.vsPlan]);
+  return (
+    <Sheet title={`Cierre de ${r.month}`} onClose={() => store.closeMonthReport()}>
+      <div className="month-report">
+        <h3 className="mr-headline">{r.headline}</h3>
+        {r.deck && <p className="small muted" style={{ margin: 0 }}>{r.deck}</p>}
+        <div className="mr-facts">
+          {r.facts.map((f) => (
+            <div key={f.label} className="mr-fact">
+              <span className="tiny muted">{f.label}</span>
+              <strong className={`num ${f.tone === 'neutral' ? '' : f.tone}`}>{f.value}</strong>
+            </div>
+          ))}
+        </div>
+        {lines.map(([icon, text]) => (
+          <p key={text} className="small mr-line"><Icon name={icon} size={15} /> <span>{text}</span></p>
+        ))}
+        {r.decisions.length > 0 && (
+          <>
+            <span className="eyebrow">Para decidir este mes</span>
+            <div className="agenda-list" onClick={() => store.closeMonthReport()}>{r.decisions.map((a) => <AgendaRow key={a.key} a={a} day={s.day} />)}</div>
+          </>
+        )}
+      </div>
+      <div className="btn-row">
+        <button className="btn ghost" onClick={() => { store.closeMonthReport(); navStore.open({ kind: 'explain' }); }}>¿Por qué cambió?</button>
+        <button className="btn primary" style={{ flex: 1 }} onClick={() => store.closeMonthReport(true)}><Icon name="play" size={15} /> Seguir a {formatMonthLong(r.day + 1).split(' ')[0]}</button>
+      </div>
+      <p className="tiny faint" style={{ margin: 0 }}>Podés dejar de pausar en cada cierre en Ajustes → Tiempo y avisos.</p>
+    </Sheet>
+  );
+}
+
 /** Partida que llegó desde otra app («Abrir con…»): se confirma antes de importar. */
 function IncomingImportSheet() {
   const ui = useUI();
@@ -267,6 +314,7 @@ export function App() {
       <BottomNav />
       <Suspense fallback={null}><SheetHost /></Suspense>
       <AbsenceReport />
+      <MonthReportSheet />
       <IncomingImportSheet />
       <SimErrorSheet />
       <Celebrations />

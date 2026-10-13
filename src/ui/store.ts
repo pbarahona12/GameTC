@@ -5,6 +5,7 @@ import { newGame, NewGameOptions } from '../engine/state';
 import type { ActionResult } from '../engine/result';
 import { advanceDaySafe, lastLogIdOf, SimReport, DayFailure } from '../engine/simulation';
 import { simulateAbsence, describeAbsenceStop } from '../engine/absence';
+import { monthReport, type MonthReport } from '../engine/saga/monthReport';
 import { refreshListings } from '../engine/business/simulate';
 import { isLastDayOfMonth } from '../engine/time/calendar';
 import { updateProgression } from '../engine/progression/progression';
@@ -59,6 +60,8 @@ export interface Settings {
   haptics: boolean;
   /** Ajustes de 1.4 ya aplicados a una instalación anterior. */
   seen14?: boolean;
+  /** 1.6: el mes como turno: el tiempo se detiene al cerrar cada mes y se muestra el informe. */
+  monthTurn: boolean;
 }
 
 const SETTINGS_KEY = 'urt.settings';
@@ -67,7 +70,7 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'system', learningMode: true, autoPause: true, offlineMaxDays: 30,
   alertCategories: ['liquidez', 'deuda', 'credito', 'ahorro', 'impuestos', 'carrera', 'bienestar', 'empresa', 'inversiones', 'inmuebles', 'legal', 'economia'],
   msPerDay: 2000, pauseOn: ['peligro', 'ofertas', 'logros', 'legal', 'decisiones'], successToasts: true,
-  fontScale: 1, highContrast: false, reduceMotion: false, colorblind: false, density: 'comoda', showAllSections: false, autoUpdate: true, playSpeed: 1, exportReminderSnoozedUntil: 0, sound: false, haptics: true, seen14: true,
+  fontScale: 1, highContrast: false, reduceMotion: false, colorblind: false, density: 'comoda', showAllSections: false, autoUpdate: true, playSpeed: 1, exportReminderSnoozedUntil: 0, sound: false, haptics: true, seen14: true, monthTurn: true,
 };
 
 /** Milisegundos reales por día de juego a velocidad 1× (valor por defecto). */
@@ -130,6 +133,8 @@ export interface UIState {
   returnSlot: string | null;
   /** Archivo de partida abierto desde otra app ("Abrir con…"), esperando confirmación. */
   incomingImport: IncomingImport | null;
+  /** Informe del mes que acaba de cerrar (el mes como turno, ver saga/monthReport.ts). */
+  monthReport: MonthReport | null;
 }
 
 /** Partida recibida desde otra app (WhatsApp, Archivos, Drive…). */
@@ -202,7 +207,7 @@ export class GameStore {
   private lastSaveAttempt = 0;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   ui: UIState = {
-    version: 0, gameRev: 0, ready: false, state: null, speed: 0, settings: DEFAULT_SETTINGS, toasts: [], absence: null, loadNotice: null, storageKind: '', lastSaved: null, saveError: null, saveBytes: null, simError: null, bootError: null, slots: [], activeSlot: null, returnSlot: null, incomingImport: null,
+    version: 0, gameRev: 0, ready: false, state: null, speed: 0, settings: DEFAULT_SETTINGS, toasts: [], absence: null, loadNotice: null, storageKind: '', lastSaved: null, saveError: null, saveBytes: null, simError: null, bootError: null, slots: [], activeSlot: null, returnSlot: null, incomingImport: null, monthReport: null,
   };
 
   subscribe = (l: Listener) => {
@@ -331,6 +336,7 @@ export class GameStore {
     const state = report.state!;
     this.ui.state = state;
     this.ui.absence = null;
+    this.ui.monthReport = null;
     this.ui.simError = null;
     if (!state.listings.length) refreshListings(state);
     const notices: string[] = [];
@@ -465,6 +471,7 @@ export class GameStore {
     await this.setRegistry(upsertSlot({ ...this.registry, active: id }, { id, name: state.player.name, day: 0, netWorth: null, savedAt: now, createdAt: now }));
     this.ui.state = state;
     this.ui.absence = null;
+    this.ui.monthReport = null;
     this.ui.simError = null;
     this.ui.loadNotice = null;
     this.ui.returnSlot = null;
@@ -482,6 +489,7 @@ export class GameStore {
     this.ui.returnSlot = this.registry.active;
     this.ui.state = null;
     this.ui.absence = null;
+    this.ui.monthReport = null;
     this.ui.simError = null;
     this.ui.loadNotice = null;
     this.emit();
@@ -620,6 +628,21 @@ export class GameStore {
         break;
       }
       done++;
+      // El mes como turno: al cerrar un mes, el tiempo se detiene y se muestra el informe.
+      if (this.ui.settings.monthTurn && isLastDayOfMonth(s.day)) {
+        try {
+          this.ui.monthReport = monthReport(s);
+        } catch (e) {
+          recordError(e, 'informe del mes', { day: s.day });
+          this.ui.monthReport = null;
+        }
+        if (this.ui.monthReport) {
+          this.ui.speed = 0;
+          this.accumulator = 0;
+          void this.save();
+          break;
+        }
+      }
       // Los saltos se detienen ante un evento importante para que no se pierdan ofertas ni alertas.
       if (stopOnImportant && i < days - 1) {
         const hit = s.log.find((l) => l.id > before && this.isImportant(l));
@@ -895,6 +918,7 @@ export class GameStore {
     this.ui.simError = null;
     this.ui.bootError = null;
     this.ui.absence = null;
+    this.ui.monthReport = null;
     this.ui.loadNotice = null;
     this.ui.returnSlot = null;
     this.ui.speed = 0;
@@ -998,8 +1022,16 @@ export class GameStore {
     this.emit();
   }
 
+  /** Cierra el informe del mes; `resume` vuelve a poner el tiempo en marcha. */
+  closeMonthReport(resume = false) {
+    this.ui.monthReport = null;
+    if (resume && this.ui.state && !this.ui.simError) this.setSpeed(this.ui.settings.playSpeed);
+    else this.emit();
+  }
+
   dismissAbsence() {
     this.ui.absence = null;
+    this.ui.monthReport = null;
     this.emit();
   }
 

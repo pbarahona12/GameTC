@@ -664,6 +664,13 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
    ============================================================ */
 /* Primer mes */
 .first-month { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+.month-report { display: grid; gap: 10px; }
+.mr-headline { margin: 0; font-size: 1.25rem; line-height: 1.25; }
+.mr-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mr-fact { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--surface-2, var(--surface)); border: 1px solid var(--line); min-width: 0; }
+.mr-fact strong { font-size: 1.02rem; overflow-wrap: anywhere; }
+.mr-line { display: flex; gap: 8px; align-items: flex-start; margin: 0; }
+.mr-line svg { flex: none; margin-top: 2px; color: var(--muted); }
 .fm-goal { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .fm-goal.tight { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .fm-clock { display: grid; place-items: center; min-width: 52px; min-height: 52px; border-radius: 12px; background: var(--accent-soft); color: var(--text); line-height: 1; }

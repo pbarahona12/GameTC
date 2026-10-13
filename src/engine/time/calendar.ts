@@ -79,6 +79,13 @@ export function monthKey(day: number): string {
 }
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** «enero 2026» (para títulos). */
+export function formatMonthLong(day: number): string {
+  const g = dateOf(day);
+  return `${MONTHS_LONG[g.m - 1]} ${g.y}`;
+}
 const WEEKDAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
 export function formatDate(day: number): string {
