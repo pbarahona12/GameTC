@@ -225,6 +225,7 @@ function JobBoard() {
               {j.commission && <Pill tone="accent">Comisión {fmtPct(j.commission)}</Pill>}
               {j.bonusTarget > 0 && <Pill tone="accent">Bono {fmtPct(j.bonusTarget)}</Pill>}
             </div>
+            {j.pitch && <p className="small" style={{ margin: 0 }}>{j.pitch}</p>}
             {req.items.length > 0 && (
               <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
                 {req.items.map((r) => <li key={r.label} className={r.met ? 'gain' : 'loss'}>{r.met ? '✓' : '✗'} {r.label}</li>)}

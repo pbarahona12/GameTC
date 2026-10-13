@@ -1,7 +1,10 @@
 import type { GameState } from '../state';
 import type { AgendaTarget } from './agenda';
 import { ActionResult, OK } from '../result';
-import { BACKGROUND_BY_ID } from '../../content/backgrounds';
+import { monthlyRecurring } from '../finance/budget';
+import { spendable } from '../finance/payments';
+import { dateOf, dayOf } from '../time/calendar';
+import type { Cents } from '../money';
 
 /**
  * TU PRIMER MES (1.4): reemplaza el "leé primero" por tres decisiones guiadas
@@ -26,11 +29,39 @@ const hasIncome = (s: GameState) => s.career.job !== null || s.career.history.le
 /** Se postuló, pero todas sus postulaciones terminaron sin oferta: hay que volver a postularse. */
 const waitingNothing = (s: GameState) => !hasIncome(s) && s.career.applications.length > 0 && !s.career.applications.some((a) => a.status === 'pending' || a.status === 'offer');
 
+/**
+ * OBJETIVO INMEDIATO CON RELOJ (1.6, auditoría E7): mientras no tengas ingresos, el
+ * primer mes tiene una meta concreta y visible: llegar al próximo alquiler (el día 1)
+ * con un ingreso. Muestra cuántos días faltan y cuántos meses de gastos cubren tus
+ * ahorros. Desaparece cuando conseguís un ingreso.
+ */
+export interface FirstGoal {
+  /** Día del próximo alquiler. */
+  dueDay: number;
+  daysLeft: number;
+  /** Gastos fijos de un mes (todos, con el estilo de vida actual). */
+  monthCost: Cents;
+  /** Lo que podés gastar hoy. */
+  cash: Cents;
+  /** Meses de gastos que cubre lo que tenés (con un decimal). */
+  monthsCovered: number;
+}
+
+export function firstGoal(s: GameState): FirstGoal | null {
+  if (hasIncome(s) || !firstMonthActive(s)) return null;
+  const g = dateOf(s.day);
+  const dueDay = g.m === 12 ? dayOf(g.y + 1, 1, 1) : dayOf(g.y, g.m + 1, 1);
+  const monthCost = monthlyRecurring(s);
+  const cash = Math.max(0, spendable(s));
+  return { dueDay, daysLeft: dueDay - s.day, monthCost, cash, monthsCovered: monthCost > 0 ? Math.floor((cash / monthCost) * 10) / 10 : 99 };
+}
+
 export function firstMonthSteps(s: GameState): FirstStep[] {
   const fm = s.saga.firstMonth;
   const marked = (id: string) => fm.done.includes(id);
+  // 1.6: «Mirá cuánto te cuesta vivir» (una lectura) se reemplazó por el objetivo con
+  // reloj (firstGoal). Las partidas viejas que lo tenían marcado no se ven afectadas.
   return [
-    { id: 'gastos', title: 'Mirá cuánto te cuesta vivir', body: 'Tu estilo de vida fija tus gastos del mes. Con poco dinero, uno austero te da más tiempo para conseguir empleo.', action: 'Ver mis gastos', target: { kind: 'tab', tab: 'finance', sub: 'budget' }, done: marked('gastos') || s.budget.lifestyle !== BACKGROUND_BY_ID[s.player.background].lifestyle },
     { id: 'postular', title: 'Postulate a dos o tres empleos', body: 'En Carrera → Vacantes, elegí puestos cuyos requisitos cumplas. Cada postulación tarda unos días en responderse y puede ser rechazada: con dos o tres es mucho más probable que llegue una oferta.', action: 'Ver vacantes', target: { kind: 'tab', tab: 'career', sub: 'board' }, done: marked('postular') || hasApplied(s) || s.companies.length > 0 },
     { id: 'tiempo', title: 'Poné el tiempo en marcha', body: 'Tocá ▶ arriba (o este botón). El juego se pausa solo cuando llega una oferta o algo importante.', action: 'Poner en marcha', target: { kind: 'tab', tab: 'home' }, done: marked('tiempo') || s.day >= 2 },
     waitingNothing(s)

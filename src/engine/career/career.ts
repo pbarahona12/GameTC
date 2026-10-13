@@ -5,7 +5,7 @@ import { post } from '../ledger/ledger';
 import { Cents, clamp, roundCents, usd } from '../money';
 import type { Application, GameState } from '../state';
 import { nextId } from '../state';
-import { addMonths, formatDate, dateOf, dayOf, daysInMonth } from '../time/calendar';
+import { addMonths, formatDate, dateOf, dayOf, daysInMonth, isLastDayOfMonth } from '../time/calendar';
 import { addLog } from '../log';
 import { ActionResult, FAIL, OK } from '../result';
 import { fmtMoney, fmtPct } from '../format';
@@ -82,6 +82,8 @@ export function applicationChance(state: GameState, job: JobDef): number {
   p += imageJobBonus(state, job.level);
   // Mercado laboral: con desempleo alto hay más competencia por cada puesto.
   p *= jobMarketFactor(state);
+  // 1.6: algunos puestos atraen más postulantes que otros (ver JobDef.hiringEase).
+  p *= job.hiringEase ?? 1;
   if (state.legal?.criminalRecord) p *= 0.6;
   return clamp(p, 0.05, 0.92);
 }
@@ -99,7 +101,7 @@ export function apply(state: GameState, jobId: string): ActionResult {
   const req = checkRequirements(state, job);
   if (!req.ok) return FAIL('No cumplís los requisitos: ' + req.items.filter((i) => !i.met).map((i) => i.label).join('; '));
   const app: Application = {
-    id: nextId(state), jobId, appliedDay: state.day, resolveDay: state.day + randInt(state, 3, 10), status: 'pending',
+    id: nextId(state), jobId, appliedDay: state.day, resolveDay: state.day + (job.level === 1 ? randInt(state, 2, 6) : randInt(state, 3, 10)), status: 'pending',
     chance: applicationChance(state, job), negotiated: false,
   };
   apps.push(app);
@@ -115,7 +117,25 @@ const REJECTIONS = [
   'Congelaron la contratación por presupuesto.',
 ];
 
+/** Días trabajados en tu primer empleo a partir de los cuales se paga la primera quincena. */
+export const FIRST_PAYCHECK_DAYS = 14;
+
+/**
+ * Primer sueldo (1.6, auditoría E7): en tu PRIMER empleo, a las dos semanas se paga
+ * lo trabajado (quincena) y el resto al cierre del mes, como siempre. Es el mismo
+ * sueldo, solo antes: el prorrateo de paySalaryThrough hace que la suma del mes sea
+ * exacta.
+ */
+export function processFirstPaycheck(state: GameState): void {
+  const e = state.career.job;
+  if (!e || state.career.history.length > 0) return;
+  if (e.paidThroughDay !== e.startDay - 1 || state.day - e.startDay + 1 < FIRST_PAYCHECK_DAYS) return;
+  if (isLastDayOfMonth(state.day)) return; // el cierre del mes ya lo paga completo
+  paySalaryThrough(state, state.day);
+}
+
 export function processApplications(state: GameState): void {
+  processFirstPaycheck(state);
   for (const a of state.career.applications) {
     const job = JOB_BY_ID[a.jobId];
     if (a.status === 'pending' && a.resolveDay <= state.day) {

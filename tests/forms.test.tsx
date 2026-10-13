@@ -126,7 +126,7 @@ describe('Fase 2 · formularios entre entidades', () => {
   it('cada préstamo tiene su propio monto de amortización', async () => {
     const g = makeGame('herencia', 'forms-loans');
     g.credit.score = 760;
-    forceHire(g, 'ventas_asistente');
+    forceHire(g, 'ind_operario'); // sueldo fijo: alcanza para dos préstamos (ventas pasó a sueldo bajo + comisión)
     const banks = BANKS.slice(0, 3).map((b) => b.id);
     let taken = 0;
     for (const b of banks) if (takeLoan(g, b, usd(2000), 12).ok) taken++;

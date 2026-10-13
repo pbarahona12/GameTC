@@ -3,7 +3,7 @@ import { agendaOf, positionOf, goalsOf, metricsOf } from '../../derived';
 import { navStore } from '../../nav';
 import { Icon, isIconName, IconName } from '../../icons';
 import { Bar, Money } from '../../components/common';
-import { firstMonthSteps, firstMonthActive, markFirstStep, dismissFirstMonth } from '../../../engine/saga/firstMonth';
+import { firstMonthSteps, firstMonthActive, markFirstStep, dismissFirstMonth, firstGoal } from '../../../engine/saga/firstMonth';
 import type { AgendaItem, AgendaTarget } from '../../../engine/saga/agenda';
 import { cityName } from '../../../engine/saga/ranking';
 import { fmtMoney, fmtMoneyFit, fmtNumber, fmtPct } from '../../../engine/format';
@@ -46,8 +46,8 @@ export function FirstMonthCard() {
   const current = steps.find((x) => !x.done)!;
   const running = ui.speed !== 0;
   const timeStep = current.id === 'tiempo' || current.id === 'cierre';
+  const goal = firstGoal(s);
   const act = () => {
-    if (current.id === 'gastos') store.quick((st) => markFirstStep(st, current.id));
     if (timeStep) {
       if (!running) store.togglePlay();
       return;
@@ -60,6 +60,15 @@ export function FirstMonthCard() {
         <span className="eyebrow" style={{ flex: 1 }}><Icon name="rocket" size={13} /> Tu primer mes · {done} de {steps.length}</span>
         <button className="btn sm ghost" aria-label="Ocultar la guía del primer mes" onClick={() => { store.quick((st) => { dismissFirstMonth(st); }); store.toast('Guía oculta. Podés volver a verla en Ajustes → Partida.', 'ok'); }}><Icon name="close" size={15} /></button>
       </div>
+      {goal && (
+        <div className={`fm-goal ${goal.monthsCovered < 1.5 ? 'tight' : ''}`} role="timer" aria-label={`Objetivo: llegar al alquiler del ${formatDate(goal.dueDay)} con un ingreso. Faltan ${goal.daysLeft} días.`}>
+          <span className="fm-clock num" aria-hidden><strong>{goal.daysLeft}</strong><span className="tiny">días</span></span>
+          <span className="small">
+            <strong>Llegá al alquiler del {formatDate(goal.dueDay)} con un ingreso.</strong>{' '}
+            <span className="muted">Vivir te cuesta {fmtMoney(goal.monthCost, { decimals: false })} por mes y tenés {fmtMoney(goal.cash, { decimals: false })}: {goal.monthsCovered >= 1 ? `te alcanza para ${fmtNumber(goal.monthsCovered, 1)} meses` : 'no llegás a cubrir un mes'}.</span>
+          </span>
+        </div>
+      )}
       <ol className="fm-steps">
         {steps.map((x) => (
           <li key={x.id} className={x.done ? 'done' : x === current ? 'now' : ''} aria-current={x === current ? 'step' : undefined}>

@@ -1,5 +1,15 @@
 # Estado del proyecto — versión 1.5
 
+## Fase 1 de la auditoría maestra (rama `fase1`, en curso)
+
+| Ítem | Qué cambió | Verificación |
+|---|---|---|
+| E11 · rendimiento | Instantánea diaria sin copiar los archivos contables (copia al escribir en `gCompact`); compresión y suma de verificación del guardado en un Web Worker incrustado; a 4× y 8× la pantalla se redibuja cada 400/500 ms. | Partida real de 97 años a 8× con CPU 6× más lenta: congelamiento típico 1,56 s → 0,09 s; hilo principal 145 % → 44 %. `tests/perf.test.ts`. |
+| E4 · reputación | El objetivo suma empresas, empleados y listas de fortunas (`engine/reputation.ts`). Sin empresas, idéntico al de antes. | Sin empleo y con 3 empresas rentables llega a 60 (`tests/reputation.test.ts`). |
+| E7 · primeros diez minutos | Vacantes iniciales con diferencias reales (comisión 40 %, seguro, horas, habilidad que enseñan, facilidad de entrar); objetivo con reloj (el próximo alquiler); primera quincena a los 14 días del primer empleo; respuestas de puestos iniciales en 2–6 días. | `tests/first_minutes.test.ts`. Balance con 12 semillas por estilo: emprendedor ×2,13 → ×1,70 sobre la mediana de los demás (la tabla de 3 semillas de BALANCE.md tiene mucho ruido). |
+
+Pendiente para cerrar la fase 1: E5 (el mes como turno) y E6 (Inicio como escena). Los efectos de los dilemas como «personas que vuelven» (parte de E4) se hacen junto con F3 (elenco que vuelve) en la fase 2.
+
 ## Versión 1.5: fase 0 de la auditoría maestra (bloqueantes de Google Play)
 
 | Hallazgo | Arreglo | Prueba de regresión |

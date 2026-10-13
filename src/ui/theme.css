@@ -664,6 +664,11 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
    ============================================================ */
 /* Primer mes */
 .first-month { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+.fm-goal { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.fm-goal.tight { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.fm-clock { display: grid; place-items: center; min-width: 52px; min-height: 52px; border-radius: 12px; background: var(--accent-soft); color: var(--text); line-height: 1; }
+.fm-clock strong { font-size: 1.35rem; }
+.fm-goal.tight .fm-clock { background: color-mix(in srgb, var(--warn) 22%, var(--surface)); }
 .fm-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; }
 .fm-steps li { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .fm-steps li.done { color: var(--gain); }

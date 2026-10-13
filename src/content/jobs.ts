@@ -71,26 +71,36 @@ export interface JobDef {
   pensionMatch: number;
   healthInsurance: boolean;
   promotesTo?: string;
+  /**
+   * Facilidad de entrar (1 = normal): multiplica la probabilidad de oferta. Los
+   * puestos estables y con seguro atraen más postulantes; ventas siempre contrata.
+   */
+  hiringEase?: number;
+  /** En una línea, qué tiene de distinto este puesto (se muestra en Vacantes). */
+  pitch?: string;
 }
 
 export const JOBS: JobDef[] = [
   // VENTAS
-  { id: 'ventas_asistente', title: 'Asistente de ventas', employer: 'Tiendas Mirador', sector: 'ventas', level: 1, baseSalary: 1100, hoursPerWeek: 44, stress: 4,
-    requires: {}, keySkills: ['negotiation', 'social'], skillXp: { negotiation: 350, social: 350 }, bonusTarget: 0, commission: 0.06, pensionMatch: 0, healthInsurance: false, promotesTo: 'ventas_ejecutivo' },
+  { id: 'ventas_asistente', title: 'Asistente de ventas', employer: 'Tiendas Mirador', sector: 'ventas', level: 1, baseSalary: 800, hoursPerWeek: 44, stress: 5,
+    requires: {}, keySkills: ['negotiation', 'social'], skillXp: { negotiation: 500, social: 400 }, bonusTarget: 0, commission: 0.4, pensionMatch: 0, healthInsurance: false, promotesTo: 'ventas_ejecutivo',
+    hiringEase: 1.25, pitch: 'Sueldo fijo bajo y comisión alta: si vendés bien ganás más que en cualquier otro inicial. Aprendés a negociar.' },
   { id: 'ventas_ejecutivo', title: 'Ejecutivo de ventas', employer: 'Distribuidora Solaz', sector: 'ventas', level: 2, baseSalary: 1700, hoursPerWeek: 45, stress: 6,
     requires: { expSectorMonths: 12, skills: { negotiation: 10 } }, keySkills: ['negotiation', 'social'], skillXp: { negotiation: 500, social: 400 }, bonusTarget: 0.04, commission: 0.1, pensionMatch: 0.03, healthInsurance: true, promotesTo: 'ventas_gerente' },
   { id: 'ventas_gerente', title: 'Gerente de ventas', employer: 'Distribuidora Solaz', sector: 'ventas', level: 4, baseSalary: 4200, hoursPerWeek: 48, stress: 8,
     requires: { education: 'tecnico', expSectorMonths: 36, skills: { negotiation: 30, management: 20 } }, keySkills: ['negotiation', 'management'], skillXp: { negotiation: 500, management: 500 }, bonusTarget: 0.12, commission: 0.05, pensionMatch: 0.05, healthInsurance: true },
   // LOGÍSTICA
-  { id: 'log_operario', title: 'Auxiliar de bodega', employer: 'Almacenes Ruta Norte', sector: 'logistica', level: 1, baseSalary: 1050, hoursPerWeek: 45, stress: 5,
-    requires: {}, keySkills: ['discipline', 'management'], skillXp: { management: 200, discipline: 300 }, bonusTarget: 0, pensionMatch: 0, healthInsurance: false, promotesTo: 'log_coordinador' },
+  { id: 'log_operario', title: 'Auxiliar de bodega', employer: 'Almacenes Ruta Norte', sector: 'logistica', level: 1, baseSalary: 1000, hoursPerWeek: 45, stress: 5,
+    requires: {}, keySkills: ['discipline', 'management'], skillXp: { management: 450, discipline: 300 }, bonusTarget: 0, pensionMatch: 0, healthInsurance: false, promotesTo: 'log_coordinador',
+    pitch: 'Sin seguro, pero aprendés a dirigir gente (la habilidad clave para tener empresas) y el ascenso llega en un año.' },
   { id: 'log_coordinador', title: 'Coordinador logístico', employer: 'Almacenes Ruta Norte', sector: 'logistica', level: 2, baseSalary: 1900, hoursPerWeek: 45, stress: 6,
-    requires: { expSectorMonths: 18, skills: { management: 8 } }, keySkills: ['management', 'discipline'], skillXp: { management: 500, discipline: 200 }, bonusTarget: 0.05, pensionMatch: 0.03, healthInsurance: true, promotesTo: 'log_jefe' },
+    requires: { expSectorMonths: 12, skills: { management: 8 } }, keySkills: ['management', 'discipline'], skillXp: { management: 500, discipline: 200 }, bonusTarget: 0.05, pensionMatch: 0.03, healthInsurance: true, promotesTo: 'log_jefe' },
   { id: 'log_jefe', title: 'Jefe de operaciones logísticas', employer: 'TransAltiplano', sector: 'logistica', level: 4, baseSalary: 3900, hoursPerWeek: 48, stress: 8,
     requires: { education: 'tecnico', expSectorMonths: 48, skills: { management: 25 } }, keySkills: ['management', 'risk'], skillXp: { management: 600, risk: 300 }, bonusTarget: 0.1, pensionMatch: 0.05, healthInsurance: true },
   // ADMINISTRACIÓN
-  { id: 'adm_recepcion', title: 'Recepcionista administrativo', employer: 'Grupo Ceibal', sector: 'administracion', level: 1, baseSalary: 1000, hoursPerWeek: 40, stress: 3,
-    requires: {}, keySkills: ['social', 'discipline'], skillXp: { social: 300, accounting: 150 }, bonusTarget: 0, pensionMatch: 0, healthInsurance: false, promotesTo: 'adm_asistente' },
+  { id: 'adm_recepcion', title: 'Recepcionista administrativo', employer: 'Grupo Ceibal', sector: 'administracion', level: 1, baseSalary: 950, hoursPerWeek: 40, stress: 2,
+    requires: {}, keySkills: ['social', 'discipline'], skillXp: { social: 300, accounting: 250 }, bonusTarget: 0, pensionMatch: 0.03, healthInsurance: true, promotesTo: 'adm_asistente',
+    hiringEase: 0.8, pitch: 'El más tranquilo: 40 horas, seguro médico y poco estrés, a cambio del sueldo más bajo. Muchos lo quieren.' },
   { id: 'adm_asistente', title: 'Asistente administrativo', employer: 'Grupo Ceibal', sector: 'administracion', level: 2, baseSalary: 1500, hoursPerWeek: 40, stress: 4,
     requires: { expSectorMonths: 12, skills: { accounting: 5 } }, keySkills: ['accounting', 'management'], skillXp: { accounting: 400, management: 250 }, bonusTarget: 0.03, pensionMatch: 0.03, healthInsurance: true, promotesTo: 'adm_coordinador' },
   { id: 'adm_coordinador', title: 'Coordinador administrativo', employer: 'Grupo Ceibal', sector: 'administracion', level: 3, baseSalary: 2600, hoursPerWeek: 42, stress: 5,
@@ -126,8 +136,9 @@ export const JOBS: JobDef[] = [
   { id: 'ing_ingeniero', title: 'Ingeniero de proyectos', employer: 'Energía Volcán', sector: 'ingenieria', level: 3, baseSalary: 3600, hoursPerWeek: 45, stress: 6,
     requires: { education: 'universitario', fields: ['ingenieria'], skills: { management: 10 } }, keySkills: ['management', 'risk'], skillXp: { management: 450, risk: 400 }, bonusTarget: 0.08, pensionMatch: 0.05, healthInsurance: true },
   // INDUSTRIA
-  { id: 'ind_operario', title: 'Operario de producción', employer: 'Textiles Arrecife', sector: 'industria', level: 1, baseSalary: 1150, hoursPerWeek: 46, stress: 6,
-    requires: {}, keySkills: ['discipline'], skillXp: { discipline: 350, management: 100 }, bonusTarget: 0, pensionMatch: 0, healthInsurance: true, promotesTo: 'ind_supervisor' },
+  { id: 'ind_operario', title: 'Operario de producción', employer: 'Textiles Arrecife', sector: 'industria', level: 1, baseSalary: 1250, hoursPerWeek: 46, stress: 7,
+    requires: {}, keySkills: ['discipline'], skillXp: { discipline: 350, management: 100 }, bonusTarget: 0, pensionMatch: 0, healthInsurance: true, promotesTo: 'ind_supervisor',
+    hiringEase: 1.1, pitch: 'El mejor sueldo fijo sin requisitos, con seguro médico, pero 46 horas y bastante estrés.' },
   { id: 'ind_supervisor', title: 'Supervisor de planta', employer: 'Textiles Arrecife', sector: 'industria', level: 3, baseSalary: 2400, hoursPerWeek: 46, stress: 7,
     requires: { expSectorMonths: 24, skills: { management: 15 } }, keySkills: ['management', 'discipline'], skillXp: { management: 550, risk: 150 }, bonusTarget: 0.06, pensionMatch: 0.03, healthInsurance: true },
   // CONSULTORÍA
