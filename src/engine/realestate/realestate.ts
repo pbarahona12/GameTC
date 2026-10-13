@@ -1,5 +1,6 @@
 import type { GameState } from '../state';
-import type { Property, PropertyType, PropertyOwner, Mortgage, Lease, ZoneState, PropertyListing } from './types';
+import type { Property, PropertyType, PropertyOwner, Mortgage, Lease, ZoneState, PropertyListing, Development } from './types';
+import { chronicle } from '../saga/chronicle';
 import { ZONES, ZONE_BY_ID, ZoneDef, PROPERTY_TYPE_NAMES, MORTGAGE_BANKS, MORTGAGE_BANK_BY_ID, MortgageBank, BUILD_COST, TENANT_NAMES } from '../../content/realestate';
 import { jurisdictionById } from '../../content/jurisdictions';
 import { Cents, clamp, roundCents, usd } from '../money';
@@ -266,7 +267,10 @@ export function realEstateDay(state: GameState): void {
   for (const p of [...re.properties]) {
     if (!re.properties.includes(p)) continue;
     if (p.renovation && state.day >= p.renovation.until) finishRenovation(state, p);
-    if (p.development && state.day >= p.development.until) finishDevelopment(state, p);
+    if (p.development && state.day >= p.development.until) {
+      if (p.development.phase === undefined) finishDevelopment(state, p);
+      else if (!p.development.waiting || state.day % 7 === 0) advanceProject(state, p);
+    }
     if (p.evictionUntil !== null && state.day >= p.evictionUntil) {
       p.evictionUntil = null;
       p.vacantSince = state.day;
@@ -962,6 +966,241 @@ export function developLand(state: GameState, id: number, to: Exclude<PropertyTy
   return OK(`Obra iniciada: ${built} m² de ${PROPERTY_TYPE_NAMES[to].toLowerCase()}. Termina alrededor del ${formatDate(p.development.until)}.`);
 }
 
+// ------------------------------------------------------------ Proyectos inmobiliarios (1.6)
+
+/**
+ * PROYECTO INMOBILIARIO POR ETAPAS (auditoría E10 y F1): sobre un terreno propio,
+ * permisos → estructura → terminaciones. Cada etapa se paga al empezar; si no hay
+ * fondos, la obra espera (y se retoma sola cuando alcanza). Las etapas pueden
+ * tener sobrecostos (más probables en recesión o con materiales caros) y se
+ * pueden acelerar pagando más. Al terminar, el edificio se divide en unidades que
+ * se alquilan o se venden por separado.
+ */
+export const PROJECT_PHASES: Array<{ name: string; share: number; months: [number, number] }> = [
+  { name: 'Permisos y proyecto', share: 0.06, months: [2, 3] },
+  { name: 'Estructura', share: 0.54, months: [4, 7] },
+  { name: 'Terminaciones', share: 0.4, months: [3, 5] },
+];
+/** Superficie mínima por unidad. */
+export const UNIT_MIN_M2: Record<Exclude<PropertyType, 'terreno'>, number> = { vivienda: 45, local: 30, oficina: 40, cochera: 12 };
+export const MAX_UNITS = 24;
+/** Acelerar una etapa: cuesta este % del presupuesto y recorta el 40 % de lo que le falta. */
+export const RUSH_COST = 0.05;
+
+export function projectPlan(state: GameState, p: Pick<Property, 'm2' | 'zoneId' | 'grade'>, to: Exclude<PropertyType, 'terreno'>, units: number) {
+  const built = Math.round(p.m2 * 0.8);
+  const n = clamp(Math.round(units), 1, maxUnits(built, to));
+  const budget = roundCents(built * BUILD_COST[to] * state.macro.priceIndex * 100);
+  const unitM2 = Math.round(built / n);
+  const unitValue = appraise(state, { zoneId: p.zoneId, type: to, m2: unitM2, grade: p.grade, condition: 100 });
+  const unitRent = marketRent(state, { zoneId: p.zoneId, type: to, m2: unitM2, grade: p.grade, condition: 100 });
+  return { built, units: n, unitM2, budget, first: roundCents(budget * PROJECT_PHASES[0].share), value: unitValue * n, unitValue, unitRent };
+}
+
+/** Hay fondos del dueño para un pago de obra (a título personal, pasando del ahorro si hace falta). */
+function canFund(state: GameState, p: Property, amount: Cents): boolean {
+  return p.owner.kind === 'personal' ? canPayFromChecking(state, amount) : ownerCash(state, p.owner) >= amount;
+}
+
+export function maxUnits(built: number, to: Exclude<PropertyType, 'terreno'>): number {
+  return clamp(Math.floor(built / UNIT_MIN_M2[to]), 1, MAX_UNITS);
+}
+
+export function startProject(state: GameState, id: number, to: Exclude<PropertyType, 'terreno'>, units: number): ActionResult {
+  const p = state.realEstate.properties.find((x) => x.id === id);
+  if (!p) return FAIL('Inmueble inexistente.');
+  if (p.type !== 'terreno') return FAIL('Solo se puede construir sobre un terreno.');
+  if (p.development) return FAIL('Ya hay una obra en curso.');
+  if (p.forSale) return FAIL('Retirá el terreno de la venta antes de construir.');
+  const plan = projectPlan(state, p, to, units);
+  if (!canFund(state, p, plan.first)) return FAIL(`La primera etapa (permisos y proyecto) cuesta ${fmtMoney(plan.first)}.`);
+  capex(state, p, plan.first, `Permisos y proyecto de ${PROPERTY_TYPE_NAMES[to].toLowerCase()} en ${p.name}`);
+  const [a, b] = PROJECT_PHASES[0].months;
+  p.development = { until: addMonths(state.day, randInt(state, a, b)), cost: plan.first, to, m2: plan.built, phase: 0, budget: plan.budget, overrun: 0, units: plan.units };
+  p.lease = null;
+  p.listedForRent = false;
+  practice(state, 'develop', 'realEstate', 300);
+  return OK(`Proyecto iniciado: ${plan.units > 1 ? `${plan.units} unidades de ${plan.unitM2} m²` : `${plan.built} m²`} de ${PROPERTY_TYPE_NAMES[to].toLowerCase()}. Ahora, permisos y proyecto; después, estructura y terminaciones.`);
+}
+
+/** Costo de una etapa a los precios de hoy, con su posible sobrecosto. */
+function phaseCost(state: GameState, d: Development, phase: number): { cost: Cents; extra: Cents } {
+  const base = roundCents((d.budget ?? d.cost) * PROJECT_PHASES[phase].share * clamp(state.macro.supplierCost, 0.85, 1.3));
+  const risk = 0.18 + (state.macro.phase === 'recesion' ? 0.12 : 0) + Math.max(0, state.macro.supplierCost - 1) * 2;
+  const extra = chance(state, risk) ? roundCents(base * randRange(state, 0.08, 0.25)) : 0;
+  return { cost: base + extra, extra };
+}
+
+function advanceProject(state: GameState, p: Property): void {
+  const d = p.development!;
+  const phase = d.phase ?? 0;
+  if (phase >= PROJECT_PHASES.length - 1) {
+    finishDevelopment(state, p);
+    return;
+  }
+  const nextPhase = phase + 1;
+  let extra = 0;
+  if (d.next === undefined) {
+    const c = phaseCost(state, d, nextPhase);
+    d.next = c.cost;
+    extra = c.extra;
+    d.overrun = (d.overrun ?? 0) + extra;
+  }
+  const label = PROJECT_PHASES[nextPhase].name.toLowerCase();
+  if (!canFund(state, p, d.next)) {
+    if (!d.waiting && p.owner.kind !== 'mogul') addLog(state, 'warning', '🚧', `La obra de ${p.name} está parada: la etapa de ${label} necesita ${fmtMoney(d.next)}${extra ? ` (con un sobrecosto de ${fmtMoney(extra)})` : ''} y no alcanzan los fondos de ${ownerLabel(state, p.owner)}. Se retoma sola cuando alcance.`, undefined, 'peligro');
+    d.waiting = true;
+    return;
+  }
+  capex(state, p, d.next, `${PROJECT_PHASES[nextPhase].name} de la obra en ${p.name}`);
+  d.cost += d.next;
+  const paid = d.next;
+  d.next = undefined;
+  d.waiting = false;
+  d.phase = nextPhase;
+  const [a, b] = PROJECT_PHASES[nextPhase].months;
+  d.until = addMonths(state.day, randInt(state, a, b) + (state.macro.phase === 'recesion' && chance(state, 0.3) ? 1 : 0));
+  if (p.owner.kind !== 'mogul') addLog(state, extra ? 'warning' : 'info', '🏗️', `${p.name}: empieza la etapa de ${label} (${fmtMoney(paid)}${extra ? `, con ${fmtMoney(extra)} de sobrecosto por materiales y mano de obra` : ''}). Termina alrededor del ${formatDate(d.until)}.`);
+}
+
+/** Garantía de un préstamo de obra: terreno + lo que falta construir (precios de hoy). */
+export function projectCollateral(state: GameState, p: Property): Cents {
+  const d = p.development;
+  if (!d || d.phase === undefined) return 0;
+  return roundCents(appraise(state, { ...p, type: 'terreno' }) + Math.max(0, (d.budget ?? 0) - d.cost) + d.cost);
+}
+/** Un préstamo de obra cubre como máximo este % de la garantía. */
+export const PROJECT_LTV = 0.6;
+
+/**
+ * Préstamo de obra (1.6, auditoría F1: «financiar con deuda»): una hipoteca sobre el
+ * proyecto por hasta el 60 % de terreno + obra. Si el terreno ya tenía hipoteca, se
+ * cancela con el préstamo nuevo. La plata entra a la cuenta y paga las etapas; las
+ * cuotas empiezan el mes siguiente. Al terminar, la hipoteca queda en la unidad 1
+ * (venderla obliga a cancelarla).
+ */
+export function financeProject(state: GameState, id: number, bankId: string, amount: Cents, years: number): ActionResult {
+  const p = state.realEstate.properties.find((x) => x.id === id);
+  const d = p?.development;
+  if (!p || !d || d.phase === undefined) return FAIL('No hay un proyecto en curso.');
+  if (p.owner.kind === 'mogul') return FAIL('Dueño inválido.');
+  const old = state.realEstate.mortgages.find((m) => m.id === p.mortgageId && m.status === 'activa');
+  const collateral = projectCollateral(state, p);
+  const max = roundCents(collateral * PROJECT_LTV);
+  if (amount > max) return FAIL(`El banco financia hasta el ${Math.round(PROJECT_LTV * 100)} % del terreno y la obra (${fmtMoney(max)}).`);
+  if (old && amount <= old.balance) return FAIL(`El préstamo tiene que superar la hipoteca actual del terreno (${fmtMoney(old.balance)}).`);
+  const units = d.units ?? 1;
+  const rent = marketRent(state, { ...p, type: d.to, m2: Math.round(d.m2 / units), condition: 100 }) * units;
+  const quote = quoteMortgage(state, bankId, p.owner, collateral, amount, years, 'fija', d.to, roundCents(rent * 0.5));
+  // La hipoteca vieja se cancela con el préstamo nuevo: no cuenta dos veces en la relación cuota/ingreso.
+  const reasons = quote.reasons.filter((r) => !r.startsWith('Tus cuotas'));
+  if (p.owner.kind === 'personal') {
+    const bank = MORTGAGE_BANK_BY_ID[bankId];
+    const leases = state.realEstate.properties.filter((x) => x.owner.kind === 'personal' && x.lease).reduce((a, x) => a + x.lease!.rent, 0);
+    const income = monthlyGrossIncome(state) + roundCents((leases + rent * 0.5) * 0.7);
+    const other = monthlyDebtPayments(state) + state.realEstate.mortgages.filter((m) => m.owner.kind === 'personal' && m.status === 'activa' && m !== old).reduce((a, m) => a + m.payment, 0);
+    const dti = income > 0 ? (other + quote.payment) / income : null;
+    if (dti !== null && dti > bank.maxDti) reasons.push(`Tus cuotas serían el ${Math.round(dti * 100)} % de tus ingresos (máximo ${Math.round(bank.maxDti * 100)} %).`);
+  }
+  if (reasons.length) return FAIL(`Préstamo de obra rechazado: ${reasons.join(' ')}`);
+  const payoff = old?.balance ?? 0;
+  const net = amount - payoff - quote.fee;
+  if (p.owner.kind === 'personal') {
+    post(state.ledger, {
+      day: state.day, memo: `Préstamo de obra para ${p.name}`, cf: 'financing', tag: 'property:mortgage',
+      lines: [
+        ...(net > 0 ? [{ account: 'checking' as const, debit: net }] : []),
+        ...(quote.fee > 0 ? [{ account: 'acquisition_costs' as const, debit: quote.fee }] : []),
+        ...(payoff > 0 ? [{ account: 'mortgages' as const, debit: payoff }] : []),
+        { account: 'mortgages', credit: amount },
+        ...(net < 0 ? [{ account: 'checking' as const, credit: -net }] : []),
+      ],
+    });
+    recordInquiry(state);
+  } else {
+    const co = ownerCompany(state, p.owner);
+    if (!co) return FAIL('Empresa inexistente.');
+    coPost(co.ledger, {
+      day: state.day, memo: `Préstamo de obra para ${p.name}`, cf: 'financing', tag: 'property:mortgage',
+      lines: [
+        ...(net > 0 ? [{ account: 'cash' as const, debit: net }] : []),
+        ...(quote.fee > 0 ? [{ account: 'property_costs' as const, debit: quote.fee }] : []),
+        ...(payoff > 0 ? [{ account: 'mortgages' as const, debit: payoff }] : []),
+        { account: 'mortgages', credit: amount },
+        ...(net < 0 ? [{ account: 'cash' as const, credit: -net }] : []),
+      ],
+    });
+  }
+  if (old) {
+    old.balance = 0;
+    old.status = 'pagada';
+  }
+  const m: Mortgage = {
+    id: state.meta.nextId++, propertyId: p.id, owner: p.owner, bankId, principal: amount, balance: amount, apr: quote.apr, rateType: 'fija',
+    spread: 0, termMonths: years * 12, payment: quote.payment, startDay: state.day, nextDueDay: addMonths(state.day, 1),
+    paymentsMade: 0, missed: 0, interestPaid: 0, recourse: jurisdictionById(p.jurisdiction).mortgageRecourse, status: 'activa',
+  };
+  state.realEstate.mortgages.push(m);
+  p.mortgageId = m.id;
+  // Si la obra esperaba fondos, sigue apenas pueda.
+  if (d.waiting) d.until = Math.min(d.until, state.day);
+  return OK(`Préstamo de obra aprobado: ${fmtMoney(amount)} a ${fmtPct(quote.apr, 2)} en ${years} años (cuota ${fmtMoney(quote.payment)}).${payoff ? ` Se canceló la hipoteca del terreno (${fmtMoney(payoff)}).` : ''}`);
+}
+
+/** Acelerar la etapa en curso: más cuadrillas y horas extra. */
+export function rushProject(state: GameState, id: number): ActionResult {
+  const p = state.realEstate.properties.find((x) => x.id === id);
+  const d = p?.development;
+  if (!p || !d || d.phase === undefined) return FAIL('No hay un proyecto en curso.');
+  if (d.waiting) return FAIL('La obra está esperando fondos.');
+  if (d.rushed === d.phase) return FAIL('Esta etapa ya se aceleró.');
+  const left = d.until - state.day;
+  if (left < 30) return FAIL('A esta etapa le falta menos de un mes.');
+  const cost = rushCost(state, p);
+  if (!canFund(state, p, cost)) return FAIL(`Acelerar cuesta ${fmtMoney(cost)}.`);
+  capex(state, p, cost, `Aceleración de la obra en ${p.name}`);
+  d.cost += cost;
+  d.overrun = (d.overrun ?? 0) + cost;
+  d.rushed = d.phase;
+  d.until = state.day + Math.round(left * 0.6);
+  return OK(`Obra acelerada: la etapa termina alrededor del ${formatDate(d.until)}.`);
+}
+
+export function rushCost(state: GameState, p: Property): Cents {
+  return roundCents((p.development?.budget ?? 0) * RUSH_COST * clamp(state.macro.supplierCost, 0.85, 1.3));
+}
+
+/** Divide el edificio terminado en unidades (cada una se alquila o vende por separado). */
+function splitUnits(state: GameState, p: Property, n: number): void {
+  const m2 = Math.round(p.m2 / n);
+  const base = p.name;
+  const share = (x: Cents) => Math.floor(x / n);
+  const parts = { costBasis: share(p.costBasis), carrying: share(p.carrying), purchasePrice: share(p.purchasePrice), accumDepreciation: share(p.accumDepreciation), closingCosts: share(p.closingCosts) };
+  const units: Property[] = [];
+  for (let i = 2; i <= n; i++) {
+    const u: Property = {
+      ...p, owner: { ...p.owner }, id: state.meta.nextId++, name: `${base} · unidad ${i}`, m2, mortgageId: null, lease: null, forSale: null, renovation: null, development: null, hiddenDefect: null, evictionUntil: null,
+      ...parts, monthly: [], totals: { rent: 0, expenses: 0, tax: 0, interest: 0 },
+    };
+    units.push(u);
+  }
+  // La primera unidad se queda con el resto del redondeo (y con la hipoteca del terreno, si la hay).
+  p.name = `${base} · unidad 1`;
+  p.m2 = m2;
+  p.costBasis -= parts.costBasis * (n - 1);
+  p.carrying -= parts.carrying * (n - 1);
+  p.purchasePrice -= parts.purchasePrice * (n - 1);
+  p.accumDepreciation -= parts.accumDepreciation * (n - 1);
+  p.closingCosts -= parts.closingCosts * (n - 1);
+  const list = state.realEstate.properties;
+  list.splice(list.indexOf(p) + 1, 0, ...units);
+  for (const u of [p, ...units]) {
+    u.appraisal = appraise(state, u);
+    u.askingRent = marketRent(state, u);
+    u.nextTaxAmount = roundCents((u.appraisal * jurisdictionById(u.jurisdiction).propertyTaxRate) / 4);
+  }
+}
+
 function finishDevelopment(state: GameState, p: Property): void {
   const d = p.development!;
   const landValue = appraise(state, p);
@@ -974,6 +1213,16 @@ function finishDevelopment(state: GameState, p: Property): void {
   p.askingRent = marketRent(state, p);
   p.listedForRent = p.usedBy === null;
   p.vacantSince = state.day;
+  const n = d.units ?? 1;
+  if (n > 1 && p.usedBy === null) {
+    const total = p.appraisal;
+    splitUnits(state, p, n);
+    if (p.owner.kind !== 'mogul') {
+      addLog(state, 'success', '🏗️', `Terminó la obra: ${n} unidades de ${PROPERTY_TYPE_NAMES[p.type].toLowerCase()} de ${p.m2} m² (tasación total ≈ ${fmtMoney(total)}; costó ${fmtMoney(d.cost)} de obra${d.overrun ? `, ${fmtMoney(d.overrun)} de sobrecostos` : ''}). Quedan publicadas en alquiler: podés vender las que quieras.`, undefined, 'logros');
+      chronicle(state, 'empresa', 'realestate', `Terminaste un edificio de ${n} unidades`, `En ${ZONE_BY_ID[p.zoneId]?.name ?? p.zoneId}: tasación total ≈ ${fmtMoney(total, { decimals: false })}.`);
+    }
+    return;
+  }
   if (p.owner.kind !== 'mogul') addLog(state, 'success', '🏗️', `Terminó la obra en ${p.name}: ahora es ${PROPERTY_TYPE_NAMES[p.type].toLowerCase()} de ${p.m2} m², tasada en ${fmtMoney(p.appraisal)}.`);
 }
 

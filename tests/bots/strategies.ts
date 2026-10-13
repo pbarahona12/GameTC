@@ -7,7 +7,8 @@ import { enroll, courseRequirements, courseTotalCost, timesCompleted, tuition } 
 import { transfer } from '../../src/engine/finance/banking';
 import { setAutopay } from '../../src/engine/finance/creditCard';
 import { buyFund } from '../../src/engine/invest/funds';
-import { buyProperty } from '../../src/engine/realestate/realestate';
+import { buyProperty, projectPlan, maxUnits, startProject, financeProject, projectCollateral, PROJECT_LTV } from '../../src/engine/realestate/realestate';
+import type { Property } from '../../src/engine/realestate/types';
 import { foundCompany, setupCosts, sectorRequirement } from '../../src/engine/business/ownership';
 import { generateCandidates, hire } from '../../src/engine/business/staff';
 import { monthlyRecurring } from '../../src/engine/finance/budget';
@@ -102,6 +103,65 @@ function investStep(s: GameState, free: Cents): void {
   if (free < usd(300)) return;
   fromSavingsToChecking(s, free);
   buyFund(s, 'F-IDX', Math.min(free, s.ledger.balances.checking));
+}
+
+type BuildType = 'vivienda' | 'oficina' | 'local';
+/** Mejor proyecto para un terreno: tipo y margen sobre terreno + obra. */
+function bestProject(s: GameState, land: Pick<Property, 'm2' | 'zoneId' | 'grade'>, price: Cents) {
+  let best: { to: BuildType; units: number; margin: number; budget: Cents } | null = null;
+  for (const to of ['vivienda', 'oficina', 'local'] as BuildType[]) {
+    const plan = projectPlan(s, land, to, maxUnits(Math.round(land.m2 * 0.8), to));
+    const margin = (plan.value - price - plan.budget * s.macro.supplierCost) / (price + plan.budget);
+    if (!best || margin > best.margin) best = { to, units: plan.units, margin, budget: plan.budget };
+  }
+  return best!;
+}
+
+/**
+ * Desarrollador (1.6, auditoría E10): una obra a la vez. Con un terreno propio,
+ * construye; si no, compra el terreno con mejor margen (≥ 15 %) cuando le alcanza
+ * para el terreno y dos tercios de la obra. Devuelve lo que hay que reservar.
+ */
+function developStep(s: GameState, free: Cents): Cents {
+  const mine = s.realEstate.properties.filter((p) => p.owner.kind === 'personal');
+  const busy = mine.find((p) => p.development);
+  if (busy) return Math.max(0, (busy.development!.budget ?? 0) - busy.development!.cost);
+  const land = mine.find((p) => p.type === 'terreno' && !p.forSale);
+  if (land) {
+    const b = bestProject(s, land, land.appraisal);
+    if (b.margin > 0.1) {
+      fromSavingsToChecking(s, Math.round(b.budget * 0.1));
+      if (!startProject(s, land.id, b.to, b.units).ok) return 0;
+      // Préstamo de obra por el máximo (si algún banco lo aprueba).
+      const max = Math.round(projectCollateral(s, land) * PROJECT_LTV);
+      for (const bk of MORTGAGE_BANKS.filter((x) => !x.forCompanies)) if (financeProject(s, land.id, bk.id, max, 15).ok) break;
+      return Math.max(0, (land.development?.budget ?? 0) - (land.development?.cost ?? 0) - s.ledger.balances.checking);
+    }
+    return 0;
+  }
+  const lands = s.realEstate.listings.filter((l) => l.property.type === 'terreno');
+  // Con sueldo y buen puntaje, el terreno se financia al 40 % con hipoteca.
+  const ltv = monthlyGrossIncome(s) > 0 && s.credit.score >= 620 ? 0.4 : 0;
+  let pick: { id: number; price: Cents; budget: Cents; margin: number; need: Cents } | null = null;
+  for (const l of lands) {
+    const b = bestProject(s, l.property, l.askPrice);
+    // Con crédito, al final pone ≈ 46 % del terreno y 40 % de la obra (el resto lo financia el banco).
+    const need = Math.round(ltv > 0 ? l.askPrice * 0.46 + b.budget * 0.4 : l.askPrice * 1.06 + b.budget * 0.65);
+    if (b.margin < 0.15) continue;
+    // El mejor margen entre los que puede pagar; si no puede ninguno, el más barato es la meta de ahorro.
+    const better = !pick || (need <= free ? pick.need > free || b.margin > pick.margin : pick.need > free && need < pick.need);
+    if (better) pick = { id: l.id, price: l.askPrice, budget: b.budget, margin: b.margin, need };
+  }
+  if (!pick) return 0;
+  // Con un par de alquileres y un terreno a la vista, ahorra para la obra en vez de comprar otro.
+  const rentals = mine.filter((p) => p.type !== 'terreno').length;
+  if (free < pick.need) return rentals >= 2 ? free : 0;
+  fromSavingsToChecking(s, Math.round(pick.price * (1.06 - ltv)));
+  const bought = ltv > 0
+    ? MORTGAGE_BANKS.filter((x) => !x.forCompanies).some((bk) => buyProperty(s, pick!.id, { owner: { kind: 'personal' }, financing: { bankId: bk.id, amount: Math.round(pick!.price * ltv), years: 15, rateType: 'fija' } }).ok)
+      || buyProperty(s, pick.id, { owner: { kind: 'personal' } }).ok
+    : buyProperty(s, pick.id, { owner: { kind: 'personal' } }).ok;
+  return bought ? pick.need : 0;
 }
 
 function propertyStep(s: GameState, free: Cents): void {
@@ -231,7 +291,8 @@ export function runBot(style: BotStyle, background: BackgroundId, seed: string, 
     } else if (style === 'inmobiliario') {
       studyStep(s, 0.1);
       const free = savingsStep(s, 3);
-      propertyStep(s, free);
+      const reserved = developStep(s, free);
+      propertyStep(s, Math.max(0, free - reserved));
     } else {
       studyStep(s, 0.1);
       const free = savingsStep(s, 3);

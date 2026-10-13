@@ -407,6 +407,51 @@ export function projectedRaisePct(state: GameState, perf: number): number {
   return Math.max(0, reviewRaisePct(perf) + cycle + Math.max(0, state.macro.inflation - 0.03) * 0.5);
 }
 
+/** Acciones que entregaría hoy un puesto de dirección (bruto, antes de la retención). */
+export function equityGrantValue(state: GameState, job: JobDef, perf: number): Cents {
+  const e = state.career.job;
+  if (!job.equity || !e) return 0;
+  return roundCents(e.salary * 12 * job.equity.pct * clamp(perf / 70, 0.3, 1.3));
+}
+
+/**
+ * Puestos de dirección (1.6, auditoría E10): en la evaluación anual se entregan
+ * acciones de la empleadora. Se retienen los impuestos vendiendo una parte («sell
+ * to cover»): llegan las acciones netas y el centavo que no completa una acción va
+ * a la cuenta. Tributa como bono; el costo de las acciones es su valor al recibirlas.
+ */
+function equityGrant(state: GameState, job: JobDef, perf: number): void {
+  const e = state.career.job;
+  const st = job.equity ? state.stocks.stocks.find((x) => x.id === job.equity!.stockId) : undefined;
+  if (!e || !st || st.price <= 0) return;
+  const gross = equityGrantValue(state, job, perf);
+  if (gross <= 0) return;
+  const annual = payroll(residence(state), e.salary, state.bank.pensionRate).taxableMonthly * 12;
+  const withheld = Math.min(gross, progressiveTax(residence(state), annual + gross).tax - progressiveTax(residence(state), annual).tax);
+  const qty = Math.floor((gross - withheld) / st.price);
+  const value = roundCents(qty * st.price);
+  const rest = gross - withheld - value;
+  post(state.ledger, {
+    day: state.day, memo: `Acciones de ${st.name} por tu puesto de ${job.title}`, cf: 'operating', tag: 'payroll:equity',
+    lines: [
+      ...(value > 0 ? [{ account: 'stocks' as const, debit: value }] : []),
+      ...(withheld > 0 ? [{ account: 'income_tax' as const, debit: withheld }] : []),
+      ...(rest > 0 ? [{ account: 'checking' as const, debit: rest }] : []),
+      { account: 'bonus_income', credit: gross },
+    ],
+  });
+  if (qty > 0) {
+    const h = state.stocks.holdings[st.id] ?? (state.stocks.holdings[st.id] = { qty: 0, cost: 0, carrying: 0, lots: [] });
+    h.qty += qty;
+    h.cost += value;
+    h.carrying += value;
+    h.lots.push({ qty, cost: value, day: state.day });
+  }
+  state.tax.ytd.bonuses += gross;
+  state.tax.ytd.withheld += withheld;
+  addLog(state, 'income', '📜', `Recibiste ${qty} acciones de ${st.name} (${fmtMoney(value)}) por tu puesto de ${job.title}; se retuvieron ${fmtMoney(withheld)} de impuestos.`, value, 'logros');
+}
+
 /** Evaluación anual: aumento, bono y posible ascenso. */
 export function processReview(state: GameState): void {
   const e = state.career.job;
@@ -417,6 +462,7 @@ export function processReview(state: GameState): void {
   const bonusFactor = clamp((perf - 30) / 40, 0, 1.5);
   const bonus = roundCents(e.salary * 12 * job.bonusTarget * bonusFactor);
   if (bonus > 0) postPayroll(state, 0, bonus, 'Bono anual por desempeño', true);
+  equityGrant(state, job, perf);
   const next = job.promotesTo ? JOB_BY_ID[job.promotesTo] : null;
   if (next && perf >= 70) {
     const reqs = checkRequirements(state, next);

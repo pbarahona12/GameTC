@@ -35,6 +35,30 @@ export interface PropertyMonth {
   occupied: boolean;
 }
 
+/** Obra sobre un terreno. Desde 1.6, por etapas (proyecto inmobiliario). */
+export interface Development {
+  /** Fin de la etapa en curso (o de toda la obra, en las obras de antes de 1.6). */
+  until: number;
+  /** Pagado hasta hoy (incluye sobrecostos). */
+  cost: Cents;
+  to: PropertyType;
+  m2: number;
+  /** 1.6 · Etapa: 0 permisos y proyecto, 1 estructura, 2 terminaciones. */
+  phase?: number;
+  /** Presupuesto de obra al empezar (sin sobrecostos). */
+  budget?: Cents;
+  /** Sobrecostos acumulados. */
+  overrun?: Cents;
+  /** Unidades en que se divide al terminar. */
+  units?: number;
+  /** Costo de la próxima etapa ya presupuestado (si la obra espera fondos). */
+  next?: Cents;
+  /** Esperando fondos para empezar la próxima etapa. */
+  waiting?: boolean;
+  /** Etapa que ya se aceleró. */
+  rushed?: number;
+}
+
 export interface Property {
   id: number;
   name: string;
@@ -76,7 +100,7 @@ export interface Property {
   hiddenDefect: { cost: Cents; discovered: boolean } | null;
   evictionUntil: number | null;
   /** Obra en curso sobre un terreno. */
-  development: { until: number; cost: Cents; to: PropertyType; m2: number } | null;
+  development: Development | null;
 }
 
 export interface Mortgage {

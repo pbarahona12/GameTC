@@ -60,6 +60,7 @@ function CurrentJob() {
       <div className="kv">
         <dt>Comisión variable</dt><dd>{job.commission ? `${fmtPct(job.commission)} del sueldo × desempeño` : '—'}</dd>
         <dt>Bono anual objetivo</dt><dd>{job.bonusTarget ? fmtPct(job.bonusTarget) + ' del sueldo anual' : '—'}</dd>
+        {job.equity && <><dt>Acciones de la empleadora</dt><dd>≈ {fmtPct(job.equity.pct, 0)} del sueldo anual por año (según desempeño), en acciones de {job.employer}</dd></>}
         <dt>Aporte del empleador</dt><dd>{job.pensionMatch ? `iguala tu aporte hasta ${fmtPct(job.pensionMatch)}: recibís ${fmtPct(Math.min(s.bank.pensionRate, job.pensionMatch))}${s.bank.pensionRate < job.pensionMatch ? ` (aportá ${fmtPct(job.pensionMatch)} para el máximo)` : ''}` : 'No'}</dd>
         <dt>Seguro médico</dt><dd>{job.healthInsurance ? 'Incluido' : 'No incluido'}</dd>
         <dt>Jornada</dt><dd>{job.hoursPerWeek} h/semana</dd>
@@ -123,6 +124,7 @@ function Offers() {
               {job.pensionMatch > 0 && <Pill tone="gain">Aporte jubilación {fmtPct(job.pensionMatch)}</Pill>}
               {job.commission && <Pill tone="accent">Comisión {fmtPct(job.commission)}</Pill>}
               {job.bonusTarget > 0 && <Pill tone="accent">Bono {fmtPct(job.bonusTarget)}</Pill>}
+              {job.equity && <Pill tone="gain">Acciones {fmtPct(job.equity.pct, 0)}</Pill>}
             </div>
             {!a.negotiated && (
               <div className="stack" style={{ gap: 6 }}>
@@ -224,6 +226,7 @@ function JobBoard() {
               {j.pensionMatch > 0 && <Pill tone="gain">Aporte jubilación {fmtPct(j.pensionMatch)}</Pill>}
               {j.commission && <Pill tone="accent">Comisión {fmtPct(j.commission)}</Pill>}
               {j.bonusTarget > 0 && <Pill tone="accent">Bono {fmtPct(j.bonusTarget)}</Pill>}
+              {j.equity && <Pill tone="gain">Acciones {fmtPct(j.equity.pct, 0)}</Pill>}
             </div>
             {j.pitch && <p className="small" style={{ margin: 0 }}>{j.pitch}</p>}
             {req.items.length > 0 && (

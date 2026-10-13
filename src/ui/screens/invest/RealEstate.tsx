@@ -3,10 +3,10 @@ import { useGame, useUI, useDerived, store } from '../../store';
 import { navStore } from '../../nav';
 import { InfoButton, CardHead, Pill, NumInput, Act, Learn, LineChart, Money, Seg, AmountInput, ConfirmButton, Empty, Stat, Bar, GuardedAct } from '../../components/common';
 import {
-  buyProperty, inspectListing, allMortgageQuotes, sellProperty, setRent, setManagement, renovate, developLand, setUse, prepayMortgage,
-  appraise, propertyReport, marketRent, listingRent, listingGrossYield, closingCosts, ownerLabel, ownerCash, monthlyEconomics, zoneState, marketVacancy, SALE_COMMISSION, quickSalePrice, buyerWeeklyChance, tenantWeeklyChance, rentNoFasterBelow, knownRepairCost,
+  buyProperty, inspectListing, allMortgageQuotes, sellProperty, setRent, setManagement, renovate, setUse, prepayMortgage, startProject, rushProject, rushCost, projectPlan, maxUnits, PROJECT_PHASES, financeProject, projectCollateral, PROJECT_LTV, quoteMortgage,
+  propertyReport, marketRent, listingRent, listingGrossYield, closingCosts, ownerLabel, ownerCash, monthlyEconomics, zoneState, marketVacancy, SALE_COMMISSION, quickSalePrice, buyerWeeklyChance, tenantWeeklyChance, rentNoFasterBelow, knownRepairCost,
 } from '../../../engine/realestate/realestate';
-import { ZONES, ZONE_BY_ID, PROPERTY_TYPE_NAMES, BUILD_COST } from '../../../content/realestate';
+import { ZONES, ZONE_BY_ID, PROPERTY_TYPE_NAMES, MORTGAGE_BANKS } from '../../../content/realestate';
 import { jurisdictionById } from '../../../content/jurisdictions';
 import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { formatDate } from '../../../engine/time/calendar';
@@ -25,7 +25,8 @@ function owners(s: GameState): Array<{ id: string; label: string; owner: Propert
 }
 
 function statusOf(s: GameState, p: Property): { label: string; tone: 'gain' | 'warn' | 'loss' | 'info' | 'neutral' } {
-  if (p.development) return { label: `En obra hasta ${formatDate(p.development.until)}`, tone: 'info' };
+  if (p.development?.waiting) return { label: 'Obra parada: faltan fondos', tone: 'warn' };
+  if (p.development) return { label: p.development.phase !== undefined ? `Obra: ${PROJECT_PHASES[p.development.phase].name.toLowerCase()} hasta ${formatDate(p.development.until)}` : `En obra hasta ${formatDate(p.development.until)}`, tone: 'info' };
   if (p.renovation) return { label: `Renovando hasta ${formatDate(p.renovation.until)}`, tone: 'info' };
   if (p.usedBy === 'jugador') return { label: 'Tu vivienda', tone: 'neutral' };
   if (typeof p.usedBy === 'number') return { label: `Local de ${s.companies.find((c) => c.id === p.usedBy)?.name ?? 'empresa'}`, tone: 'neutral' };
@@ -36,6 +37,28 @@ function statusOf(s: GameState, p: Property): { label: string; tone: 'gain' | 'w
 }
 
 // ------------------------------------------------------------ Mis inmuebles
+
+/** Préstamo de obra (1.6): financiar el proyecto con el banco. */
+function ProjectLoan({ p }: { p: Property }) {
+  const s = useGame();
+  const banks = MORTGAGE_BANKS.filter((b) => b.forCompanies === (p.owner.kind === 'company'));
+  const [bankId, setBankId] = useState(banks[0]?.id ?? '');
+  const max = Math.round(projectCollateral(s, p) * PROJECT_LTV);
+  const [amount, setAmount] = useState(max);
+  const old = s.realEstate.mortgages.find((m) => m.id === p.mortgageId && m.status === 'activa');
+  if (!banks.length || (old && old.principal >= max * 0.9)) return null;
+  const q = amount > 0 ? quoteMortgage(s, bankId, p.owner, projectCollateral(s, p), amount, 15, 'fija', p.development!.to, 0) : null;
+  return (
+    <details>
+      <summary className="small">Financiar la obra con el banco <InfoButton term="proyecto_inmobiliario" /></summary>
+      <p className="tiny muted">Hasta el {fmtPct(PROJECT_LTV, 0)} del terreno y la obra ({fmtMoney(max, { decimals: false })}), a 15 años. La plata entra a tu cuenta y paga las etapas.{old ? ` Cancela la hipoteca del terreno (${fmtMoney(old.balance, { decimals: false })}).` : ''} Al terminar, queda en la unidad 1.</p>
+      <Seg items={banks.map((b) => ({ id: b.id, label: b.name.split(' · ')[0] }))} value={bankId} onChange={setBankId} />
+      <div className="field"><label htmlFor="ploan">Monto</label><AmountInput id="ploan" value={amount} onChange={setAmount} max={max} /></div>
+      {q && <p className="tiny">{fmtPct(q.apr, 2)} anual · cuota ≈ {fmtMoney(q.payment, { decimals: false })}/mes · comisión {fmtMoney(q.fee, { decimals: false })}</p>}
+      <ConfirmButton label="Pedir el préstamo" className="btn sm" disabled={!(amount > 0)} detail={`Préstamo de ${fmtMoney(amount, { decimals: false })} a 15 años con ${banks.find((b) => b.id === bankId)?.name ?? ''}.`} onConfirm={() => store.run((x) => financeProject(x, p.id, bankId, amount, 15))} />
+    </details>
+  );
+}
 
 function PropertyDetail({ p }: { p: Property }) {
   const s = useGame();
@@ -51,8 +74,10 @@ function PropertyDetail({ p }: { p: Property }) {
   const st = statusOf(s, p);
   const j = jurisdictionById(p.jurisdiction);
   const coId = p.owner.kind === 'company' ? p.owner.id : null;
+  const [units, setUnits] = useState(0);
   const devM2 = Math.round(p.m2 * 0.8);
-  const devCost = Math.round(devM2 * BUILD_COST[devTo] * s.macro.priceIndex * 100);
+  const maxU = maxUnits(devM2, devTo);
+  const plan = projectPlan(s, p, devTo, units > 0 ? units : maxU);
   const quick = quickSalePrice(p);
   const saleChance = salePrice > 0 ? buyerWeeklyChance(s, salePrice, p.appraisal) : 0;
   const rentFloor = rentNoFasterBelow(s, p);
@@ -152,14 +177,49 @@ function PropertyDetail({ p }: { p: Property }) {
         </div>
       )}
 
+      {p.development && p.development.phase !== undefined && (
+        <div className="card flat" style={{ padding: 12, gap: 8 }}>
+          <div className="card-head"><strong style={{ flex: 1 }}>Proyecto: {p.development.units ?? 1} {p.development.units === 1 ? 'unidad' : 'unidades'} de {PROPERTY_TYPE_NAMES[p.development.to].toLowerCase()}</strong><InfoButton term="proyecto_inmobiliario" /></div>
+          <div className="stack" style={{ gap: 4 }}>
+            {PROJECT_PHASES.map((ph, i) => {
+              const d = p.development!;
+              const cur = d.phase === i;
+              return <div key={ph.name} className="small">{(d.phase ?? 0) > i ? '✓' : cur ? (d.waiting ? '⏸' : '▶') : '○'} {ph.name}{cur && !d.waiting ? ` · hasta ${formatDate(d.until)}` : ''}</div>;
+            })}
+            {(p.development.phase ?? 0) >= PROJECT_PHASES.length - 1 && !p.development.waiting && <div className="small">○ Unidades listas para alquilar o vender</div>}
+          </div>
+          <div className="kv">
+            <dt>Pagado</dt><dd>{fmtMoney(p.development.cost, { decimals: false })} de {fmtMoney(p.development.budget ?? 0, { decimals: false })} presupuestados</dd>
+            {(p.development.overrun ?? 0) > 0 && <><dt>Sobrecostos</dt><dd className="loss">{fmtMoney(p.development.overrun ?? 0, { decimals: false })}</dd></>}
+            {p.development.waiting && <><dt>Próxima etapa</dt><dd className="warn">Necesita {fmtMoney(p.development.next ?? 0, { decimals: false })} en {ownerLabel(s, p.owner)}</dd></>}
+          </div>
+          <ProjectLoan p={p} />
+          {!p.development.waiting && p.development.rushed !== p.development.phase && p.development.until - s.day >= 30 && (
+            <ConfirmButton label={`Acelerar esta etapa (${fmtMoney(rushCost(s, p), { decimals: false })})`} className="btn sm ghost" detail="Más cuadrillas y horas extra: la etapa termina un 40 % antes. No mejora la obra: solo la adelanta." onConfirm={() => store.run((x) => rushProject(x, p.id))} />
+          )}
+        </div>
+      )}
+
       {!p.development && !p.renovation && (
         <div className="card flat" style={{ padding: 12, gap: 8 }}>
-          <div className="card-head"><strong style={{ flex: 1 }}>{p.type === 'terreno' ? 'Construir' : 'Obras'}</strong><InfoButton term={p.type === 'terreno' ? 'accion_desarrollar' : 'accion_renovar'} /></div>
+          <div className="card-head"><strong style={{ flex: 1 }}>{p.type === 'terreno' ? 'Proyecto inmobiliario' : 'Obras'}</strong><InfoButton term={p.type === 'terreno' ? 'accion_desarrollar' : 'accion_renovar'} /></div>
           {p.type === 'terreno' ? (
             <>
-              <Seg items={[{ id: 'vivienda', label: 'Viviendas' }, { id: 'local', label: 'Locales' }, { id: 'oficina', label: 'Oficinas' }, { id: 'cochera', label: 'Cocheras' }]} value={devTo} onChange={setDevTo} />
-              <p className="small">Construir {fmtNumber(devM2)} m² cuesta ≈ {fmtMoney(devCost)} y tarda 9–15 meses. Tasación estimada al terminar (a los precios de hoy) ≈ {fmtMoney(appraise(s, { ...p, type: devTo, m2: devM2, condition: 100 }))}.</p>
-              <ConfirmButton label="Iniciar construcción" help="accion_desarrollar" className="btn sm" detail={`Se pagan ${fmtMoney(devCost)} ahora desde ${ownerLabel(s, p.owner)}.`} onConfirm={() => store.run((x) => developLand(x, p.id, devTo))} />
+              <Seg items={[{ id: 'vivienda', label: 'Viviendas' }, { id: 'local', label: 'Locales' }, { id: 'oficina', label: 'Oficinas' }, { id: 'cochera', label: 'Cocheras' }]} value={devTo} onChange={(v) => { setDevTo(v); setUnits(0); }} />
+              <div className="field">
+                <label htmlFor="units">Unidades (hasta {maxU})</label>
+                <NumInput id="units" min={1} max={maxU} value={plan.units} onChange={(v) => setUnits(Math.max(1, Math.min(maxU, Math.round(v || 1))))} />
+                <span className="tiny muted">{plan.units} × {fmtNumber(plan.unitM2)} m² · cada una ≈ {fmtMoney(plan.unitValue, { decimals: false })} (alquiler ≈ {fmtMoney(plan.unitRent, { decimals: false })}/mes)</span>
+              </div>
+              <div className="kv">
+                <dt>Presupuesto de obra</dt><dd>{fmtMoney(plan.budget, { decimals: false })} en 3 etapas ({PROJECT_PHASES.map((x) => `${x.name.toLowerCase()} ${fmtPct(x.share, 0)}`).join(', ')})</dd>
+                <dt>Ahora</dt><dd>{fmtMoney(plan.first, { decimals: false })} (permisos y proyecto)</dd>
+                <dt>Plazo</dt><dd>9–15 meses si no falta plata</dd>
+                <dt>Tasación al terminar (precios de hoy)</dt><dd>≈ {fmtMoney(plan.value, { decimals: false })}</dd>
+                <dt>Margen estimado</dt><dd className={plan.value - p.appraisal - plan.budget >= 0 ? 'gain' : 'loss'}>{fmtMoney(plan.value - p.appraisal - plan.budget, { decimals: false })} sobre el terreno ({fmtMoney(p.appraisal, { decimals: false })}) y la obra</dd>
+              </div>
+              <p className="tiny muted">Cada etapa se paga al empezar, al precio de los materiales de ese momento, y puede tener sobrecostos (más en recesión). Si no alcanza la plata, la obra se para y sigue sola cuando alcance.</p>
+              <ConfirmButton label="Iniciar proyecto" help="accion_desarrollar" className="btn sm" detail={`Se pagan ${fmtMoney(plan.first)} ahora desde ${ownerLabel(s, p.owner)}; la estructura (${fmtMoney(Math.round(plan.budget * PROJECT_PHASES[1].share), { decimals: false })}) en 2–3 meses.`} onConfirm={() => store.run((x) => startProject(x, p.id, devTo, plan.units))} />
             </>
           ) : (
             <div className="btn-row">
