@@ -23,4 +23,10 @@ export const GLOSSARY_V16: GlossaryEntry[] = [
     example: 'El 75 % de tu patrimonio son cafeterías en Valdoria. Empieza una recesión: con alta probabilidad llega una crisis del sector cafetería que recorta tus ventas un 20 % durante 9 meses. Si la mitad de tu patrimonio estuviera en otra ciudad, en inmuebles y en un fondo índice, solo sufrirías la recesión general.',
     impact: 'Bajar la concentración por debajo del 40 % evita estas crisis; el asesor te avisa cuando la economía se recalienta o se frena.',
     risks: 'Diversificar también tiene costos: locales nuevos, comisiones e impuestos al vender. No hace falta repartir todo: alcanza con que nada pese demasiado.' },
+  { id: 'elenco', term: 'Personas de tu historia', category: 'Acciones del juego',
+    short: 'La gente de tus decisiones (amigos, familia, periodistas, empleados, socios) recuerda lo que hiciste y puede volver.',
+    purpose: 'Que las decisiones dejen huella en personas concretas y no solo en puntos de reputación que se diluyen.',
+    how: 'Cada persona de un dilema queda en tu elenco con un vínculo de −100 a 100 y la memoria de lo que hiciste con ella. Los próximos dilemas eligen primero a alguien que ya conocés. Con un vínculo de ±30 o más y unos meses sin verse, vuelve: quien te aprecia trae un favor (volver a trabajar con vos con mucha experiencia, un perfil favorable, entrar en su negocio); quien te guarda rencor se cobra (se va con un rival y quiere llevarse a tu gente, publica una nota en contra, habla mal de vos). Siempre podés intentar hacer las paces. Se recuerdan hasta 15 personas: las que menos huella dejaron se olvidan.',
+    example: 'Despediste a tu gerente por un escándalo (vínculo −45). Un año y medio después trabaja para tu némesis y quiere llevarse a tus dos mejores empleados: podés pagar un bono de retención, llamarlo para hacer las paces o dejarlos ir.',
+    impact: 'Tratar bien a la gente rinde con el tiempo; los enemigos también vuelven.' },
 ];

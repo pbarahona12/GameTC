@@ -12,7 +12,7 @@ import { balanceSheet } from '../reports/statements';
 import { isOpen } from '../business/common';
 import { coPost } from '../business/companyLedger';
 import { SECTOR_BY_ID } from '../../content/sectors';
-import { FIRST_NAMES, LAST_NAMES } from '../../content/cities';
+import { FIRST_NAMES } from '../../content/cities';
 import { chronicle } from './chronicle';
 import { srng, rememberRival, playerCity, cityName } from './ranking';
 import { newProperty } from '../realestate/realestate';
@@ -23,11 +23,13 @@ import { buyBackShares, marketCap } from './corporate';
 import { setPrivateInsurance, insuranceCost, monthlyRecurring } from '../finance/budget';
 import { valuation } from '../business/reports';
 import { companyShareEstimate } from '../business/market';
-import { fire } from '../business/staff';
+import { fire, hire, hiringFee } from '../business/staff';
 import { revalue } from '../business/ownership';
 import { LEGAL_FORM_BY_ID } from '../../content/sectors';
 import { isAlly, nemesisOf, warsIn, registerWarDilemma } from './rivalry';
 import type { RivalGroup } from '../world/types';
+import { castFor, castById, remember, returning, RETURN_BOND, type CastMember } from './cast';
+import { marketWage } from '../business/staff';
 
 /**
  * DILEMAS CON PLAZO (1.4): situaciones con 2–3 opciones, cada una con costos y
@@ -87,8 +89,46 @@ function buybackCost(s: GameState, d: Dilemma): Cents {
   const co = companyOf(s, d);
   return co && co.listed ? roundCents(marketCap(s, co) * Math.min(0.1, 1 - co.ownership) * 1.15) : num(d, 'cost');
 }
-const randomName = (g: RngHolder) => `${FIRST_NAMES[Math.floor(nextRandom(g) * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(nextRandom(g) * LAST_NAMES.length)]}`;
 const pick = <T>(g: RngHolder, xs: T[]): T => xs[Math.floor(nextRandom(g) * xs.length)];
+
+// ------------------------------------------------------------------ elenco (1.6)
+
+/** Persona del elenco de un dilema (si la tiene). */
+const personOf = (s: GameState, d: Dilemma | PendingOutcome): CastMember | undefined => (d.params.personId !== undefined ? castById(s, num(d, 'personId')) : undefined);
+/** Se está aplicando la opción por defecto de un dilema vencido (no decidir pesa la mitad). */
+let expiring = false;
+/** Lo que hiciste con la persona del dilema queda en su memoria. */
+const mem = (s: GameState, d: Dilemma | PendingOutcome, delta: number, text: string) =>
+  remember(s, d.params.personId !== undefined ? num(d, 'personId') : undefined, expiring && delta < 0 ? Math.round(delta / 2) : delta, text);
+/** «Ya se cruzaron antes»: la última vez que la viste, si la hubo. */
+function pastWith(s: GameState, d: Dilemma): string {
+  const m = personOf(s, d);
+  const last = m?.memories.filter((x) => x.day < d.day).slice(-1)[0];
+  if (!m || !last) return '';
+  return ` No es la primera vez: el ${formatDate(last.day)} ${last.text.charAt(0).toLowerCase()}${last.text.slice(1)}.`;
+}
+const who = (m: CastMember) => ({ personId: m.id, who: m.name });
+/** El recuerdo más fuerte en un sentido (1 = a favor, −1 = en contra), en minúscula. */
+function bestMemory(m: CastMember, sign: 1 | -1): string {
+  const x = [...m.memories].sort((a, b) => sign * (b.delta - a.delta))[0];
+  const t = x?.text ?? (sign > 0 ? 'lo trataste bien' : 'lo trataste mal');
+  return `${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+}
+const employedNow = (s: GameState, m: CastMember) => myCompanies(s).some((c) => c.employees.some((e) => e.name === m.name));
+function favorKind(s: GameState, m: CastMember): 'candidato' | 'perfil' | 'oportunidad' | null {
+  if (m.role === 'periodista') return 'perfil';
+  if ((m.role === 'empleado' || m.role === 'gerente' || m.role === 'mentoreado') && myCompanies(s).length && !employedNow(s, m)) return 'candidato';
+  if (m.role === 'empleado' || m.role === 'gerente') return null;
+  return spendable(s) >= usd(3000 * pi(s)) ? 'oportunidad' : null;
+}
+function grudgeKind(s: GameState, m: CastMember): 'fuga' | 'nota' | 'habladurias' {
+  if (m.role === 'periodista') return 'nota';
+  if ((m.role === 'empleado' || m.role === 'gerente') && !employedNow(s, m) && myCompanies(s).some((c) => c.employees.filter((e) => e.role !== 'gerente').length >= 3)) return 'fuga';
+  return 'habladurias';
+}
+const friendBack = (s: GameState) => returning(s).filter((c) => c.bond >= RETURN_BOND && favorKind(s, c)).sort((a, b) => b.bond - a.bond)[0];
+const foeBack = (s: GameState) => returning(s).filter((c) => c.bond <= -RETURN_BOND).sort((a, b) => a.bond - b.bond)[0];
+const reconcileChance = (s: GameState) => clamp(0.3 + s.player.attributes.network / 250, 0.3, 0.7);
 
 function spend(s: GameState, amount: Cents, memo: string, account: 'other_expense' | 'leisure' | 'housing' = 'other_expense'): boolean {
   if (amount <= 0) return true;
@@ -139,9 +179,9 @@ const TEMPLATES: Template[] = [
   {
     id: 'changa', icon: 'career', weight: 5, cooldown: 120, urgent: true,
     eligible: (s) => !s.career.job && s.day >= 10 && s.day < 730 && spendable(s) < monthlyRecurring(s, true) * 1.2,
-    create: (s, g) => ({ params: { pay: roundCents(usd(randRange(g, 520, 760) * pi(s)) / 100) * 100, who: randomName(g), what: pick(g, ['atender un puesto en la feria', 'ayudar en una mudanza grande', 'cubrir turnos en un depósito', 'repartir volantes y pedidos']) }, days: 5 }),
+    create: (s, g) => ({ params: { pay: roundCents(usd(randRange(g, 520, 760) * pi(s)) / 100) * 100, ...who(castFor(s, 'contacto', g, 'te ofreció un trabajo temporal')), what: pick(g, ['atender un puesto en la feria', 'ayudar en una mudanza grande', 'cubrir turnos en un depósito', 'repartir volantes y pedidos']) }, days: 5 }),
     title: () => 'Un trabajo temporal mientras buscás empleo',
-    body: (_s, d) => `${str(d, 'who')} necesita a alguien para ${str(d, 'what')} durante tres semanas. Pagan ${money(num(d, 'pay'))} al terminar. Podés seguir postulándote igual.`,
+    body: (s, d) => `${str(d, 'who')} necesita a alguien para ${str(d, 'what')} durante tres semanas. Pagan ${money(num(d, 'pay'))} al terminar. Podés seguir postulándote igual.${pastWith(s, d)}`,
     options: [
       { id: 'aceptar', label: 'Aceptar', detail: (_s, d) => `Cobrás ${money(num(d, 'pay'))} en 3 semanas. Estrés +5.` },
       { id: 'familia', label: 'Pedirle ayuda a tu familia', detail: (s) => `Te dan ${money(usd(300 * pi(s)))} (y te lo recuerdan en cada almuerzo). Estrés +3.` },
@@ -156,6 +196,7 @@ const TEMPLATES: Template[] = [
         return `Tu familia te ayudó con ${money(usd(300 * pi(s)))}.`;
       }
       attr(s, 'stress', 5);
+      mem(s, d, 15, `Le diste una mano para ${str(d, 'what')}`);
       schedule(s, d, choice, 21 + randInt(g, 0, 2));
       return `Empezás mañana. Cobrás ${money(num(d, 'pay'))} en tres semanas.`;
     },
@@ -172,7 +213,8 @@ const TEMPLATES: Template[] = [
       const co = pick(g, cos);
       const e = [...co.employees].filter((x) => s.day - x.hiredDay > 150).sort((a, b) => b.skill - a.skill)[0];
       if (!e) return null;
-      return { params: { companyId: co.id, employeeId: e.id, name: e.name, wage: e.wage, company: co.name }, days: 10 };
+      const m = castFor(s, 'empleado', g, `empleado de ${co.name}`, e.name);
+      return { params: { companyId: co.id, employeeId: e.id, name: e.name, wage: e.wage, company: co.name, personId: m.id }, days: 10 };
     },
     title: (_s, d) => `${str(d, 'name')} pide un aumento`,
     body: (_s, d) => `Tu mejor empleado en ${str(d, 'company')} (sueldo ${money(num(d, 'wage'))}/mes) dice que la competencia le ofrece más. Quiere un 15 % o lo va a pensar.`,
@@ -189,6 +231,7 @@ const TEMPLATES: Template[] = [
       if (choice === 'dar') {
         e.wage = roundCents(e.wage * 1.15);
         e.morale = clamp(e.morale + 15, 0, 100);
+        mem(s, d, 20, `Le diste el aumento que pidió en ${co.name}`);
         return `${e.name} se queda y está más motivado. Su sueldo ahora es ${money(e.wage)}/mes.`;
       }
       const leaveP = choice === 'mitad' ? 0.33 : 0.6;
@@ -197,8 +240,12 @@ const TEMPLATES: Template[] = [
         co.employees = co.employees.filter((x) => x !== e);
         const r = rivalFor(s, co.sector, g);
         if (r) r.memory = [...(r.memory ?? []), { day: s.day, text: `Se llevó a ${e.name} de ${co.name}` }].slice(-12);
+        mem(s, d, choice === 'mitad' ? -15 : -30, `No le diste el aumento y se fue de ${co.name}`);
+        const p = personOf(s, d);
+        if (p && r) p.employer = r.name;
         return `${e.name} renunció y se fue a ${r ? r.name : 'la competencia'}.`;
       }
+      mem(s, d, choice === 'mitad' ? 5 : -15, choice === 'mitad' ? `Aceptó un aumento menor en ${co.name}` : `Le negaste un aumento en ${co.name}`);
       e.morale = clamp(e.morale + (choice === 'mitad' ? 3 : -12), 0, 100);
       return choice === 'mitad' ? `${e.name} aceptó el 7 %. Sueldo: ${money(e.wage)}/mes.` : `${e.name} se queda, pero desmotivado (moral −12).`;
     },
@@ -209,24 +256,27 @@ const TEMPLATES: Template[] = [
     create: (s, g) => {
       const amount = roundCents(clamp(spendable(s) * randRange(g, 0.08, 0.18), usd(1500 * pi(s)), usd(80_000 * pi(s))) / 10000) * 10000;
       const idea = pick(g, ['una aplicación para reservar canchas', 'cosmética natural por suscripción', 'un software para clínicas veterinarias', 'comida saludable congelada', 'un mercado de ropa usada en línea', 'paneles solares para comercios']);
-      return { params: { amount, friend: randomName(g), idea }, days: 14 };
+      const m = castFor(s, 'amigo', g, 'amigo emprendedor');
+      return { params: { amount, friend: m.name, personId: m.id, idea }, days: 14 };
     },
     title: (_s, d) => `${str(d, 'friend')} te ofrece entrar en su startup`,
-    body: (_s, d) => `Está armando ${str(d, 'idea')} y busca ${money(num(d, 'amount'))}. Dice que puede multiplicarse… o no. Se contabiliza como gasto: si sale bien, lo cobrás.`,
+    body: (s, d) => `Está armando ${str(d, 'idea')} y busca ${money(num(d, 'amount'))}. Dice que puede multiplicarse… o no. Se contabiliza como gasto: si sale bien, lo cobrás.${pastWith(s, d)}`,
     options: [
       { id: 'todo', label: 'Invertir todo', detail: (_s, d) => `Ponés ${money(num(d, 'amount'))}. En 1 o 2 años sabrás si valió la pena.`, blocked: (s, d) => cantPay(num(d, 'amount'))(s) },
       { id: 'mitad', label: 'Invertir la mitad', detail: (_s, d) => `Ponés ${money(roundCents(num(d, 'amount') / 2))}. Menos riesgo, menos premio.`, blocked: (s, d) => cantPay(roundCents(num(d, 'amount') / 2))(s) },
-      { id: 'no', label: 'No invertir', detail: () => 'Tu amigo lo entiende… más o menos (contactos −2).' },
+      { id: 'no', label: 'No invertir', detail: () => 'Tu amigo lo entiende… más o menos (contactos −2). Se va a acordar.' },
     ],
     fallback: 'no',
     apply: (s, d, choice, g) => {
       if (choice === 'no') {
         attr(s, 'network', -2);
+        mem(s, d, -15, `Le dijiste que no a su proyecto de ${str(d, 'idea')}`);
         return 'Le dijiste que no. La relación quedó un poco fría.';
       }
       const amount = choice === 'todo' ? num(d, 'amount') : roundCents(num(d, 'amount') / 2);
       if (!spend(s, amount, `Inversión en la startup de ${str(d, 'friend')}`)) return 'No alcanzó el dinero: no se hizo la inversión.';
       attr(s, 'network', 2);
+      mem(s, d, choice === 'todo' ? 25 : 12, `Pusiste ${money(amount)} en su proyecto de ${str(d, 'idea')}`);
       schedule(s, d, choice, randInt(g, 240, 600), { invested: amount });
       return `Invertiste ${money(amount)}. Habrá noticias en uno o dos años.`;
     },
@@ -238,6 +288,7 @@ const TEMPLATES: Template[] = [
         const back = roundCents(inv * randRange(g, 3.5, 9));
         earn(s, back, `Venta de tu parte en la startup de ${str(o, 'friend')}`);
         text = `¡La startup de ${str(o, 'friend')} fue comprada! Cobrás ${money(back)} por tus ${money(inv)}.`;
+        mem(s, o, 10, 'Su startup se vendió y te pagó con creces');
         addLog(s, 'income', '🚀', text, back, 'logros');
       } else if (roll < 0.52) {
         const back = roundCents(inv * randRange(g, 0.35, 1.05));
@@ -246,6 +297,7 @@ const TEMPLATES: Template[] = [
         addLog(s, 'income', '🤝', text, back);
       } else {
         text = `La startup de ${str(o, 'friend')} cerró. Perdiste lo invertido (${money(inv)}).`;
+        mem(s, o, 5, 'Su startup cerró, pero no se olvida de que confiaste');
         addLog(s, 'warning', '📉', text);
       }
       chronicle(s, 'dilema', 'rocket', 'El desenlace de la startup', text);
@@ -337,10 +389,13 @@ const TEMPLATES: Template[] = [
     eligible: (s) => spendable(s) >= usd(2000 * pi(s)),
     create: (s, g) => {
       const amount = roundCents(clamp(spendable(s) * randRange(g, 0.04, 0.12), usd(400 * pi(s)), usd(25_000 * pi(s))) / 10000) * 10000;
-      return { params: { amount, who: pick(g, ['Tu primo', 'Tu hermana', 'Un tío', 'Tu mejor amigo']), why: pick(g, ['para pagar una deuda con la tarjeta', 'para arreglar el techo de su casa', 'para no cerrar su pequeño negocio', 'por una operación']) }, days: 7 };
+      const rel = pick(g, ['Tu primo', 'Tu hermana', 'Tu tío', 'Tu prima']);
+      const m = castFor(s, 'familiar', g, rel);
+      if (!m.memories.length && m.since === s.day) m.name = `${m.name.split(' ')[0]} ${s.player.name.split(' ').slice(-1)[0]}`;
+      return { params: { amount, who: `${m.label} ${m.name.split(' ')[0]}`, personId: m.id, why: pick(g, ['para pagar una deuda con la tarjeta', 'para arreglar el techo de su casa', 'para no cerrar su pequeño negocio', 'por una operación']) }, days: 7 };
     },
     title: (_s, d) => `${str(d, 'who')} te pide dinero prestado`,
-    body: (_s, d) => `Necesita ${money(num(d, 'amount'))} ${str(d, 'why')}. Promete devolverlo en unos meses.`,
+    body: (s, d) => `Necesita ${money(num(d, 'amount'))} ${str(d, 'why')}. Promete devolverlo en unos meses.${pastWith(s, d)}`,
     options: [
       { id: 'prestar', label: 'Prestarle', detail: (_s, d) => `${money(num(d, 'amount'))}. Lo más probable es que te lo devuelva… pero no es seguro.`, blocked: (s, d) => cantPay(num(d, 'amount'))(s) },
       { id: 'regalar', label: 'Regalárselo', detail: () => 'No esperás nada a cambio. Contactos +3, estrés −3.', blocked: (s, d) => cantPay(num(d, 'amount'))(s) },
@@ -352,14 +407,17 @@ const TEMPLATES: Template[] = [
       if (choice === 'no') {
         attr(s, 'stress', 3);
         attr(s, 'network', -1);
+        mem(s, d, -20, `Le negaste ${money(amount)} ${str(d, 'why')}`);
         return 'Le dijiste que no.';
       }
       if (!spend(s, amount, `${choice === 'prestar' ? 'Préstamo' : 'Regalo'} a ${str(d, 'who').toLowerCase()}`)) return 'No alcanzó el dinero.';
       if (choice === 'regalar') {
         attr(s, 'network', 3);
         attr(s, 'stress', -3);
+        mem(s, d, 30, `Le regalaste ${money(amount)} ${str(d, 'why')}`);
         return `Le diste ${money(amount)}. Te lo agradeció mucho.`;
       }
+      mem(s, d, 12, `Le prestaste ${money(amount)} ${str(d, 'why')}`);
       schedule(s, d, choice, randInt(g, 90, 300));
       return `Le prestaste ${money(amount)}.`;
     },
@@ -369,26 +427,35 @@ const TEMPLATES: Template[] = [
         earn(s, amount, `Devolución del préstamo a ${str(o, 'who').toLowerCase()}`);
         attr(s, 'network', 2);
         addLog(s, 'income', '🤝', `${str(o, 'who')} te devolvió los ${money(amount)} que le prestaste.`, amount);
+        mem(s, o, 8, 'Te devolvió el préstamo');
       } else {
         attr(s, 'stress', 2);
         addLog(s, 'warning', '💸', `${str(o, 'who')} no puede devolverte los ${money(amount)}. Lo das por perdido.`);
+        mem(s, o, 5, `No pudo devolverte los ${money(amount)} y te debe una`);
       }
     },
   },
   {
     id: 'entrevista', icon: 'megaphone', weight: 2, cooldown: 300,
     eligible: (s) => s.progression.stage >= 5 || s.saga.ranking.player.city !== null,
-    create: (_s, g) => ({ params: { outlet: pick(g, ['Revista Fortuna', 'Diario Económico de Valdoria', 'el programa «Negocios en Hora»']) }, days: 7 }),
-    title: (_s, d) => `${str(d, 'outlet')} quiere entrevistarte`,
-    body: (s) => `Te preguntarían cómo hiciste tu fortuna${s.legal.heat > 40 ? ' y quizás por algunos rumores sobre tus negocios' : ''}.`,
+    create: (s, g) => {
+      const m = castFor(s, 'periodista', g, `periodista de ${pick(g, ['Revista Fortuna', 'el Diario Económico de Valdoria', '«Negocios en Hora»'])}`);
+      return { params: { outlet: m.label.replace(/^periodista de /, ''), ...who(m) }, days: 7 };
+    },
+    title: (_s, d) => `${str(d, 'who')}, de ${str(d, 'outlet')}, quiere entrevistarte`,
+    body: (s, d) => `Te preguntaría cómo hiciste tu fortuna${s.legal.heat > 40 ? ' y quizás por algunos rumores sobre tus negocios' : ''}.${pastWith(s, d)}`,
     options: [
       { id: 'aceptar', label: 'Dar la entrevista', detail: (s) => `Reputación +4, contactos +3, estrés +3.${s.legal.heat > 40 ? ' Con tanta sospecha encima, puede salir mal.' : ''}` },
       { id: 'rechazar', label: 'Rechazarla', detail: () => 'Sin cambios.' },
     ],
     fallback: 'rechazar',
-    apply: (s, _d, choice, g) => {
-      if (choice === 'rechazar') return 'Preferiste el perfil bajo.';
+    apply: (s, d, choice, g) => {
+      if (choice === 'rechazar') {
+        mem(s, d, -8, 'Le negaste una entrevista');
+        return 'Preferiste el perfil bajo.';
+      }
       attr(s, 'stress', 3);
+      mem(s, d, 15, 'Le diste una entrevista');
       if (s.legal.heat > 40 && chance(g, 0.35)) {
         attr(s, 'reputation', -8);
         s.legal.heat = clamp(s.legal.heat + 5, 0, 100);
@@ -432,7 +499,8 @@ const TEMPLATES: Template[] = [
       const co = pick(g, myCompanies(s).filter((c) => c.employees.length >= 3));
       const e = pick(g, co.employees);
       const cost = roundCents(randRange(g, 600, 2500) * pi(s) * 100);
-      return { params: { companyId: co.id, employeeId: e.id, name: e.name, company: co.name, cost }, days: 6 };
+      const m = castFor(s, 'empleado', g, `empleado de ${co.name}`, e.name);
+      return { params: { companyId: co.id, employeeId: e.id, name: e.name, company: co.name, cost, personId: m.id }, days: 6 };
     },
     title: (_s, d) => `${str(d, 'name')} cometió un error caro en ${str(d, 'company')}`,
     body: () => 'Un pedido mal cargado hizo perder a un cliente. El equipo espera ver cómo reaccionás.',
@@ -450,14 +518,17 @@ const TEMPLATES: Template[] = [
         if (!companyCost(co, num(d, 'cost'), `Capacitación de ${e.name}`, 'training', s.day)) return 'La empresa no tenía caja: no se hizo.';
         e.skill = clamp(e.skill + 8, 0, 100);
         for (const x of co.employees) x.morale = clamp(x.morale + 3, 0, 100);
+        mem(s, d, 25, `Le pagaste una capacitación después de un error en ${co.name}`);
         return `${e.name} hizo la capacitación (habilidad +8).`;
       }
       if (choice === 'despedir') {
         const r = fire(s, co, e.id, true); // el despido ya baja 4 la moral de los demás
         for (const x of co.employees) x.morale = clamp(x.morale - 2, 0, 100);
+        if (r.ok) mem(s, d, -45, `Lo despediste de ${co.name} por un error`);
         return r.ok ? `Despediste a ${e.name} (con su indemnización).` : r.error;
       }
       for (const x of co.employees) x.morale = clamp(x.morale + 4, 0, 100);
+      mem(s, d, 15, `Le perdonaste un error caro en ${co.name}`);
       if (chance(g, 0.25)) schedule(s, d, choice, randInt(g, 30, 90));
       return 'Lo dejaste pasar. El equipo lo agradece.';
     },
@@ -778,7 +849,7 @@ const TEMPLATES: Template[] = [
   {
     id: 'mentor', icon: 'education', weight: 1, cooldown: 700,
     eligible: (s) => s.progression.stage >= 6,
-    create: (_s, g) => ({ params: { who: randomName(g) }, days: 14 }),
+    create: (s, g) => ({ params: { ...who(castFor(s, 'mentoreado', g, 'emprendedor que te admira')) }, days: 14 }),
     title: (_s, d) => `${str(d, 'who')} te pide que seas su mentor`,
     body: () => 'Alguien que recién empieza a emprender admira tu historia y quiere aprender de vos. Te llevaría algunas horas por semana.',
     options: [
@@ -786,8 +857,12 @@ const TEMPLATES: Template[] = [
       { id: 'no', label: 'No tengo tiempo', detail: () => 'Sin cambios.' },
     ],
     fallback: 'no',
-    apply: (s, _d, choice) => {
-      if (choice === 'no') return 'Le dijiste que no tenías tiempo.';
+    apply: (s, d, choice) => {
+      if (choice === 'no') {
+        mem(s, d, -10, 'Le dijiste que no tenías tiempo para ser su mentor');
+        return 'Le dijiste que no tenías tiempo.';
+      }
+      mem(s, d, 30, 'Fuiste su mentor cuando empezaba');
       attr(s, 'stress', 3);
       attr(s, 'network', 5);
       attr(s, 'reputation', 2);
@@ -798,17 +873,24 @@ const TEMPLATES: Template[] = [
   {
     id: 'escandalo', icon: 'news', weight: 3, cooldown: 500,
     eligible: (s) => s.saga.ranking.player.city !== null && s.saga.ranking.player.city <= 10,
-    create: (_s, g) => ({ params: { outlet: pick(g, ['El Observador', 'Diario Libre de Valdoria', 'un periodista independiente']) } , days: 12 }),
-    title: (_s, d) => `${str(d, 'outlet')} investiga tu fortuna`,
-    body: (s) => `Estar entre las 10 fortunas de ${cityName(playerCity(s))} trae preguntas: de dónde salió tu dinero y cuántos impuestos pagás.`,
+    create: (s, g) => {
+      const m = castFor(s, 'periodista', g, `periodista de ${pick(g, ['El Observador', 'el Diario Libre de Valdoria', 'un medio independiente'])}`);
+      return { params: { outlet: m.label.replace(/^periodista de /, ''), ...who(m) }, days: 12 };
+    },
+    title: (_s, d) => `${str(d, 'who')} investiga tu fortuna`,
+    body: (s, d) => `${str(d, 'who')}, de ${str(d, 'outlet')}, prepara una nota: estar entre las 10 fortunas de ${cityName(playerCity(s))} trae preguntas sobre de dónde salió tu dinero y cuántos impuestos pagás.${(personOf(s, d)?.bond ?? 0) >= RETURN_BOND ? ' Te tiene aprecio: va a escuchar tu versión.' : ''}${pastWith(s, d)}`,
     options: [
       { id: 'transparencia', label: 'Abrir tus cuentas', detail: (s) => `Una auditoría externa cuesta ${money(usd(25_000 * pi(s)))}. ${s.legal.acts.some((a) => a.status === 'oculto') ? 'Puede salir a la luz algo que hiciste.' : 'Reputación +4.'}`, blocked: (s) => cantPay(usd(25_000 * pi(s)))(s) },
       { id: 'abogados', label: 'Responder con abogados', detail: (s) => `${money(usd(10_000 * pi(s)))}. La nota sale igual, más suave.`, blocked: (s) => cantPay(usd(10_000 * pi(s)))(s) },
       { id: 'ignorar', label: 'No responder', detail: () => 'La nota sale como la escriban.' },
     ],
     fallback: 'ignorar',
-    apply: (s, _d, choice) => {
+    apply: (s, d, choice) => {
       const dirty = s.legal.acts.some((a) => a.status === 'oculto');
+      // Quien te aprecia escucha tu versión: la nota sale más suave.
+      const friendly = (personOf(s, d)?.bond ?? 0) >= RETURN_BOND;
+      mem(s, d, choice === 'transparencia' ? 20 : choice === 'abogados' ? -25 : -10, choice === 'transparencia' ? 'Le abriste tus cuentas cuando investigó tu fortuna' : choice === 'abogados' ? 'Le mandaste a tus abogados por una nota' : 'No respondiste cuando investigó tu fortuna');
+      if (friendly && choice === 'ignorar' && !dirty) return 'La nota salió equilibrada: te conoce y no te ensució (sin cambios).';
       if (choice === 'transparencia') {
         if (!spend(s, usd(25_000 * pi(s)), 'Auditoría externa de tu patrimonio')) return 'No alcanzó el dinero.';
         if (dirty) {
@@ -1073,7 +1155,8 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
       const v = valuation(s, co).value;
       const pct = 0.2;
       const k = randRange(g, 0.9, 1.15);
-      return { params: { companyId: co.id, company: co.name, investor: randomName(g), money: roundCents((v * k * pct) / (1 - pct) / 100) * 100, k: Math.round(k * 100) }, days: 14 };
+      const m = castFor(s, 'socio', g, 'inversor');
+      return { params: { companyId: co.id, company: co.name, investor: m.name, personId: m.id, money: roundCents((v * k * pct) / (1 - pct) / 100) * 100, k: Math.round(k * 100) }, days: 14 };
     },
     title: (_s, d) => `${str(d, 'investor')} quiere entrar como socio en ${str(d, 'company')}`,
     body: (_s, d) => `Pone ${money(num(d, 'money'))} en la caja de la empresa a cambio del 20 % (valúa la empresa ${num(d, 'k') >= 100 ? `${num(d, 'k') - 100} % por encima` : `${100 - num(d, 'k')} % por debajo`} de tu valoración). Capital para crecer sin deuda, a cambio de compartir las ganancias para siempre.`,
@@ -1086,9 +1169,16 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
     apply: (s, d, choice, g) => {
       const co = companyOf(s, d);
       if (!co) return 'La empresa ya no opera.';
-      if (choice === 'rechazar') return 'Rechazaste al socio.';
+      if (choice === 'rechazar') {
+        mem(s, d, -10, `Rechazaste su oferta por ${co.name}`);
+        return 'Rechazaste al socio.';
+      }
       const pct = choice === 'aceptar' ? 0.2 : 0.15;
-      if (choice === 'contraoferta' && !chance(g, 0.5)) return `${str(d, 'investor')} no aceptó la contraoferta y se fue.`;
+      if (choice === 'contraoferta' && !chance(g, 0.5)) {
+        mem(s, d, -15, `Regateaste su oferta por ${co.name} y no hubo acuerdo`);
+        return `${str(d, 'investor')} no aceptó la contraoferta y se fue.`;
+      }
+      mem(s, d, choice === 'aceptar' ? 25 : 10, `Entró como socio en ${co.name}`);
       coPost(co.ledger, { day: s.day, memo: `Aporte de capital de ${str(d, 'investor')} (${fmtPct(pct, 0)})`, cf: 'financing', tag: 'capital:partner', lines: [{ account: 'cash', debit: num(d, 'money') }, { account: 'capital', credit: num(d, 'money') }] });
       co.ownership = co.ownership * (1 - pct);
       co.capitalRaised = (co.capitalRaised ?? 0) + num(d, 'money');
@@ -1125,7 +1215,8 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
     create: (s, g) => {
       const co = pick(g, myCompanies(s).filter((c) => c.employees.some((e) => e.role === 'gerente')));
       const m = co.employees.find((e) => e.role === 'gerente')!;
-      return { params: { companyId: co.id, company: co.name, employeeId: m.id, manager: m.name, what: pick(g, ['maltratar a un proveedor en público', 'usar la tarjeta de la empresa para gastos personales', 'un comentario ofensivo en redes']) }, days: 8 };
+      const p = castFor(s, 'gerente', g, `gerente de ${co.name}`, m.name);
+      return { params: { companyId: co.id, company: co.name, employeeId: m.id, manager: m.name, personId: p.id, what: pick(g, ['maltratar a un proveedor en público', 'usar la tarjeta de la empresa para gastos personales', 'un comentario ofensivo en redes']) }, days: 8 };
     },
     title: (_s, d) => `Escándalo: el gerente de ${str(d, 'company')}`,
     body: (_s, d) => `Un video muestra a ${str(d, 'manager')} ${str(d, 'what')}. La prensa pregunta qué vas a hacer.`,
@@ -1141,15 +1232,18 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
       if (choice === 'despedir') {
         const e = co.employees.find((x) => x.id === num(d, 'employeeId'));
         if (e) fire(s, co, e.id, true);
+        mem(s, d, -45, `Lo despediste de la gerencia de ${co.name} por un escándalo`);
         return `${str(d, 'manager')} ya no trabaja en ${co.name}. Contratá otro gerente si querés seguir delegando.`;
       }
       if (choice === 'disculpa') {
         companyCost(co, usd(2500 * pi(s)), 'Capacitación y comunicación tras un escándalo', 'training', s.day);
         co.reputation = clamp(co.reputation - 4, 0, 100);
+        mem(s, d, 20, `Le diste una segunda oportunidad en ${co.name}`);
         return 'Disculpa pública: la nota pierde fuerza.';
       }
       co.reputation = clamp(co.reputation - 10, 0, 100);
       attr(s, 'reputation', -3);
+      mem(s, d, 10, `Lo cubriste en un escándalo en ${co.name}`);
       return 'El silencio se nota: reputación de la empresa −10 y tuya −3.';
     },
   },
@@ -1221,6 +1315,236 @@ const hidden = s.legal.acts.filter((a) => (a.kind === 'evasion' || a.kind === 'e
       chronicle(s, 'empresa', 'shield', `Ciberataque a ${co.name}`, 'La falla de seguridad que quedó pendiente se aprovechó.');
     },
   },
+  // ---------------------------------------------------------------- el elenco vuelve (1.6)
+  {
+    id: 'reencuentro_favor', icon: 'deal', weight: 3, cooldown: 240,
+    eligible: (s) => !!friendBack(s),
+    create: (s, g) => {
+      const m = friendBack(s);
+      if (!m) return null;
+      const kind = favorKind(s, m)!;
+      m.returned = s.day;
+      const base = { ...who(m), kind, memory: bestMemory(m, 1) };
+      if (kind === 'candidato') {
+        const cos = myCompanies(s);
+        const co = cos.find((c) => !c.employees.some((e) => e.role === 'gerente')) ?? [...cos].sort((a, b) => b.employees.length - a.employees.length)[0];
+        const hasMgr = co.employees.some((e) => e.role === 'gerente');
+        const counts = new Map<string, number>();
+        for (const e of co.employees) if (e.role !== 'gerente') counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
+        const role = !hasMgr || !counts.size ? 'gerente' : [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+        const skill = Math.round(clamp(72 + m.bond / 4, 72, 96));
+        const wage = Math.round(marketWage(s, co, role, skill) / 1000) * 1000;
+        return { params: { ...base, companyId: co.id, company: co.name, role, roleName: SECTOR_BY_ID[co.sector].roles.find((r) => r.id === role)?.name ?? role, skill, wage }, days: 10 };
+      }
+      if (kind === 'perfil') return { params: { ...base, outlet: m.label.replace(/^periodista de /, '') }, days: 8 };
+      const amount = roundCents(clamp(spendable(s) * randRange(g, 0.05, 0.12), usd(2000 * pi(s)), usd(120_000 * pi(s))) / 10000) * 10000;
+      const idea = pick(g, ['una cadena de lavanderías', 'una plataforma de turnos médicos', 'una cervecería artesanal', 'un servicio de logística para comercios', 'una escuela de programación']);
+      return { params: { ...base, amount, idea }, days: 12 };
+    },
+    title: (_s, d) => {
+      const k = str(d, 'kind');
+      return k === 'candidato' ? `${str(d, 'who')} quiere volver a trabajar con vos` : k === 'perfil' ? `${str(d, 'who')} quiere escribir un perfil tuyo` : `${str(d, 'who')} te ofrece entrar en su nuevo negocio`;
+    },
+    body: (_s, d) => {
+      const k = str(d, 'kind');
+      const memo = `No se olvida: ${str(d, 'memory')}.`;
+      if (k === 'candidato') return `${memo} Se enteró de que ${str(d, 'company')} crece y quiere sumarse como ${str(d, 'roleName').toLowerCase()} por un sueldo de mercado (${money(num(d, 'wage'))}/mes). Con habilidad ${num(d, 'skill')}/100, es difícil conseguir a alguien así con una búsqueda normal.`;
+      if (k === 'perfil') return `${memo} Prepara una nota sobre tu historia en ${str(d, 'outlet')} y quiere tu testimonio. Te conoce: te va a tratar bien.`;
+      return `${memo} Está armando ${str(d, 'idea')} y te reserva una parte por ${money(num(d, 'amount'))} antes de salir a buscar inversores. Conoce el negocio y confía en vos: hay más chances de que salga bien que en una inversión cualquiera, pero puede salir mal.`;
+    },
+    options: [
+      { id: 'si', label: 'Aceptar', detail: (s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'candidato') return `Entra a ${str(d, 'company')} con habilidad ${num(d, 'skill')}. La empresa paga la selección (${money(hiringFee(s, companyOf(s, d) ?? s.companies[0], num(d, 'wage')))}).`;
+        if (k === 'perfil') return 'Reputación +6, contactos +2, estrés +2.';
+        return `Ponés ${money(num(d, 'amount'))}. En 6 a 15 meses sabrás cómo salió.`;
+      }, blocked: (s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'candidato') {
+          const co = companyOf(s, d);
+          if (!co) return 'La empresa ya no opera';
+          return co.ledger.balances.cash < hiringFee(s, co, num(d, 'wage')) ? 'La empresa no tiene caja para la selección' : null;
+        }
+        return k === 'oportunidad' ? cantPay(num(d, 'amount'))(s) : null;
+      } },
+      { id: 'no', label: 'Agradecer y decir que no', detail: (_s, d) => (str(d, 'kind') === 'candidato' ? 'Le agradecés: no hay lugar ahora. Lo entiende.' : 'Lo entiende, aunque le duele un poco.') },
+    ],
+    fallback: 'no',
+    apply: (s, d, choice, g) => {
+      const k = str(d, 'kind');
+      if (choice === 'no') {
+        mem(s, d, k === 'candidato' ? 0 : -8, k === 'perfil' ? 'Le negaste tu testimonio para un perfil' : k === 'oportunidad' ? `No quisiste entrar en ${str(d, 'idea')}` : 'Le dijiste que no había lugar en tu empresa');
+        return 'Le dijiste que no, con agradecimiento.';
+      }
+      if (k === 'candidato') {
+        const co = companyOf(s, d);
+        if (!co) return 'La empresa ya no opera.';
+        const id = s.meta.nextId++;
+        co.candidates.push({ id, name: str(d, 'who'), role: str(d, 'role'), skill: num(d, 'skill'), wage: num(d, 'wage') });
+        const r = hire(s, co, id, true);
+        if (!r.ok) {
+          co.candidates = co.candidates.filter((c) => c.id !== id);
+          return r.error;
+        }
+        mem(s, d, 10, `Volvió a trabajar con vos en ${co.name}`);
+        const p = personOf(s, d);
+        if (p) p.employer = undefined;
+        chronicle(s, 'empresa', 'deal', `${str(d, 'who')} vuelve`, `Se suma a ${co.name} como ${str(d, 'roleName').toLowerCase()} (habilidad ${num(d, 'skill')}).`);
+        return `${str(d, 'who')} se suma a ${co.name} como ${str(d, 'roleName').toLowerCase()}.`;
+      }
+      if (k === 'perfil') {
+        attr(s, 'reputation', 6);
+        attr(s, 'network', 2);
+        attr(s, 'stress', 2);
+        mem(s, d, 5, 'Escribió un perfil tuyo');
+        return 'El perfil salió muy bien: reputación +6, contactos +2.';
+      }
+      const amount = num(d, 'amount');
+      if (!spend(s, amount, `Inversión en el negocio de ${str(d, 'who')}`)) return 'No alcanzó el dinero.';
+      mem(s, d, 10, `Pusiste ${money(amount)} en ${str(d, 'idea')}`);
+      schedule(s, d, choice, randInt(g, 180, 450), { invested: amount });
+      return `Invertiste ${money(amount)} en ${str(d, 'idea')}.`;
+    },
+    resolve: (s, o, g) => {
+      const inv = num(o, 'invested');
+      const roll = nextRandom(g);
+      let text: string;
+      if (roll < 0.4) {
+        const back = roundCents(inv * randRange(g, 2, 4.5));
+        earn(s, back, `Venta de tu parte en ${str(o, 'idea')}`);
+        text = `${str(o, 'who')} vendió ${str(o, 'idea')}: cobrás ${money(back)} por tus ${money(inv)}.`;
+        addLog(s, 'income', '🤝', text, back, 'logros');
+        mem(s, o, 5, 'Su negocio salió bien y te pagó');
+      } else if (roll < 0.75) {
+        const back = roundCents(inv * randRange(g, 0.6, 1.1));
+        earn(s, back, `Recupero de ${str(o, 'idea')}`);
+        text = `${str(o, 'idea').charAt(0).toUpperCase()}${str(o, 'idea').slice(1)} no despegó: ${str(o, 'who')} te devuelve ${money(back)} de ${money(inv)}.`;
+        addLog(s, 'income', '🤝', text, back);
+      } else {
+        text = `${str(o, 'idea').charAt(0).toUpperCase()}${str(o, 'idea').slice(1)} cerró: perdiste lo invertido (${money(inv)}).`;
+        addLog(s, 'warning', '📉', text);
+      }
+      chronicle(s, 'dilema', 'deal', `El negocio de ${str(o, 'who')}`, text);
+    },
+  },
+  {
+    id: 'reencuentro_rencor', icon: 'rivals', weight: 3, cooldown: 240,
+    eligible: (s) => !!foeBack(s),
+    create: (s, g) => {
+      const m = foeBack(s);
+      if (!m) return null;
+      const kind = grudgeKind(s, m);
+      m.returned = s.day;
+      const base = { ...who(m), kind, memory: bestMemory(m, -1) };
+      if (kind === 'fuga') {
+        const co = [...myCompanies(s)].filter((c) => c.employees.filter((e) => e.role !== 'gerente').length >= 3).sort((a, b) => b.employees.length - a.employees.length)[0];
+        const r = (m.employer ? s.world.rivals.find((x) => x.name === m.employer && !x.acquired) : undefined) ?? nemesisOf(s) ?? rivalFor(s, co.sector, g);
+        if (r) m.employer = r.name;
+        const payroll = co.employees.reduce((a, e) => a + e.wage, 0);
+        const n = Math.min(2, co.employees.filter((e) => e.role !== 'gerente').length - 1);
+        return { params: { ...base, companyId: co.id, company: co.name, rival: r?.name ?? 'la competencia', rivalId: r?.id ?? '', n, bonus: roundCents(payroll * 0.5) }, days: 8 };
+      }
+      if (kind === 'nota') return { params: { ...base, outlet: m.label.replace(/^periodista de /, '') }, days: 8 };
+      return { params: { ...base, circle: m.role === 'familiar' ? 'en la familia' : 'en el ambiente' }, days: 10 };
+    },
+    title: (_s, d) => {
+      const k = str(d, 'kind');
+      return k === 'fuga' ? `${str(d, 'who')} ahora trabaja para ${str(d, 'rival')} y quiere llevarse a tu gente` : k === 'nota' ? `${str(d, 'who')} prepara una nota contra vos` : `${str(d, 'who')} habla mal de vos ${str(d, 'circle') || 'en el ambiente'}`;
+    },
+    body: (_s, d) => {
+      const k = str(d, 'kind');
+      const memo = `No se olvida: ${str(d, 'memory')}.`;
+      if (k === 'fuga') return `${memo} Les está ofreciendo mejores sueldos a ${num(d, 'n')} personas clave de ${str(d, 'company')}.`;
+      if (k === 'nota') return `${memo} Ahora escribe en ${str(d, 'outlet')} sobre «el lado oscuro» de tu fortuna.`;
+      return `${memo} Cuenta en reuniones y cenas lo que le hiciste; a algunos contactos ya les llegó.`;
+    },
+    options: [
+      { id: 'reparar', label: 'Buscarlo para hacer las paces', detail: (s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'habladurias') return `Una cena de ${money(usd(400 * pi(s)))}: lo más probable es que lo arreglen.`;
+        return `Depende de tus contactos: chances ≈ ${fmtPct(reconcileChance(s), 0)}. Si no sale, ${k === 'fuga' ? 'se lleva a una persona' : 'la nota sale igual, algo más suave'}.`;
+      }, blocked: (s, d) => (str(d, 'kind') === 'habladurias' ? cantPay(usd(400 * pi(s)))(s) : null) },
+      { id: 'pagar', label: 'Proteger lo tuyo', detail: (s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'fuga') return `Bono de retención: ${str(d, 'company')} paga ${money(num(d, 'bonus'))} (medio mes de sueldos). Nadie se va y la moral sube.`;
+        if (k === 'nota') return `Abogados: ${money(usd(10_000 * pi(s)))}. La nota sale suavizada (reputación −1), pero lo enojás más.`;
+        return 'Responder en público: reputación −1, contactos −2. Lo enojás más.';
+      }, blocked: (s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'fuga') return (companyOf(s, d)?.ledger.balances.cash ?? 0) < num(d, 'bonus') ? 'La empresa no tiene esa caja' : null;
+        return k === 'nota' ? cantPay(usd(10_000 * pi(s)))(s) : null;
+      } },
+      { id: 'nada', label: 'No hacer nada', detail: (_s, d) => {
+        const k = str(d, 'kind');
+        if (k === 'fuga') return `Se van ${num(d, 'n')} de ${str(d, 'company')} a ${str(d, 'rival')}.`;
+        if (k === 'nota') return 'La nota sale como la escriba (reputación −4).';
+        return str(d, 'circle') === 'en la familia' ? 'Estrés +5, contactos −2.' : 'Contactos −6, reputación −2.';
+      } },
+    ],
+    fallback: 'nada',
+    apply: (s, d, choice, g) => {
+      const k = str(d, 'kind');
+      const co = companyOf(s, d);
+      const poach = (n: number): string => {
+        if (!co || n <= 0) return '';
+        const gone = [...co.employees].filter((e) => e.role !== 'gerente').sort((a, b) => b.skill - a.skill).slice(0, n);
+        co.employees = co.employees.filter((e) => !gone.includes(e));
+        const r = s.world.rivals.find((x) => x.id === str(d, 'rivalId'));
+        if (r && gone.length) rememberRival(s, r, 8, `Se llevó a ${gone.map((e) => e.name).join(' y ')} de ${co.name}`);
+        return gone.length ? ` Se fueron ${gone.map((e) => e.name).join(' y ')}.` : '';
+      };
+      if (choice === 'reparar') {
+        if (k === 'habladurias') {
+          if (!spend(s, usd(400 * pi(s)), `Cena con ${str(d, 'who')}`, 'leisure')) return 'No alcanzó el dinero.';
+          mem(s, d, 40, 'Lo invitaste a cenar para hacer las paces');
+          attr(s, 'network', 2);
+          return `Cenaron y hablaron. ${str(d, 'who')} deja de hablar mal de vos (contactos +2).`;
+        }
+        if (chance(g, reconcileChance(s))) {
+          mem(s, d, 45, 'Hicieron las paces');
+          return `Hablaron y hicieron las paces: ${k === 'fuga' ? 'nadie se va' : 'la nota no sale'}.`;
+        }
+        mem(s, d, -5, 'Intentaste hacer las paces y no salió');
+        if (k === 'fuga') return `No quiso saber nada.${poach(1)}`;
+        attr(s, 'reputation', -2);
+        return 'No quiso saber nada: la nota salió, algo más suave (reputación −2).';
+      }
+      if (choice === 'pagar') {
+        if (k === 'fuga') {
+          if (!co || !companyCost(co, num(d, 'bonus'), `Bono de retención (${str(d, 'rival')})`, 'wages', s.day)) return 'La empresa no tenía caja: no se pagó.';
+          for (const e of co.employees) e.morale = clamp(e.morale + 8, 0, 100);
+          mem(s, d, -10, `Le ganaste la pulseada con tu equipo en ${co.name}`);
+          return `Pagaste el bono: nadie se va de ${co.name} (moral +8).`;
+        }
+        if (k === 'nota') {
+          if (!spend(s, usd(10_000 * pi(s)), `Abogados por la nota de ${str(d, 'who')}`)) return 'No alcanzó el dinero.';
+          attr(s, 'reputation', -1);
+          mem(s, d, -15, 'Le mandaste a tus abogados otra vez');
+          return 'La nota salió suavizada (reputación −1).';
+        }
+        attr(s, 'reputation', -1);
+        attr(s, 'network', -2);
+        mem(s, d, -15, 'Le respondiste en público');
+        return 'Respondiste en público: reputación −1, contactos −2.';
+      }
+      // Se cobró lo suyo: el rencor baja (no vuelve con la misma fuerza).
+      mem(s, d, 25, 'Se cobró lo que le hiciste');
+      if (k === 'fuga') return `No hiciste nada.${poach(num(d, 'n'))}`;
+      if (k === 'nota') {
+        attr(s, 'reputation', -4);
+        if (s.legal.acts.some((a) => a.status === 'oculto')) s.legal.heat = clamp(s.legal.heat + 5, 0, 100);
+        return 'La nota salió como la escribió (reputación −4).';
+      }
+      if (personOf(s, d)?.role === 'familiar') {
+        attr(s, 'stress', 5);
+        attr(s, 'network', -2);
+        return 'La pelea familiar sigue: estrés +5, contactos −2.';
+      }
+      attr(s, 'network', -6);
+      attr(s, 'reputation', -2);
+      return 'Las habladurías corrieron: contactos −6, reputación −2.';
+    },
+  },
 ];
 
 export const TEMPLATE_BY_ID: Record<string, Template> = Object.fromEntries(TEMPLATES.map((t) => [t.id, t]));
@@ -1238,6 +1562,8 @@ export interface DilemmaView {
   body: string;
   deadline: number;
   options: Array<{ id: string; label: string; detail: string; blocked: string | null; fallback: boolean }>;
+  /** Persona del elenco involucrada (1.6). */
+  person?: { name: string; label: string; bond: number; since: number; memories: number };
 }
 
 export function dilemmaView(s: GameState, d: Dilemma): DilemmaView | null {
@@ -1246,6 +1572,7 @@ export function dilemmaView(s: GameState, d: Dilemma): DilemmaView | null {
   return {
     id: d.id, icon: t.icon, title: t.title(s, d), body: t.body(s, d), deadline: d.deadline,
     options: t.options.map((o) => ({ id: o.id, label: o.label, detail: o.detail(s, d), blocked: o.blocked?.(s, d) ?? null, fallback: o.id === t.fallback })),
+    person: ((m) => (m ? { name: m.name, label: m.label, bond: m.bond, since: m.since, memories: m.memories.length } : undefined))(personOf(s, d)),
   };
 }
 
@@ -1253,7 +1580,13 @@ export function dilemmaView(s: GameState, d: Dilemma): DilemmaView | null {
 
 function finish(s: GameState, d: Dilemma, choice: string, expired: boolean): string {
   const t = TEMPLATE_BY_ID[d.template];
-  const outcome = t.apply(s, d, choice, srng(s));
+  expiring = expired;
+  let outcome: string;
+  try {
+    outcome = t.apply(s, d, choice, srng(s));
+  } finally {
+    expiring = false;
+  }
   d.status = expired ? 'vencido' : 'resuelto';
   d.choice = choice;
   d.outcome = expired ? `No decidiste a tiempo. ${outcome}` : outcome;

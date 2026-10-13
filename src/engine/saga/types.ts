@@ -244,4 +244,6 @@ export interface SagaState {
   rivalry?: import('./rivalry').RivalryState;
   /** Equipo directivo contratado (1.4): coordina muchas empresas. */
   exec?: { hired: boolean; since: number } | null;
+  /** Elenco que vuelve (1.6): personas de los dilemas con su memoria. */
+  cast?: import('./cast').CastMember[];
 }

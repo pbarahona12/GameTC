@@ -19,6 +19,7 @@ import { renderChronicleImage } from './chronicleImage';
 import { exportImage } from '../../../persistence/platformStorage';
 import { usd } from '../../../engine/money';
 import { balanceSheet } from '../../../engine/reports/statements';
+import { castOf, bondLabel, ROLE_NAMES } from '../../../engine/saga/cast';
 
 const CAT_NAMES: Record<GoalCategory, string> = { riqueza: 'Riqueza', negocios: 'Negocios', vida: 'Vida', competencia: 'Competencia', carrera: 'Carrera', valores: 'Valores' };
 
@@ -107,6 +108,9 @@ export function DilemmaSheet({ id }: { id: number }) {
           <span className="tiny warn"><Icon name="clock" size={12} /> {dueText(s.day, v.deadline)} ({formatDate(v.deadline)})</span>
         </div>
       </div>
+      {v.person && (
+        <p className="tiny"><Icon name="pros" size={12} /> <strong>{v.person.name}</strong> · {v.person.label} · <span className={bondLabel(v.person.bond).tone}>{bondLabel(v.person.bond).label}</span>{v.person.memories ? ` · se acuerda de ${v.person.memories === 1 ? 'una cosa' : `${v.person.memories} cosas`} que hiciste` : ' · lo que decidas, lo va a recordar'}</p>
+      )}
       <p className="small">{v.body}</p>
       <div className="stack" style={{ gap: 8 }}>
         {v.options.map((o) => (
@@ -319,6 +323,8 @@ export function LifeView() {
         {minors > 0 && <p className="tiny">Crianza y escuela: {fmtMoney(usd(CHILD_COST_USD * minors * s.macro.priceIndex), { decimals: false })} por mes ({minors === 1 ? 'un hijo menor' : `${minors} hijos menores`} de 22 años).</p>}
       </div>
 
+      <CastCard />
+
       <span className="eyebrow">Sucesión</span>
       <div className="card">
         <p className="small">Si hoy pasaras la posta, el impuesto a la herencia en {j.flag} {j.name} sería <strong>{fmtMoney(tax.tax, { decimals: false })}</strong> ({fmtPct(tax.rate, 0)} sobre lo que supera {fmtMoney(tax.exempt, { decimals: false })}). Mudar tu residencia o donar a tu fundación lo cambia. Si no alcanza el efectivo, se paga en 24 cuotas automáticas (las ves en Más → Legal → Multas; si una falla, hay embargo).</p>
@@ -363,5 +369,36 @@ export function LifeView() {
         </>
       )}
     </Sheet>
+  );
+}
+
+/** PERSONAS QUE RECORDÁS (1.6): el elenco de los dilemas, con su vínculo y su memoria. */
+function CastCard() {
+  const s = useGame();
+  const cast = [...castOf(s)].sort((a, b) => Math.abs(b.bond) - Math.abs(a.bond) || b.lastSeen - a.lastSeen);
+  return (
+    <>
+      <span className="eyebrow">Personas de tu historia</span>
+      <div className="card">
+        {cast.length === 0 ? <p className="small muted">Todavía nadie. La gente de tus decisiones (amigos, periodistas, empleados, socios) queda acá con lo que hiciste con ella; quien te aprecia o te guarda rencor puede volver.</p> : (
+          <div className="rows">
+            {cast.slice(0, 10).map((m) => {
+              const b = bondLabel(m.bond);
+              const last = m.memories[m.memories.length - 1];
+              return (
+                <div key={m.id} className="row">
+                  <div className="grow">
+                    <div className="title small">{m.name} <span className="tiny muted">· {ROLE_NAMES[m.role]}{m.employer ? ` · ahora en ${m.employer}` : ''}</span></div>
+                    {last && <div className="meta">{formatDate(last.day)}: {last.text}</div>}
+                  </div>
+                  <Pill tone={b.tone}>{b.label}</Pill>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="tiny muted">Con un vínculo fuerte (a favor o en contra) y un tiempo sin verse, vuelven: a devolverte un favor o a cobrarse una. <InfoButton term="elenco" /></p>
+      </div>
+    </>
   );
 }
