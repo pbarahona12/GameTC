@@ -12,7 +12,9 @@ import { placeStockOrder, placeBracket, cancelOrder } from '../src/engine/invest
 import { buyBond, sellBond } from '../src/engine/invest/bonds';
 import { buyFund, sellFund } from '../src/engine/invest/funds';
 import { buyMogul, sellMogul } from '../src/engine/invest/mogul';
-import { buyProperty, sellProperty, setRent, renovate, setUse, marketRent, prepayMortgage, setManagement, inspectListing } from '../src/engine/realestate/realestate';
+import { buyProperty, sellProperty, setRent, renovate, setUse, marketRent, prepayMortgage, setManagement, inspectListing, startProject, rushProject, financeProject, projectCollateral } from '../src/engine/realestate/realestate';
+import { openBranch, closeBranch } from '../src/engine/business/branches';
+import { CITY_ORDER } from '../src/engine/business/locations';
 import { foundCompany, foundHolding, transferToGroup, spinOff, liquidate, distribute, maxDistribution } from '../src/engine/business/ownership';
 import { grantIcLoan, setGroupPolicy } from '../src/engine/business/groups';
 import { hirePro, firePro, commissionAudit, trainPro } from '../src/engine/pros/pros';
@@ -91,7 +93,12 @@ function worldAction(s: GameState, bot: RngHolder): void {
     }
   } else if (r < 0.5) {
     const p = pickOne(bot, s.realEstate.properties);
-    if (p) {
+    // 1.6: proyectos por etapas, aceleración y préstamo de obra.
+    if (p && p.type === 'terreno' && !p.development && nextRandom(bot) < 0.6) startProject(s, p.id, (['vivienda', 'oficina', 'local', 'cochera'] as const)[randInt(bot, 0, 3)], randInt(bot, 1, 8));
+    else if (p && p.development?.phase !== undefined && nextRandom(bot) < 0.4) {
+      if (nextRandom(bot) < 0.5) rushProject(s, p.id);
+      else financeProject(s, p.id, p.owner.kind === 'company' ? 'austral_corp' : 'bval_hipo', Math.round(projectCollateral(s, p) * 0.5), 15);
+    } else if (p) {
       const k = nextRandom(bot);
       if (k < 0.35) setRent(s, p.id, Math.round(marketRent(s, p) * (0.9 + nextRandom(bot) * 0.3)));
       else if (k < 0.45) renovate(s, p.id, 'ligera');
@@ -229,9 +236,15 @@ function sagaAction(s: GameState, bot: RngHolder): void {
     if (co) issueBonds(s, co.id, Math.max(usd(500_000), Math.round(bondCapacity(s, co) / 2)), [3, 5, 10][randInt(bot, 0, 2)]);
     if (co) goPublic(s, co.id, 0.2);
     if (co?.listed) buyBackShares(s, co, 0.05);
-  } else if (k < 0.6) {
+  } else if (k < 0.55) {
     if (s.saga.exec?.hired) dismissExecTeam(s);
     else hireExecTeam(s);
+  } else if (k < 0.6) {
+    // 1.6: sucursales en otras ciudades (y a veces cerrar una).
+    const co = pickOne(bot, mine.filter((c) => c.sector !== 'holding'));
+    const b = co ? pickOne(bot, co.branches ?? []) : undefined;
+    if (co && b && nextRandom(bot) < 0.3) closeBranch(s, co.id, b.id);
+    else if (co) openBranch(s, co.id, CITY_ORDER[randInt(bot, 0, CITY_ORDER.length - 1)]);
   } else if (k < 0.7) {
     const p = pickOne(bot, possibleDeals(s));
     if (p) signDeal(s, p.kind, p.supplier.id, p.buyer.id);
@@ -291,7 +304,7 @@ describe('Auditoría integral de todos los sistemas (bots aleatorios)', () => {
           nw0 = nw1;
         }
       }
-      if (process.env.URT_CHAOS_STATS) console.log(seed, JSON.stringify({ fusiones: s.formerCompanies.filter((f) => f.outcome === 'fusionada').length, bonos: s.companies.reduce((a, c) => a + c.loans.filter((l) => l.bullet).length, 0), cotizadas: s.companies.filter((c) => c.listed).length, guerras: s.saga.rivalry?.warsSurvived ?? 0, generacion: s.saga.life?.generation, decisiones: s.saga.stats.decisions, equipo: !!s.saga.exec?.hired, acuerdos: s.saga.deals?.length ?? 0, empresas: s.companies.length, etapa: s.progression.stage }));
+      if (process.env.URT_CHAOS_STATS) console.log(seed, JSON.stringify({ fusiones: s.formerCompanies.filter((f) => f.outcome === 'fusionada').length, bonos: s.companies.reduce((a, c) => a + c.loans.filter((l) => l.bullet).length, 0), cotizadas: s.companies.filter((c) => c.listed).length, guerras: s.saga.rivalry?.warsSurvived ?? 0, generacion: s.saga.life?.generation, decisiones: s.saga.stats.decisions, equipo: !!s.saga.exec?.hired, acuerdos: s.saga.deals?.length ?? 0, empresas: s.companies.length, etapa: s.progression.stage, sucursales: s.companies.reduce((a, c) => a + (c.branches?.length ?? 0), 0), obras: s.log.filter((l) => l.text.startsWith('Terminó la obra')).length, elenco: s.saga.cast?.length ?? 0, crisisPropias: s.saga.stats.exposureLast !== undefined }));
       expect(actions).toBeGreaterThan(100 * CHAOS_YEARS);
       expect(s.stocks.trades.length).toBeGreaterThan(10);
       expect(s.possessions.spent).toBeGreaterThan(0);
