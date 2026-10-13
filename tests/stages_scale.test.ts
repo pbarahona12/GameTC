@@ -85,3 +85,31 @@ describe('Fortuna estimada', () => {
     expect(marks[marks.length - 1].est).toBeGreaterThan(100);
   });
 });
+
+describe('Guardado v7 (1.6)', () => {
+  it('una partida v6 se migra: sucursales, elenco y fortuna estimada vacíos, y sigue jugando', async () => {
+    const { migrate } = await import('../src/persistence/migrations');
+    const { serialize, deserialize } = await import('../src/persistence/save');
+    const { SAVE_VERSION } = await import('../src/engine/state');
+    const s = makeGame('herencia', 'mig-v7');
+    post(s.ledger, { day: 0, memo: 'Capital', cf: 'internal', lines: [{ account: 'checking', debit: usd(300_000) }, { account: 'opening_equity', credit: usd(300_000) }] });
+    foundCompany(s, { sector: 'cafeteria', name: 'Café Viejo', legalForm: 'srl', capital: usd(100_000) });
+    for (let d = 0; d < 40; d++) advanceDay(s);
+    const raw = JSON.parse(JSON.stringify(s));
+    raw.version = 6;
+    for (const co of raw.companies) delete co.branches;
+    delete raw.saga.cast;
+    delete raw.saga.ranking.fortuneAdj;
+    const { state, migratedFrom } = migrate(raw);
+    expect(migratedFrom).toBe(6);
+    expect(state.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBe(7);
+    expect(state.companies[0].branches).toEqual([]);
+    expect(state.saga.cast).toEqual([]);
+    expect(state.saga.ranking.fortuneAdj).toBe(0);
+    for (let d = 0; d < 60; d++) advanceDay(state);
+    expectConsistent(state);
+    const back = deserialize(serialize(state, 1));
+    expect(back.ok).toBe(true);
+  });
+});

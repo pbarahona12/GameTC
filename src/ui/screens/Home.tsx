@@ -217,7 +217,7 @@ export function Home() {
           </div>
           <div className="card" style={{ paddingBlock: 4 }}>
             <div className="rows">
-              {s.log.slice(-3).reverse().map((l) => <LogRow key={l.id} l={l} short />)}
+              {s.log.slice(s.progression.stage >= 6 ? -2 : -3).reverse().map((l) => <LogRow key={l.id} l={l} short />)}
             </div>
           </div>
         </>

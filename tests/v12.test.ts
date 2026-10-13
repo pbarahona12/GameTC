@@ -52,7 +52,7 @@ describe('1.2 · Migración de partidas', () => {
     const { state, migratedFrom } = migrate(raw);
     expect(migratedFrom).toBe(4);
     // Pasa por todas las migraciones siguientes (1.4: v6 con la historia del magnate).
-    expect(state.version).toBe(6);
+    expect(state.version).toBe(7);
     expect(state.saga.ranking.magnates.length).toBe(400);
     expect(state.bank.card.tier).toBe('clasica');
     expect(state.possessions.items.length).toBe(3);

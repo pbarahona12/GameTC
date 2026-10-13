@@ -33,7 +33,7 @@ import type { SagaState } from './saga/types';
 import { initSaga } from './saga/index';
 import { CHALLENGE_BY_ID } from './saga/challenges';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export type PaymentMethod = 'checking' | 'card' | 'cash';
 

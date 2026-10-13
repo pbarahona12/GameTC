@@ -319,7 +319,7 @@ describe('1.4 · Partidas guardadas', () => {
     }
     const { state, migratedFrom } = migrate(raw);
     expect(migratedFrom).toBe(5);
-    expect(state.version).toBe(6);
+    expect(state.version).toBe(7);
     expect(state.saga.ranking.magnates.length).toBe(400);
     expect(cityTable(state, 'valdoria', null)[CITY_SIZE - 1].wealth).toBeGreaterThan(usd(4_000_000 * 1.2));
     expect(state.saga.dilemmas.nextDay).toBeGreaterThan(state.day);

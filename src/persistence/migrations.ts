@@ -134,6 +134,17 @@ export const MIGRATIONS: Record<number, (s: AnyState) => AnyState> = {
     s.version = 6;
     return s;
   },
+  6: (s) => {
+    // v7 (1.6): escala y medio de la partida. Sucursales, elenco y fortuna estimada
+    // empiezan vacíos; las obras en curso de antes siguen con su fecha de fin única.
+    for (const co of s.companies ?? []) co.branches = co.branches ?? [];
+    if (s.saga) {
+      s.saga.cast = s.saga.cast ?? [];
+      if (s.saga.ranking) s.saga.ranking.fortuneAdj = s.saga.ranking.fortuneAdj ?? 0;
+    }
+    s.version = 7;
+    return s;
+  },
 };
 
 export function migrate(raw: AnyState): { state: GameState; migratedFrom: number | null } {

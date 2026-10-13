@@ -183,7 +183,7 @@ export function GoalsCard() {
         <span className="standing-ic" aria-hidden><Icon name="missions" size={20} /></span>
         <span className="standing-text">
           <strong className="small">{done ? 'Elegí tu próxima meta de vida' : 'Elegí tus metas de vida'}</strong>
-          <span className="tiny muted">¿Qué querés lograr? Tu casa, la cima de tu carrera, la lista de fortunas, una fortuna limpia… Hasta {MAX_ACTIVE_GOALS} a la vez.</span>
+          <span className="tiny muted">{done ? `Hasta ${MAX_ACTIVE_GOALS} a la vez.` : `¿Qué querés lograr? Tu casa, la cima de tu carrera, la lista de fortunas, una fortuna limpia… Hasta ${MAX_ACTIVE_GOALS} a la vez.`}</span>
         </span>
         <Icon name="chevron" size={16} className="faint" />
       </button>
@@ -221,9 +221,12 @@ export function EmpireScene() {
   const v = bestVehicle(s);
   if (v) items.push({ key: 'car', icon: 'car', label: ITEM_BY_ID[v.itemId]?.name ?? 'Vehículo' });
   const props = s.realEstate.properties.filter((x) => (x.owner.kind === 'personal' || x.owner.kind === 'company') && x !== home);
-  props.slice(0, 5).forEach((x) => items.push({ key: `p${x.id}`, icon: x.type === 'cochera' ? 'parking' : 'realestate', label: x.name }));
-  if (props.length > 5) items.push({ key: 'pmore', icon: 'realestate', label: `+${props.length - 5} inmuebles` });
-  s.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc).slice(0, 6).forEach((c) => items.push({ key: `c${c.id}`, icon: c.listed ? 'bell' : SECTOR_ICON[c.sector] ?? 'business', label: c.listed ? `${c.name} (${c.listed.ticker})` : c.name, tone: c.listed ? 'accent' : undefined }));
+  // 1.6: en imperios grandes, unos pocos nombres y el resto contado (la escena no es un listado).
+  props.slice(0, 3).forEach((x) => items.push({ key: `p${x.id}`, icon: x.type === 'cochera' ? 'parking' : 'realestate', label: x.name }));
+  if (props.length > 3) items.push({ key: 'pmore', icon: 'realestate', label: `+${props.length - 3} inmuebles` });
+  const cos = s.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc);
+  cos.slice(0, 4).forEach((c) => items.push({ key: `c${c.id}`, icon: c.listed ? 'bell' : SECTOR_ICON[c.sector] ?? 'business', label: c.listed ? `${c.name} (${c.listed.ticker})` : c.name, tone: c.listed ? 'accent' : undefined }));
+  if (cos.length > 4) items.push({ key: 'cmore', icon: 'business', label: `+${cos.length - 4} empresas` });
   if (s.saga.life?.foundation) items.push({ key: 'found', icon: 'gift', label: s.saga.life.foundation.name, tone: 'accent' });
   if (p.exact) items.push({ key: 'rank', icon: 'crown', label: `Puesto ${p.rank} en ${cityName(p.city)}`, tone: 'accent' });
   // 1.6 (auditoría E6): la escena está siempre; al empezar, un lote vacío muestra que hay lugar para crecer.

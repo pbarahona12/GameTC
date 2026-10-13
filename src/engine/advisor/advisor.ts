@@ -241,7 +241,8 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
   }
 
   // 8. Fondo de emergencia
-  if (job && m.emergencyMonths < 1 && m.expectedMonthlyNet > 0) {
+  // Con liquidez de sobra (por ejemplo, en la cuenta corriente) no hace falta el consejo.
+  if (job && m.emergencyMonths < 1 && m.expectedMonthlyNet > 0 && m.liquid < m.essentialMonthly * 3) {
     out.push({
       id: 'emergency', severity: 'opportunity', category: 'ahorro', term: 'fondo_emergencia',
       title: '💡 Construí tu fondo de emergencia',
@@ -385,6 +386,9 @@ export function analyze(state: GameState, m: Metrics = computeMetrics(state)): I
   out.push(...analyzeWorld(state));
   out.push(...groupCompanyInsights(state.companies.flatMap((co) => analyzeCompany(state, co))));
   out.push(...portfolioInsights(state));
+  // 1.6: una holding sin subsidiarias pierde plata justamente por eso: una sola alerta, no dos.
+  const empty = new Set(out.filter((i) => i.id.startsWith('holding-empty-')).map((i) => i.id.slice('holding-empty-'.length)));
+  const deduped = out.filter((i) => !(empty.size && /^co\d+-losses$/.test(i.id) && empty.has(i.id.slice(2, -'-losses'.length))));
   const order: Record<Severity, number> = { critical: 0, warning: 1, opportunity: 2, info: 3 };
-  return out.sort((x, y) => order[x.severity] - order[y.severity]);
+  return deduped.sort((x, y) => order[x.severity] - order[y.severity]);
 }

@@ -154,3 +154,18 @@ describe('Crisis al entrar en recesión', () => {
     expectConsistent(s);
   }, 120_000);
 });
+
+describe('Asesor en partidas avanzadas', () => {
+  it('una holding vacía da una sola alerta (no además «meses con pérdidas»)', async () => {
+    const { analyze } = await import('../src/engine/advisor/advisor');
+    const s = makeGame('herencia', 'adv-holding');
+    post(s.ledger, { day: 0, memo: 'Capital', cf: 'internal', lines: [{ account: 'checking', debit: usd(400_000) }, { account: 'opening_equity', credit: usd(400_000) }] });
+    const { foundHolding } = await import('../src/engine/business/ownership');
+    expect(foundHolding(s, { name: 'Inversiones Vacías', legalForm: 'srl', capital: usd(15_000) }).ok).toBe(true);
+    for (let d = 0; d < 200; d++) advanceDay(s);
+    const h = s.companies[0];
+    const ids = analyze(s).map((i) => i.id);
+    expect(ids).toContain(`holding-empty-${h.id}`);
+    expect(ids).not.toContain(`co${h.id}-losses`);
+  }, 60_000);
+});
