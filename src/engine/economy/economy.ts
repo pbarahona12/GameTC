@@ -45,6 +45,10 @@ export interface EconEffects {
   spread?: number;
   /** Aumento de vacancia inmobiliaria (fracción). */
   vacancy?: number;
+  /** Multiplicador de demanda en una ciudad (crisis regional, 1.6). */
+  cityDemand?: Record<string, number>;
+  /** Deriva anual adicional de precios inmobiliarios en una ciudad (1.6). */
+  cityHousing?: Record<string, number>;
 }
 
 export interface EconEvent {
@@ -266,6 +270,18 @@ export function consumerDemand(state: GameState, sector: string): number {
     if (e.demand) mult *= (e.demand[sector] ?? 1) * (e.demand.all ?? 1);
   }
   return clamp(mult, 0.4, 1.6);
+}
+
+/** Multiplicador de demanda de una ciudad (crisis regionales, 1.6). */
+export function cityDemand(state: GameState, city: string): number {
+  let mult = 1;
+  for (const e of activeEffects(state)) if (e.cityDemand) mult *= e.cityDemand[city] ?? 1;
+  return clamp(mult, 0.4, 1.6);
+}
+
+/** Deriva anual adicional de precios inmobiliarios en una ciudad. */
+export function cityHousingDrift(state: GameState, city: string): number {
+  return activeEffects(state).reduce((s, e) => s + (e.cityHousing?.[city] ?? 0), 0);
 }
 
 /** Multiplicador de costo de insumos de proveedores. */

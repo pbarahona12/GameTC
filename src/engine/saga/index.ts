@@ -14,6 +14,7 @@ import { BACKGROUND_BY_ID } from '../../content/backgrounds';
 import { cityName } from './ranking';
 import { life, lifeMonth } from './life';
 import { erasMonth } from './eras';
+import { exposureMonth } from './exposure';
 import { dealsMonth } from './integration';
 import { listedMonth } from './corporate';
 import { rivalryMonth } from './rivalry';
@@ -74,6 +75,7 @@ export function sagaMonth(state: GameState): void {
   rankingMonth(state);
   lifeMonth(state);
   erasMonth(state);
+  exposureMonth(state);
   listedMonth(state, dateOf(state.day).m);
   checkTruces(state);
   rivalryMonth(state);

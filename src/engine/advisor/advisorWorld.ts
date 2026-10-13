@@ -14,6 +14,7 @@ import { isOpen } from '../business/common';
 import { SECTOR_NAMES } from '../../content/stocks';
 import { roundCents } from '../money';
 import { activeMandates, mandateSummary } from '../invest/managed';
+import { exposure, EXPOSURE_MIN_TOTAL } from '../saga/exposure';
 
 const H = (label: string, value: string): DataPoint => ({ label, value, kind: 'hecho' });
 const E = (label: string, value: string): DataPoint => ({ label, value, kind: 'estimación' });
@@ -135,6 +136,33 @@ export function analyzeWorld(state: GameState): Insight[] {
   };
   bigShare('inmuebles', b.real_estate, 'concentration-re', 'invest');
   bigShare('empresas propias', b.business_equity, 'concentration-biz', 'business');
+
+  // ------------------------------------------------ Exposición a una crisis específica (1.6)
+  const ph = state.macro.phase;
+  if (nw > EXPOSURE_MIN_TOTAL * 0.8 && (ph === 'auge' || ph === 'desaceleracion' || ph === 'recesion')) {
+    const ex = exposure(state);
+    const t = ex.top;
+    if (t && t.share >= 0.5 && ex.total >= EXPOSURE_MIN_TOTAL) {
+      const live = state.macro.events.find((e) => e.kind === `exposicion_${t.key}` && e.endDay >= state.day);
+      const second = ex.buckets.find((x) => x !== t && x.kind === t.kind);
+      out.push({
+        id: 'exposure-crisis', severity: live || ph !== 'auge' ? 'warning' : 'info', category: 'inversiones', term: 'crisis_exposicion',
+        title: live ? `${live.icon} ${live.name}` : `🎯 Si llega una recesión, te pega en ${t.label}`,
+        what: `El ${fmtPct(t.share, 0)} de tu patrimonio depende de ${t.kind === 'city' ? `la ciudad de ${t.label}` : t.kind === 'sector' ? `el sector ${t.label}` : `las ${t.label}`}.`,
+        why: live ? 'Una crisis que golpea justo donde está concentrado tu patrimonio.' : `La economía está en ${PHASES[ph].name.toLowerCase()}: cuando empieza una recesión, lo concentrado puede sufrir una crisis propia además de la general.`,
+        data: [H('Valor expuesto', fmtMoney(t.value)), H('Activos considerados', fmtMoney(ex.total)), ...(second ? [H('Siguiente en importancia', `${second.label} (${fmtPct(second.share, 0)})`)] : [])],
+        consequence: 'Con más del 40 % en un solo lugar, una recesión puede traer una caída de ventas o de precios de cerca del 20 % justo ahí.',
+        options: t.kind === 'stock'
+          ? [{ label: 'Pasar parte a un fondo índice', pros: 'Reparte el riesgo en todo el mercado.', cons: 'Vender realiza ganancias (impuestos).', tab: 'invest', sub: 'funds' }]
+          : [
+              { label: t.kind === 'city' ? 'Abrir una sucursal en otra ciudad' : 'Abrir o comprar una empresa de otro sector', pros: 'Lo que pase en un lugar no arrastra todo.', cons: 'Inversión y costos fijos nuevos.', tab: 'business' },
+              { label: 'Invertir las ganancias en otras clases de activos', pros: 'Bajás la concentración sin vender lo que funciona.', cons: 'Lleva tiempo.', tab: 'invest' },
+            ],
+        ifNothing: 'Si no llega la recesión, no pasa nada; si llega, lo concentrado sufre más.',
+        uncertainty: 'No todas las recesiones traen una crisis propia: cuanto más concentrado, más probable.',
+      });
+    }
+  }
 
   // ------------------------------------------------ Caída de la cartera
   const cost = [...stocks, ...positions(state, 'funds'), ...positions(state, 'mogul'), ...positions(state, 'bonds')].reduce((s, p) => s + p.cost, 0);

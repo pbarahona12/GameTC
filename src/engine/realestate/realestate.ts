@@ -4,7 +4,7 @@ import { ZONES, ZONE_BY_ID, ZoneDef, PROPERTY_TYPE_NAMES, MORTGAGE_BANKS, MORTGA
 import { jurisdictionById } from '../../content/jurisdictions';
 import { Cents, clamp, roundCents, usd } from '../money';
 import { addMonths, dateOf, formatDate, daysInMonth } from '../time/calendar';
-import { housingDrift, vacancyPressure, creditSpread, creditTightness } from '../economy/economy';
+import { housingDrift, cityHousingDrift, vacancyPressure, creditSpread, creditTightness } from '../economy/economy';
 import { chance, randInt, randNormal, randRange } from '../rng';
 import { post } from '../ledger/ledger';
 import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
@@ -127,7 +127,7 @@ export function monthlyZones(state: GameState): void {
   const drift = housingDrift(state);
   for (const z of ZONES) {
     const zs = zoneState(state, z.id);
-    const r = (drift + z.bias) / 12 + (z.vol / Math.sqrt(12)) * 0.6 * randNormal(state);
+    const r = (drift + cityHousingDrift(state, z.jurisdiction) + z.bias) / 12 + (z.vol / Math.sqrt(12)) * 0.6 * randNormal(state);
     zs.index = Math.max(0.2, zs.index * Math.exp(r));
     const rentR = (state.macro.inflation * 0.9 - vacancyPressure(state) * 0.5 + z.bias * 0.3) / 12 + 0.004 * randNormal(state);
     zs.rentIndex = Math.max(0.2, zs.rentIndex * Math.exp(rentR));

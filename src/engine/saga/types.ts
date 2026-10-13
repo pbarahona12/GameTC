@@ -188,6 +188,8 @@ export interface SagaStats {
   crisisStart: Record<string, Cents>;
   /** Dilemas resueltos por el jugador (no vencidos). */
   decisions: number;
+  /** Día de la última crisis por exposición programada (1.6). */
+  exposureLast?: number;
 }
 
 // ------------------------------------------------------------------ vida y legado

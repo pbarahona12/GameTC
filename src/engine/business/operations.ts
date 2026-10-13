@@ -5,6 +5,7 @@ import type { Company, DayStats } from './types';
 import { sectorOf, px, coLog, coPay, capacity, computeQuality, countRole, workingAssets, equipDef, isOpen, premisesBase } from './common';
 import { coPost } from './companyLedger';
 import { attractiveness, rivalsAttraction, demandFactor } from './market';
+import { cityDemand } from '../economy/economy';
 import { takeFifo, onHand, receiveOrders, payDuePayables, expireLots, runReorderRules, monthlyStorage } from './inventory';
 import { dailyMarketing, promoActive, loyaltyActive } from './marketing';
 import { dailyStaff } from './staff';
@@ -70,7 +71,7 @@ export function cityShare(state: GameState, co: Company, p: ProductDef, price: C
  */
 export function expectedShare(state: GameState, co: Company, p: ProductDef, price: Cents, day = state.day): number {
   let s = 0;
-  for (const city of citiesOf(co, day)) s += CITY_MARKET[city] * cityShare(state, co, p, price, city, day);
+  for (const city of citiesOf(co, day)) s += CITY_MARKET[city] * cityDemand(state, city) * cityShare(state, co, p, price, city, day);
   return s;
 }
 

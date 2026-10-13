@@ -16,4 +16,11 @@ export const GLOSSARY_V16: GlossaryEntry[] = [
     formula: 'Fortuna estimada = patrimonio neto + Σ (valoración × tu participación − valor contable)',
     example: 'Tu consultora tiene $200 mil en libros, pero gana $150 mil por año: con un múltiplo de 4 vale unos $600 mil. En la lista figurás con $400 mil más que tu patrimonio contable.',
     impact: 'Subís en la lista con ganancias recurrentes, no solo con caja.' },
+  { id: 'crisis_exposicion', term: 'Crisis según tu exposición', category: 'Economía',
+    short: 'Una crisis que golpea justo donde está concentrado tu patrimonio: un sector, una ciudad o un sector de la bolsa.',
+    purpose: 'Que diversificar sea una decisión con consecuencias: lo concentrado gana más en las buenas y sufre más en las malas.',
+    how: 'Cuando la economía entra en recesión (o, con menos probabilidad, en desaceleración) se mira dónde está tu patrimonio: tus empresas a valor estimado, tus inmuebles, tus inversiones y tu liquidez. Si más del 40 % depende de un mismo sector, de una misma ciudad o de un mismo sector bursátil, puede llegar una crisis específica de 6 a 12 meses: en un sector o una ciudad las ventas caen cerca de un 20 % (y en una ciudad también bajan los inmuebles); en la bolsa, ese sector cae con fuerza. Cuanto más concentrado, más probable. Cuenta desde los $500 mil y como máximo una vez cada dos años. Se programa con anticipación, así que las noticias pueden avisarla, y afecta también a los rivales de ese rubro o esa ciudad.',
+    example: 'El 75 % de tu patrimonio son cafeterías en Valdoria. Empieza una recesión: con alta probabilidad llega una crisis del sector cafetería que recorta tus ventas un 20 % durante 9 meses. Si la mitad de tu patrimonio estuviera en otra ciudad, en inmuebles y en un fondo índice, solo sufrirías la recesión general.',
+    impact: 'Bajar la concentración por debajo del 40 % evita estas crisis; el asesor te avisa cuando la economía se recalienta o se frena.',
+    risks: 'Diversificar también tiene costos: locales nuevos, comisiones e impuestos al vender. No hace falta repartir todo: alcanza con que nada pese demasiado.' },
 ];
