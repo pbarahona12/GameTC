@@ -1,16 +1,16 @@
 import { Icon, isIconName, IconName } from '../icons';
 import { ReactNode, createContext, useContext, useEffect, useId, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Cents } from '../../engine/money';
-import { fmtMoney, fmtMoneyFit, fmtCompact, fmtAmountInput, fmtNumber, parseMoney, parseQuantity } from '../../engine/format';
+import { fmtMoney, fmtMoneyFit, fmtMoneyShort, fmtCompact, fmtAmountInput, fmtNumber, parseMoney, parseQuantity } from '../../engine/format';
 import { GLOSSARY_BY_ID } from '../../content/glossary';
 import { navStore } from '../nav';
 import { useUI } from '../store';
 
 /** Monto. `fit`: abrevia si el número completo pasa de 12 caracteres (filas y celdas angostas). */
-export function Money({ c, compact, sign, colored, fit, className = '' }: { c: Cents; compact?: boolean; sign?: boolean; colored?: boolean; fit?: boolean; className?: string }) {
+export function Money({ c, compact, short, sign, colored, fit, className = '' }: { c: Cents; compact?: boolean; short?: boolean; sign?: boolean; colored?: boolean; fit?: boolean; className?: string }) {
   const cls = colored ? (c > 0 ? 'gain' : c < 0 ? 'loss' : '') : '';
   const arrow = colored && c !== 0 ? (c > 0 ? '▲ ' : '▼ ') : '';
-  const text = compact ? fmtCompact(c, { sign }) : fit ? fmtMoneyFit(c, { sign }) : fmtMoney(c, { sign });
+  const text = short ? fmtMoneyShort(c, { sign }) : compact ? fmtCompact(c, { sign }) : fit ? fmtMoneyFit(c, { sign }) : fmtMoney(c, { sign });
   const full = fmtMoney(c, { sign });
   return <span className={`num ${cls} ${className}`} title={text !== full ? full : undefined} aria-label={text !== full ? full : undefined}>{arrow}{text}</span>;
 }
@@ -19,10 +19,11 @@ export function Money({ c, compact, sign, colored, fit, className = '' }: { c: C
  * Cifra principal de una tarjeta: muestra el monto completo y achica la letra según
  * su largo para que nunca se salga de la pantalla (la tipografía es monoespaciada).
  */
-export function BigAmount({ c, className = '' }: { c: Cents; className?: string }) {
+export function BigAmount({ c, className = '', short = false }: { c: Cents; className?: string; short?: boolean }) {
   const { value, flash } = useCountUp(c);
-  const final = fmtMoney(c);
-  const text = fmtMoney(value);
+  const f = short ? fmtMoneyShort : fmtMoney;
+  const final = f(c);
+  const text = f(value);
   // El largo se fija con el valor final: la letra no "salta" mientras la cifra cuenta.
   return <div className={`big big-fit ${flash ? `flash-${flash}` : ''} ${className}`} style={{ ['--chars' as string]: final.length }} aria-label={text !== final ? final : undefined}>{text}</div>;
 }

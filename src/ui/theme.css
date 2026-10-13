@@ -133,8 +133,9 @@ p { margin: 0; }
   gap: 8px;
 }
 .topbar-row { display: flex; align-items: center; gap: 8px; }
-.date-block { flex: 1; min-width: 0; }
+.date-block { flex: 1; min-width: 0; min-height: 44px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .date-block .d { font-weight: 800; font-size: 15px; }
+.date-block .avail { max-width: 100%; }
 .icon-btn {
   width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
   display: grid; place-items: center; font-size: 18px; position: relative; flex: none;
@@ -817,9 +818,10 @@ details.advanced[open] > summary::after { transform: rotate(-135deg); }
 .future-steps li + li::before { content: '→'; color: var(--faint, var(--muted)); margin-right: 4px; }
 
 /* 1.4 · Edad siempre visible en la barra superior */
-.avail-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.age-chip { margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; vertical-align: 2px; cursor: pointer; white-space: nowrap; }
-.age-chip.risk { color: var(--loss, #c0392b); border-color: currentColor; }
+.age-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -8px -6px -8px 0; padding: 0 6px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.age-chip > span { padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.3)); }
+.age-chip.risk { color: var(--loss, #c0392b); }
+.age-chip.risk > span { border-color: currentColor; }
 .date-block .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .celebrate-card.sombre .celebrate-ic { color: var(--muted); background: var(--surface-2); }
 button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; font-family: inherit; }
@@ -828,3 +830,15 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 .seg { flex-wrap: wrap; }
 .seg button { min-width: fit-content; padding-inline: 8px; }
 ul.reqs { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; }
+
+/* ---------- Inicio como escena (1.6, auditoría E6) ---------- */
+/* Todo lo tocable de Inicio mide al menos 44 px (la barra inferior ya cumple). */
+.app.home-wide main.screen button,
+.app.home-wide main.screen summary,
+.app.home-wide main.screen .btn { min-height: 44px; }
+.app.home-wide main.screen .icon-btn,
+.app.home-wide main.screen .btn[aria-label] { min-width: 44px; }
+.empire-head { display: flex; align-items: center; gap: 8px; margin: -6px 0 0; }
+.month-line { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.month-line svg { flex: none; color: var(--muted); }
+.next-goal { display: grid; gap: 6px; width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }

@@ -62,8 +62,8 @@ export function firstMonthSteps(s: GameState): FirstStep[] {
   // 1.6: «Mirá cuánto te cuesta vivir» (una lectura) se reemplazó por el objetivo con
   // reloj (firstGoal). Las partidas viejas que lo tenían marcado no se ven afectadas.
   return [
-    { id: 'postular', title: 'Postulate a dos o tres empleos', body: 'En Carrera → Vacantes, elegí puestos cuyos requisitos cumplas. Cada postulación tarda unos días en responderse y puede ser rechazada: con dos o tres es mucho más probable que llegue una oferta.', action: 'Ver vacantes', target: { kind: 'tab', tab: 'career', sub: 'board' }, done: marked('postular') || hasApplied(s) || s.companies.length > 0 },
-    { id: 'tiempo', title: 'Poné el tiempo en marcha', body: 'Tocá ▶ arriba (o este botón). El juego se pausa solo cuando llega una oferta o algo importante.', action: 'Poner en marcha', target: { kind: 'tab', tab: 'home' }, done: marked('tiempo') || s.day >= 2 },
+    { id: 'postular', title: 'Postulate a dos o tres empleos', body: 'Cada puesto paga y exige distinto; con dos o tres postulaciones es más probable que llegue una oferta.', action: 'Ver vacantes', target: { kind: 'tab', tab: 'career', sub: 'board' }, done: marked('postular') || hasApplied(s) || s.companies.length > 0 },
+    { id: 'tiempo', title: 'Poné el tiempo en marcha', body: 'El juego se pausa solo cuando llega una oferta o algo importante.', action: 'Poner en marcha', target: { kind: 'tab', tab: 'home' }, done: marked('tiempo') || s.day >= 2 },
     waitingNothing(s)
       ? { id: 'empleo', title: 'Aceptá tu primera oferta', body: 'Te rechazaron y no te queda ninguna postulación abierta: postulate a otros puestos (al mismo podés volver en 30 días). Mientras tanto, cada mes sin sueldo achica tus ahorros.', action: 'Ver vacantes', target: { kind: 'tab', tab: 'career', sub: 'board' }, done: marked('empleo') || hasIncome(s) }
       : { id: 'empleo', title: 'Aceptá tu primera oferta', body: 'Cuando llegue, tenés 7 días para aceptarla (o negociar el sueldo).', action: 'Ver ofertas', target: { kind: 'tab', tab: 'career', sub: 'job' }, done: marked('empleo') || hasIncome(s) },

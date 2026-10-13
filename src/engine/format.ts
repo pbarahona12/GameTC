@@ -140,6 +140,23 @@ export function fmtCompact(c: Cents, opts: { sign?: boolean } = {}): string {
 }
 
 /**
+ * Cifra corta para leer de un vistazo (Inicio y barra superior, auditoría E6): sin
+ * centavos y abreviada desde 10.000 — «$950», «$1,800», «$409 mil», «$3.4 M»,
+ * «$40.7 mil M». El monto exacto sigue en las pantallas de detalle.
+ */
+export function fmtMoneyShort(c: Cents, opts: { sign?: boolean } = {}): string {
+  const v = c / 100;
+  const a = Math.abs(v);
+  const s = v < 0 ? '−' : opts.sign && v > 0 ? '+' : '';
+  const one = (x: number) => x.toFixed(1).replace(/\.0$/, '');
+  if (a < 1e4) return `${s}$${grouper(0).format(Math.round(a))}`;
+  if (a < 1e6) return `${s}$${grouper(0).format(Math.round(a / 1e3))} mil`;
+  if (a < 1e9) return `${s}$${one(a / 1e6)} M`;
+  if (a < 1e12) return `${s}$${one(a / 1e9)} mil M`;
+  return `${s}$${grouper(0).format(Math.round(a / 1e12))} B`;
+}
+
+/**
  * Monto completo si entra en `max` caracteres; si no, abreviado ($9.50B, $1.20T).
  * Para filas, celdas y barras donde un número enorme no puede empujar al resto.
  */

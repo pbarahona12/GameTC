@@ -8,7 +8,10 @@
 | E4 · reputación | El objetivo suma empresas, empleados y listas de fortunas (`engine/reputation.ts`). Sin empresas, idéntico al de antes. | Sin empleo y con 3 empresas rentables llega a 60 (`tests/reputation.test.ts`). |
 | E7 · primeros diez minutos | Vacantes iniciales con diferencias reales (comisión 40 %, seguro, horas, habilidad que enseñan, facilidad de entrar); objetivo con reloj (el próximo alquiler); primera quincena a los 14 días del primer empleo; respuestas de puestos iniciales en 2–6 días. | `tests/first_minutes.test.ts`. Balance con 12 semillas por estilo: emprendedor ×2,13 → ×1,70 sobre la mediana de los demás (la tabla de 3 semillas de BALANCE.md tiene mucho ruido). |
 
-Pendiente para cerrar la fase 1: E5 (el mes como turno) y E6 (Inicio como escena). Los efectos de los dilemas como «personas que vuelven» (parte de E4) se hacen junto con F3 (elenco que vuelve) en la fase 2.
+| E5/F2 · el mes como turno | Al cerrar cada mes el tiempo se detiene (también en los saltos) y aparece un informe breve: titular, tres datos, lista de fortunas, némesis, proyección contra realidad y hasta dos decisiones (`saga/monthReport.ts`). Se desactiva en Ajustes. | `tests/month_report.test.ts`, e2e. |
+| E6 · Inicio como escena | Arriba: la escena (con nombre y edad), lo que hay que decidir, la guía (una sola a la vez), el patrimonio, tu mes en una línea y tu próximo objetivo. Lista de fortunas, metas, alertas, «Tu mundo» y rumores aparecen después del primer mes. Cifras cortas sin centavos («$409 mil»). La barra superior es un solo botón de 44 px y la edad pasó a la escena. | Día 0: 321 → 100 palabras, 2.107 → 976 px de alto, 0 controles bajo 44 px, 0 cifras con centavos (`e2e/home.spec.ts`). |
+
+Pendiente de la fase 1: la prueba informal con 5 personas (criterio: 4 de 5 llegan al primer cierre de mes sin ayuda y cuentan qué decidieron). Las capturas de la ficha de Play todavía muestran el Inicio anterior (se regeneran en la fase 3). Los efectos de los dilemas como «personas que vuelven» (parte de E4) se hacen junto con F3 (elenco que vuelve) en la fase 2.
 
 ## Versión 1.5: fase 0 de la auditoría maestra (bloqueantes de Google Play)
 

@@ -80,6 +80,8 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   const report = page.getByRole('dialog', { name: 'Cierre de enero 2026' });
   await expect(report).toBeVisible();
   await expect(report.getByText('Patrimonio')).toBeVisible();
+  // 1.6: el informe dice dónde estás frente a la lista de fortunas de tu ciudad.
+  await expect(report.getByText(/lista de Valdoria/)).toBeVisible();
   await report.getByRole('button', { name: 'Cerrar' }).click();
   await expect(report).toBeHidden();
   await openMenuItem(page, 'Avanzar 1 día');
@@ -91,8 +93,9 @@ test('un jugador nuevo consigue empleo, cierra su primer mes y la partida sobrev
   await expect(page.getByRole('img', { name: /^Patrimonio neto/ })).toBeVisible();
   const dateBefore = (await topDate(page).textContent())!.trim();
 
-  // 1.4: la crónica ya tiene la primera página y el lugar en la lista de fortunas se ve en Inicio.
-  await expect(page.getByText(/Tu lugar en Valdoria/)).toBeVisible();
+  // 1.6: mientras dura la guía del primer mes, Inicio muestra una sola guía (la lista de
+  // fortunas y las metas aparecen después; el informe del mes ya mostró la lista).
+  await expect(page.getByRole('region', { name: 'Tu primer mes' })).toBeVisible();
 
   // 5 · Guardar desde Ajustes.
   await openMenuItem(page, 'Ajustes y guardado');

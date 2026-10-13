@@ -178,3 +178,16 @@ describe('Fase 7 · accesibilidad', () => {
     }
   });
 });
+
+describe('Fase 1 · E6: cifras cortas en Inicio', () => {
+  it('sin centavos y abreviadas desde 10.000', async () => {
+    const { fmtMoneyShort } = await import('../src/engine/format');
+    expect(fmtMoneyShort(95_049)).toBe('$950');
+    expect(fmtMoneyShort(180_000)).toBe('$1,800');
+    expect(fmtMoneyShort(40_930_118)).toBe('$409 mil');
+    expect(fmtMoneyShort(340_000_000)).toBe('$3.4 M');
+    expect(fmtMoneyShort(4_070_000_000_000)).toBe('$40.7 mil M');
+    expect(fmtMoneyShort(-350_000_000, { sign: true })).toBe('−$3.5 M');
+    expect(fmtMoneyShort(200_000_000, { sign: true })).toBe('+$2 M');
+  });
+});

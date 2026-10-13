@@ -11,6 +11,7 @@ import { formatDate, dateOf } from '../../../engine/time/calendar';
 import { monthlyRecurring } from '../../../engine/finance/budget';
 import { MAX_ACTIVE_GOALS } from '../../../engine/saga/goals';
 import { bestVehicle } from '../../../engine/lifestyle/effects';
+import { ageOf, monthlyDeathRisk } from '../../../engine/saga/life';
 import { ITEM_BY_ID } from '../../../content/shops';
 import { SECTOR_ICON } from '../../contentIcons';
 import { surplusBreakdown, investSurplus, INDEX_FUND } from '../../../engine/saga/quick';
@@ -57,8 +58,8 @@ export function FirstMonthCard() {
   return (
     <section className="card first-month" aria-label="Tu primer mes">
       <div className="card-head">
-        <span className="eyebrow" style={{ flex: 1 }}><Icon name="rocket" size={13} /> Tu primer mes · {done} de {steps.length}</span>
-        <button className="btn sm ghost" aria-label="Ocultar la guía del primer mes" onClick={() => { store.quick((st) => { dismissFirstMonth(st); }); store.toast('Guía oculta. Podés volver a verla en Ajustes → Partida.', 'ok'); }}><Icon name="close" size={15} /></button>
+        <span className="eyebrow" style={{ flex: 1 }}><Icon name="rocket" size={13} /> Tu primer mes · paso {done + 1} de {steps.length}</span>
+        <button className="btn ghost" aria-label="Ocultar la guía del primer mes" onClick={() => { store.quick((st) => { dismissFirstMonth(st); }); store.toast('Guía oculta. Podés volver a verla en Ajustes → Partida.', 'ok'); }}><Icon name="close" size={15} /></button>
       </div>
       {goal && (
         <div className={`fm-goal ${goal.monthsCovered < 1.5 ? 'tight' : ''}`} role="timer" aria-label={`Objetivo: llegar al alquiler del ${formatDate(goal.dueDay)} con un ingreso. Faltan ${goal.daysLeft} días.`}>
@@ -69,19 +70,12 @@ export function FirstMonthCard() {
           </span>
         </div>
       )}
-      <ol className="fm-steps">
-        {steps.map((x) => (
-          <li key={x.id} className={x.done ? 'done' : x === current ? 'now' : ''} aria-current={x === current ? 'step' : undefined}>
-            <span className="fm-dot" aria-hidden>{x.done ? <Icon name="check" size={12} /> : null}</span>
-            <span className="small">{x.title}{x.done && <span className="sr-only"> (hecho)</span>}</span>
-          </li>
-        ))}
-      </ol>
+      <Bar value={done / steps.length} />
       <strong>{current.title}</strong>
       <p className="small muted">{current.body}{current.id === 'tiempo' ? ` A 1×, un día dura ${ui.settings.msPerDay / 1000} segundo${ui.settings.msPerDay === 1000 ? '' : 's'}.` : ''}</p>
       <div className="btn-row">
-        <button className="btn sm primary" disabled={timeStep && running} onClick={act}>{timeStep && running ? 'El tiempo ya corre' : current.action}</button>
-        {!timeStep && <button className="btn sm ghost" onClick={() => store.quick((st) => { markFirstStep(st, current.id); })}>Saltar este paso</button>}
+        <button className="btn primary" disabled={timeStep && running} onClick={act}>{timeStep && running ? 'El tiempo ya corre' : current.action}</button>
+        {!timeStep && <button className="btn ghost" onClick={() => store.quick((st) => { markFirstStep(st, current.id); })}>Saltar</button>}
       </div>
     </section>
   );
@@ -227,10 +221,18 @@ export function EmpireScene() {
   s.companies.filter((c) => (c.status === 'active' || c.status === 'insolvent') && !c.npc).slice(0, 6).forEach((c) => items.push({ key: `c${c.id}`, icon: c.listed ? 'bell' : SECTOR_ICON[c.sector] ?? 'business', label: c.listed ? `${c.name} (${c.listed.ticker})` : c.name, tone: c.listed ? 'accent' : undefined }));
   if (s.saga.life?.foundation) items.push({ key: 'found', icon: 'gift', label: s.saga.life.foundation.name, tone: 'accent' });
   if (p.exact) items.push({ key: 'rank', icon: 'crown', label: `Puesto ${p.rank} en ${cityName(p.city)}`, tone: 'accent' });
-  if (items.length <= 1) return null;
+  // 1.6 (auditoría E6): la escena está siempre; al empezar, un lote vacío muestra que hay lugar para crecer.
+  if (items.length < 3) items.push({ key: 'next', icon: 'business', label: 'Tu primer negocio', tone: 'muted' });
+  const age = Math.floor(ageOf(s));
+  const risk = monthlyDeathRisk(s) > 0;
   return (
     <section className="card empire" aria-label="Tu imperio">
-      <span className="eyebrow"><Icon name="realestate" size={13} /> Tu imperio</span>
+      <div className="empire-head">
+        <span className="eyebrow" style={{ flex: 1 }}><Icon name="realestate" size={13} /> {s.player.name}</span>
+        <button type="button" className={`age-chip ${risk ? 'risk' : ''}`} onClick={() => navStore.open({ kind: 'life' })} aria-label={`${s.player.name} tiene ${age} años${risk ? ', con riesgo de fallecer por edad' : ''}. Abrir Tu vida y legado`}>
+          <span>{age} años</span>
+        </button>
+      </div>
       <div className="empire-street">
         {items.map((it) => (
           <div key={it.key} className={`empire-lot ${it.tone ?? ''}`} title={it.label}>
