@@ -30,6 +30,7 @@ import { COURSE_BY_ID } from '../content/courses';
 import { showRewardedAd, todayKey, ADS_LIVE } from './ads';
 import { applyUpdate, checkForUpdate, APK_DOWNLOAD_URL, dismissUpdateNotes } from '../persistence/ota';
 import { SELF_UPDATES } from '../distribution';
+import { reputationSources, type ReputationSources } from '../engine/reputation';
 import { readErrors, clearErrors, errorLogText, onErrorsChanged } from '../persistence/errorLog';
 import { exportToFile } from '../persistence/platformStorage';
 import { useOta } from './useOta';
@@ -495,14 +496,22 @@ function SettingsView() {
   );
 }
 
+/** De dónde sale el objetivo de reputación, en una línea (solo lo que suma). */
+function repParts(r: ReputationSources): string {
+  const parts: Array<[string, number]> = [['tu puesto', r.career], ['tus empresas', r.companies], ['tus empleados', r.employees], ['las listas de fortunas', r.ranking], ['certificados', r.certificates], ['estilo de vida', r.lifestyle], ['imagen', r.image], ['fundación', r.foundation]];
+  const shown = parts.filter(([, v]) => Math.abs(v) >= 0.5).map(([n, v]) => `${n} ${v > 0 ? '+' : ''}${Math.round(v)}`);
+  return shown.length ? shown.join(', ') : 'todavía no tenés fuentes de reputación';
+}
+
 function ProgressView() {
   const s = useGame();
   const ev = useDerived(stageOf);
+  const rep = useDerived(reputationSources);
   const a = s.player.attributes;
   const attrs: Array<[string, number, string, string?]> = [
     ['Estrés', a.stress, 'Más de 60 reduce el desempeño; más de 50 desgasta la salud.', 'estres'],
     ['Salud', a.health, `Por debajo de 60 aumenta la probabilidad de imprevistos médicos. Desde los 50 años tiende a bajar; desde los 68, una salud baja aumenta el riesgo de fallecer. Tenés ${Math.floor(ageOf(s))} años.`],
-    ['Reputación', a.reputation, 'Mejora la probabilidad de recibir ofertas. Sube con el nivel de tu puesto y certificados.'],
+    ['Reputación', a.reputation, `Mejora las ofertas que recibís y es requisito de la etapa 8. Cada mes se acerca a ${Math.round(rep.target)}: ${repParts(rep)}.`],
     ['Red de contactos', a.network, 'Mejora la probabilidad de ofertas. Sube con estudios formales y puestos de nivel alto.'],
   ];
   return (

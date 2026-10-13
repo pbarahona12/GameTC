@@ -13,8 +13,9 @@ import { studyHoursPerWeek } from './skills/education';
 import { monthlyDebtPayments } from './finance/loans';
 import { monthlyGrossIncome } from './career/career';
 import { luckBias } from './skills/skills';
-import { possessionEffects, imageScore } from './lifestyle/effects';
-import { ageHealthPenalty, foundationReputation } from './saga/life';
+import { possessionEffects } from './lifestyle/effects';
+import { ageHealthPenalty } from './saga/life';
+import { reputationSources } from './reputation';
 
 /**
  * Cierre económico anual (1 de enero): los gastos recurrentes se indexan por la
@@ -60,7 +61,8 @@ export function monthlyAttributes(state: GameState): void {
   const healthTarget = clamp(80 + ls.health * 5 - Math.max(0, a.stress - 50) * 0.8 + fx.health * 10 - ageHealthPenalty(state), 10, 100);
   a.health = clamp(Math.round((a.health + (healthTarget - a.health) * 0.1 + fx.health) * 10) / 10, 0, 100);
   // La imagen personal suma a la reputación (hasta +10): cómo te presentás también construye tu nombre.
-  const repTarget = (job ? job.level * 12 : 5) + state.education.certificates.length * 2 + ls.reputation * 3 + imageScore(state) / 10 + foundationReputation(state);
+  // 1.6: el objetivo incluye tu imperio (empresas, empleados, listas), ver reputation.ts.
+  const repTarget = reputationSources(state).target;
   a.reputation = clamp(Math.round((a.reputation + (repTarget - a.reputation) * 0.05) * 10) / 10, 0, 100);
   if (job) a.network = clamp(Math.round((a.network + job.level * 0.2) * 10) / 10, 0, 100);
   if (fx.network > 0 && a.network < 60) a.network = clamp(Math.round((a.network + fx.network) * 10) / 10, 0, 60);
