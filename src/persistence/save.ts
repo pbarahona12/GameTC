@@ -3,6 +3,10 @@ import { SAVE_VERSION } from '../engine/state';
 import { checkInvariants } from '../engine/invariants';
 import { migrate, validateShape } from './migrations';
 import { balanceSheet } from '../engine/reports/statements';
+import { canCompress, gzipText, gunzipText, fnv1a } from './codec';
+import { packPayload } from './pack';
+
+export { canCompress, gzipText, gunzipText, fnv1a };
 
 /**
  * Guardado robusto:
@@ -47,48 +51,13 @@ export interface Envelope {
 
 // ------------------------------------------------------------ Compresión (gzip nativo, sin dependencias)
 
-export function canCompress(): boolean {
-  return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
-}
-
-function bytesToB64(bytes: Uint8Array): string {
-  let s = '';
-  const CH = 0x8000;
-  for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode(...bytes.subarray(i, i + CH));
-  return btoa(s);
-}
-
-function b64ToBytes(b64: string): Uint8Array {
-  const s = atob(b64);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
-}
-
-async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
-  const src = new ReadableStream<Uint8Array>({
-    start(c) {
-      c.enqueue(bytes);
-      c.close();
-    },
-  });
-  const out = new Response(src.pipeThrough(stream as unknown as ReadableWritablePair<Uint8Array, Uint8Array>));
-  return new Uint8Array(await out.arrayBuffer());
-}
-
-export async function gzipText(text: string): Promise<string> {
-  return bytesToB64(await pipe(new TextEncoder().encode(text), new CompressionStream('gzip')));
-}
-
-export async function gunzipText(b64: string): Promise<string> {
-  return new TextDecoder().decode(await pipe(b64ToBytes(b64), new DecompressionStream('gzip')));
-}
-
 /** Guardado comprimido (si la plataforma lo permite). El checksum se calcula sobre el JSON original. */
 export async function serializeCompact(state: GameState, now: number): Promise<string> {
   if (!canCompress()) return serialize(state, now);
   const payload = JSON.stringify(state);
-  const env: Envelope = { format: 'urt-save', version: SAVE_VERSION, savedAt: now, day: state.day, name: state.player.name, netWorth: netWorthOf(state), checksum: fnv1a(payload), payload: await gzipText(payload), encoding: 'gzip-b64' };
+  // Suma de verificación y compresión en un hilo aparte si se puede (pack.ts).
+  const { checksum, packed } = await packPayload(payload);
+  const env: Envelope = { format: 'urt-save', version: SAVE_VERSION, savedAt: now, day: state.day, name: state.player.name, netWorth: netWorthOf(state), checksum, payload: packed, encoding: 'gzip-b64' };
   return JSON.stringify(env);
 }
 
@@ -121,14 +90,6 @@ function netWorthOf(state: GameState): number | undefined {
   }
 }
 
-export function fnv1a(text: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(16).padStart(8, '0') + ':' + text.length.toString(36);
-}
 
 export function serialize(state: GameState, now: number): string {
   const payload = JSON.stringify(state);

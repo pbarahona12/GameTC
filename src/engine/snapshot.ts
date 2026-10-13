@@ -16,6 +16,11 @@ import type { GameState } from './state';
  * Supuesto verificado por pruebas (tests/safety.test.ts): el motor no modifica
  * en el lugar los elementos viejos de estas listas, solo agrega, recorta o
  * reemplaza la lista completa.
+ *
+ * Los ARCHIVOS contables (asientos viejos resumidos por mes) son lo más pesado de
+ * una partida larga y solo cambian al compactar, que los reemplaza por uno nuevo
+ * (copia al escribir, ver gCompact). Por eso no se copian: la instantánea guarda
+ * la misma referencia (tests/perf.test.ts lo verifica).
  */
 type Owner = Record<string, unknown>;
 interface Slot {
@@ -83,15 +88,27 @@ export interface Snapshot {
   restore(): GameState;
 }
 
+/** Libros contables con archivo (se comparte por referencia, ver arriba). */
+function ledgers(s: GameState): Array<(r: GameState) => Owner | undefined> {
+  const out: Array<(r: GameState) => Owner | undefined> = [(r) => r.ledger as unknown as Owner];
+  s.companies.forEach((_, i) => out.push((r) => r.companies[i]?.ledger as unknown as Owner | undefined));
+  (s.listings ?? []).forEach((_, i) => out.push((r) => r.listings[i]?.company.ledger as unknown as Owner | undefined));
+  (s.mogul?.assets ?? []).forEach((_, i) => out.push((r) => r.mogul.assets[i]?.company?.ledger as unknown as Owner | undefined));
+  return out;
+}
+
 export function takeSnapshot(s: GameState): Snapshot {
   const slots = collect(s);
   const owners = slots.map((sl) => sl.path(s)!);
+  const shared = ledgers(s).map((path) => ({ path, owner: path(s), archive: path(s)?.archive }));
   slots.forEach((sl, i) => (owners[i][sl.key] = []));
+  for (const x of shared) if (x.owner && x.archive) x.owner.archive = undefined;
   let copy: GameState;
   try {
     copy = deepClone(s);
   } finally {
     slots.forEach((sl, i) => (owners[i][sl.key] = sl.live));
+    for (const x of shared) if (x.owner && x.archive) x.owner.archive = x.archive;
   }
   return {
     restore() {
@@ -99,6 +116,10 @@ export function takeSnapshot(s: GameState): Snapshot {
         const target = sl.path(copy);
         if (!target) continue;
         target[sl.key] = sl.head.concat(deepClone(sl.tail));
+      }
+      for (const x of shared) {
+        const target = x.path(copy);
+        if (target && x.archive) target.archive = x.archive;
       }
       return copy;
     },

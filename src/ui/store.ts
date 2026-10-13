@@ -6,6 +6,7 @@ import type { ActionResult } from '../engine/result';
 import { advanceDaySafe, lastLogIdOf, SimReport, DayFailure } from '../engine/simulation';
 import { simulateAbsence, describeAbsenceStop } from '../engine/absence';
 import { refreshListings } from '../engine/business/simulate';
+import { isLastDayOfMonth } from '../engine/time/calendar';
 import { updateProgression } from '../engine/progression/progression';
 import { checkInvariants } from '../engine/invariants';
 import { takeSnapshot } from '../engine/snapshot';
@@ -71,6 +72,12 @@ const DEFAULT_SETTINGS: Settings = {
 
 /** Milisegundos reales por día de juego a velocidad 1× (valor por defecto). */
 export const MS_PER_DAY_1X = 2000;
+/**
+ * Cada cuánto se redibuja la pantalla mientras corre el reloj, según la velocidad
+ * (ms reales). A 1× y 2× se dibuja cada día; a 4× y 8× los días se juntan.
+ */
+export const RENDER_EVERY_MS: Partial<Record<Speed, number>> = { 4: 400, 8: 500 };
+
 /** Guardado automático por tiempo REAL (no por días de juego, que a 8× pasan en segundos). */
 export const AUTOSAVE = { everyMs: 90 * 1000, afterActionMs: 3000 };
 
@@ -590,6 +597,7 @@ export class GameStore {
     this.ui.speed = speed;
     this.accumulator = 0;
     this.lastTick = performance.now();
+    this.tickLogId = null;
     this.emit();
     if (pausing && this.dirty) void this.save();
   }
@@ -696,23 +704,40 @@ export class GameStore {
     if (days <= 0) return;
     this.accumulator -= days * ms;
     days = Math.min(days, 8);
-    const lastId = lastLogIdOf(s);
+    const lastId = this.tickLogId ?? lastLogIdOf(s);
     const done = this.runDays(days, 'tick', false);
-    this.afterAdvance(done, lastId);
+    this.afterAdvance(done, lastId, true);
   }
 
-  private afterAdvance(days: number, lastLogId: number) {
+  /** Último dibujo de la pantalla mientras corre el reloj (ver RENDER_EVERY_MS). */
+  private lastTickEmit = 0;
+  /** Registro desde el último dibujo (para la pausa automática si se juntan días sin dibujar). */
+  private tickLogId: number | null = null;
+
+  private afterAdvance(days: number, lastLogId: number, fromClock = false) {
     const s = this.ui.state!;
     if (days > 0) this.touch();
+    let paused = false;
     if (this.ui.settings.autoPause && this.ui.speed !== 0) {
       const fresh = s.log.filter((l) => l.id > lastLogId);
       const important = fresh.find((l) => this.isImportant(l));
       if (important) {
         this.ui.speed = 0;
+        paused = true;
         this.toast(`Pausa automática: ${important.text}`, important.kind === 'danger' ? 'error' : 'info');
         void this.save();
       }
     }
+    // A velocidades altas nadie lee cada día: la pantalla se redibuja con menos
+    // frecuencia (la simulación no cambia). Pausas, errores y cierres de mes se ven ya.
+    const every = fromClock ? RENDER_EVERY_MS[this.ui.speed] ?? 0 : 0;
+    const now = Date.now();
+    if (every && !paused && !this.ui.simError && !isLastDayOfMonth(s.day) && now - this.lastTickEmit < every) {
+      this.tickLogId ??= lastLogId;
+      return;
+    }
+    this.lastTickEmit = now;
+    this.tickLogId = null;
     this.emit();
   }
 

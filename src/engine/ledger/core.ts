@@ -172,7 +172,18 @@ export function gCompact<A extends string>(
   const cut = idx < 0 ? ledger.entries.length : idx;
   if (cut === 0) return 0;
   const old = ledger.entries.slice(0, cut);
-  const arch: GArchive<A> = ledger.archive ?? { before: 0, buckets: [], entries: 0 };
+  // Copia al escribir: el archivo anterior y sus baldes NUNCA se modifican. Así las
+  // instantáneas de cada día (snapshot.ts) lo comparten en lugar de copiarlo.
+  const prev = ledger.archive;
+  const arch: GArchive<A> = prev ? { ...prev, buckets: prev.buckets.slice() } : { before: 0, buckets: [], entries: 0 };
+  const mine = new Set<GBucket<A>>();
+  const own = (b: GBucket<A>): GBucket<A> => {
+    if (mine.has(b)) return b;
+    const c: GBucket<A> = { ...b, totals: { ...b.totals }, cash: Object.fromEntries(Object.entries(b.cash).map(([k, v]) => [k, { ...v }])) };
+    arch.buckets[arch.buckets.indexOf(b)] = c;
+    mine.add(c);
+    return c;
+  };
   for (const e of old) {
     const key = monthKey(e.day);
     let b = arch.buckets[arch.buckets.length - 1];
@@ -181,8 +192,10 @@ export function gCompact<A extends string>(
       if (!b) {
         b = { key, from: e.day, to: e.day, n: 0, totals: {}, cash: {}, cashIn: 0, cashOut: 0 };
         arch.buckets.push(b);
+        mine.add(b);
       }
     }
+    b = own(b);
     b.from = Math.min(b.from, e.day);
     b.to = Math.max(b.to, e.day);
     b.n++;
