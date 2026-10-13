@@ -3,6 +3,7 @@ import type { LifeState, Child } from './types';
 import type { JurisdictionId } from '../../content/jurisdictions';
 import type { BackgroundId } from '../../content/backgrounds';
 import type { SkillId } from '../../content/skills';
+import type { EducationLevel, Field } from '../../content/jobs';
 import { chance, nextRandom, randInt, RngHolder, seedFromString } from '../rng';
 import { clamp, Cents, roundCents, usd } from '../money';
 import { ActionResult, FAIL, OK } from '../result';
@@ -15,6 +16,7 @@ import { payExpense, canPayFromChecking, spendable } from '../finance/payments';
 import { quitJob } from '../career/career';
 import { FIRST_NAMES, LAST_NAMES, isFemaleName } from '../../content/cities';
 import { SKILL_BY_ID } from '../../content/skills';
+import { COURSE_BY_ID } from '../../content/courses';
 import { chronicle, celebrate } from './chronicle';
 import { srng } from './ranking';
 
@@ -178,6 +180,56 @@ export function retire(state: GameState): ActionResult {
   return OK('Te jubilaste. Tus empresas, inmuebles e inversiones siguen como siempre.');
 }
 
+/** Carrera que estudió el heredero según su mayor talento (para su título, si tiene). */
+const FIELD_BY_SKILL: Partial<Record<SkillId, Field>> = {
+  finEdu: 'finanzas', stocks: 'finanzas', accounting: 'finanzas', prediction: 'finanzas', forecasting: 'finanzas',
+  management: 'administracion', law: 'administracion', realEstate: 'administracion', discipline: 'administracion',
+  marketing: 'marketing', social: 'marketing', negotiation: 'marketing',
+  cybersecurity: 'informatica', risk: 'ingenieria',
+};
+
+export function fieldForSkills(skills: Partial<Record<SkillId, number>>): Field {
+  const best = (Object.entries(skills) as Array<[SkillId, number]>).filter(([k]) => k !== 'luck' && FIELD_BY_SKILL[k]).sort((a, b) => b[1] - a[1])[0];
+  return (best && FIELD_BY_SKILL[best[0]]) ?? 'administracion';
+}
+
+/**
+ * Estudios del heredero: son SUYOS, no los de quien se va. Un hijo de una familia
+ * con más de un millón ya terminó la universidad (en la carrera de su talento);
+ * si no, la secundaria. Un sobrino llega con un técnico. Sin cursos terminados ni
+ * certificados: puede inscribirse en cualquier título (corrige el bug de 1.4–1.5,
+ * donde heredaba la lista de cursos del padre y no podía estudiar lo que «ya tenía»).
+ */
+export function heirEducation(level: EducationLevel, skills: Partial<Record<SkillId, number>>): GameState['education'] {
+  return { level, fields: level === 'secundaria' ? [] : [fieldForSkills(skills)], certificates: [], active: [], completed: [] };
+}
+
+/**
+ * Repara partidas guardadas con el bug de 1.4–1.5 (se llama al cargar; idempotente).
+ * Los cursos terminados ANTES de que el heredero tomara el control eran de quien se
+ * fue: se quitan, y los campos y certificados se rehacen con lo que estudió el
+ * heredero (más la carrera de su talento si su nivel la incluye). El nivel no baja.
+ * Devuelve true si cambió algo.
+ */
+export function repairHeirEducation(state: GameState): boolean {
+  const l = state.saga?.life;
+  const takeover = l?.ancestors?.length ? l.ancestors[l.ancestors.length - 1].until : null;
+  if (takeover === null || !state.education) return false;
+  const ed = state.education;
+  const mine = ed.completed.filter((c) => c.day >= takeover);
+  if (mine.length === ed.completed.length) return false;
+  const skills = Object.fromEntries((Object.keys(state.skills) as SkillId[]).map((k) => [k, state.skills[k].level])) as Record<SkillId, number>;
+  const fixed = heirEducation(ed.level, skills);
+  for (const c of mine) {
+    const g = COURSE_BY_ID[c.courseId]?.grants;
+    if (g?.field && !fixed.fields.includes(g.field)) fixed.fields.push(g.field);
+    if (g?.certificate && !fixed.certificates.includes(g.certificate)) fixed.certificates.push(g.certificate);
+  }
+  state.education = { ...fixed, active: ed.active, completed: mine };
+  if (Array.isArray(state.log)) addLog(state, 'info', '🎓', `Se corrigieron los estudios de ${state.player.name}: los títulos y cursos de quien te dejó la herencia eran suyos. Ahora podés inscribirte en cualquier carrera que no hayas hecho vos.`);
+  return true;
+}
+
 /**
  * Pasa la posta: el heredero toma el control de todo. La fortuna no cambia de
  * manos en el libro mayor (sigue siendo de la familia); se paga el impuesto a
@@ -215,7 +267,7 @@ export function succession(state: GameState, heirId: number | 'sobrino', cause: 
   state.player.name = heir.name;
   const profile = heirProfile(state, heirId);
   for (const k of Object.keys(state.skills) as SkillId[]) state.skills[k] = { level: profile.skills[k] ?? state.skills[k].level, xp: 0 };
-  state.education.level = child && before > usd(1_000_000 * state.macro.priceIndex) ? 'universitario' : child ? 'secundaria' : 'tecnico';
+  state.education = heirEducation(child && before > usd(1_000_000 * state.macro.priceIndex) ? 'universitario' : child ? 'secundaria' : 'tecnico', profile.skills);
   state.career.experience = {};
   const a = state.player.attributes;
   state.player.attributes = { stress: 25, health: 85, reputation: clamp(Math.round(a.reputation * 0.5 + 10), 0, 100), network: clamp(Math.round(a.network * 0.5), 0, 100) };
