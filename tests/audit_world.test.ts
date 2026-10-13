@@ -12,10 +12,11 @@ import { placeStockOrder, placeBracket, cancelOrder } from '../src/engine/invest
 import { buyBond, sellBond } from '../src/engine/invest/bonds';
 import { buyFund, sellFund } from '../src/engine/invest/funds';
 import { buyMogul, sellMogul } from '../src/engine/invest/mogul';
-import { buyProperty, sellProperty, setRent, renovate, setUse, marketRent, prepayMortgage, setManagement, inspectListing, startProject, rushProject, financeProject, projectCollateral } from '../src/engine/realestate/realestate';
-import { openBranch, closeBranch } from '../src/engine/business/branches';
+import { buyProperty, sellProperty, setRent, renovate, setUse, marketRent, prepayMortgage, setManagement, inspectListing, startProject, rushProject, financeProject, projectCollateral, projectPlan } from '../src/engine/realestate/realestate';
+import { openBranch, closeBranch, branchCosts } from '../src/engine/business/branches';
 import { CITY_ORDER } from '../src/engine/business/locations';
-import { foundCompany, foundHolding, transferToGroup, spinOff, liquidate, distribute, maxDistribution } from '../src/engine/business/ownership';
+import { generateCandidates, hire } from '../src/engine/business/staff';
+import { injectCapital, foundCompany, foundHolding, transferToGroup, spinOff, liquidate, distribute, maxDistribution } from '../src/engine/business/ownership';
 import { grantIcLoan, setGroupPolicy } from '../src/engine/business/groups';
 import { hirePro, firePro, commissionAudit, trainPro } from '../src/engine/pros/pros';
 import { activeMandates, openMandate, depositMandate, withdrawMandate, setMandateProfile } from '../src/engine/invest/managed';
@@ -94,7 +95,12 @@ function worldAction(s: GameState, bot: RngHolder): void {
   } else if (r < 0.5) {
     const p = pickOne(bot, s.realEstate.properties);
     // 1.6: proyectos por etapas, aceleración y préstamo de obra.
-    if (p && p.type === 'terreno' && !p.development && nextRandom(bot) < 0.6) startProject(s, p.id, (['vivienda', 'oficina', 'local', 'cochera'] as const)[randInt(bot, 0, 3)], randInt(bot, 1, 8));
+    if (p && p.type === 'terreno' && !p.development && p.owner.kind === 'personal' && nextRandom(bot) < 0.6) {
+      const to = (['vivienda', 'oficina', 'local', 'cochera'] as const)[randInt(bot, 0, 3)];
+      const sp = startProject(s, p.id, to, randInt(bot, 1, 8));
+      if (sp.ok) tally.projects++;
+      if (process.env.URT_CHAOS_DEBUG && !sp.ok) console.log('PROJECT', sp.error);
+    }
     else if (p && p.development?.phase !== undefined && nextRandom(bot) < 0.4) {
       if (nextRandom(bot) < 0.5) rushProject(s, p.id);
       else financeProject(s, p.id, p.owner.kind === 'company' ? 'austral_corp' : 'bval_hipo', Math.round(projectCollateral(s, p) * 0.5), 15);
@@ -211,11 +217,68 @@ function worldAction(s: GameState, bot: RngHolder): void {
       else if (s.bank.card.dueDay >= 0) payCard(s, s.bank.card.statementBalance);
     }
   } else if (r < 0.92) {
-    const l = pickOne(bot, s.realEstate.listings.filter((x) => x.property.type === 'cochera'));
-    if (l) buyProperty(s, l.id, { owner: { kind: 'personal' } });
-  } else if (r < 0.97) {
+    // Cocheras baratas y, a veces, terrenos para construir (1.6).
+    const kind = nextRandom(bot) < 0.3 ? 'terreno' : 'cochera';
+    const l = pickOne(bot, s.realEstate.listings.filter((x) => x.property.type === kind));
+    if (l) buyProperty(s, l.id, { owner: { kind: 'personal' }, financing: kind === 'terreno' && nextRandom(bot) < 0.5 ? { bankId: 'bval_hipo', amount: Math.round(l.askPrice * 0.4), years: 15, rateType: 'fija' } : null });
+  } else if (r < 0.95) {
     sagaAction(s, bot);
+  } else if (r < 0.96) {
+    branchAction(s, bot);
+  } else if (r < 0.97) {
+    projectAction(s, bot);
   }
+}
+
+/** Fondos de prueba (como el capital inicial): entran como financiamiento y no cuentan como resultado del mes. */
+function testFunds(s: GameState, amount: number): void {
+  tally.month += amount;
+  post(s.ledger, { day: s.day, memo: 'Fondos de prueba', cf: 'financing', lines: [{ account: 'checking', debit: amount }, { account: 'opening_equity', credit: amount }] });
+}
+
+/** 1.6: comprar un terreno y arrancar un proyecto por etapas (a veces con préstamo de obra). */
+function projectAction(s: GameState, bot: RngHolder): void {
+  const own = s.realEstate.properties.find((p) => p.owner.kind === 'personal' && p.type === 'terreno' && !p.development && !p.forSale);
+  if (!own) {
+    const l = pickOne(bot, s.realEstate.listings.filter((x) => x.property.type === 'terreno'));
+    if (!l) return;
+    testFunds(s, Math.round(l.askPrice * 1.1));
+    buyProperty(s, l.id, { owner: { kind: 'personal' } });
+    return;
+  }
+  const to = (['vivienda', 'oficina', 'local', 'cochera'] as const)[randInt(bot, 0, 3)];
+  const plan = projectPlan(s, own, to, randInt(bot, 1, 8));
+  testFunds(s, nextRandom(bot) < 0.5 ? plan.budget : plan.first);
+  if (startProject(s, own.id, to, plan.units).ok) tally.projects++;
+}
+
+const tally = { month: 0, branches: 0, projects: 0 };
+
+/** 1.6: sucursales en otras ciudades (con aporte de capital si hace falta) y, a veces, cerrar una. */
+function branchAction(s: GameState, bot: RngHolder): void {
+  const mine = s.companies.filter((c) => c.status === 'active' && !c.npc && c.sector !== 'holding' && c.history.length >= 3);
+  const co = pickOne(bot, mine);
+  if (!co) return;
+  const b = pickOne(bot, co.branches ?? []);
+  if (b && nextRandom(bot) < 0.3) {
+    closeBranch(s, co.id, b.id);
+    return;
+  }
+  // Sin gerente no se puede abrir: lo contrata primero.
+  if (!co.employees.some((e) => e.role === 'gerente')) {
+    const c = generateCandidates(s, co, 'gerente')[0];
+    if (c) hire(s, co, c.id, true);
+  }
+  const city = CITY_ORDER[randInt(bot, 0, CITY_ORDER.length - 1)];
+  const need = branchCosts(s, co).total;
+  if (co.ledger.balances.cash < need) {
+    const gap = need - co.ledger.balances.cash + usd(2000);
+    testFunds(s, gap);
+    injectCapital(s, co, gap);
+  }
+  const ob = openBranch(s, co.id, city);
+  if (ob.ok) tally.branches++;
+  if (process.env.URT_CHAOS_DEBUG && !ob.ok) console.log('BRANCH', ob.error);
 }
 
 /** 1.4: decisiones con plazo, fusiones, bonos, equipo directivo, proveedores propios, legado y rivalidad. */
@@ -236,15 +299,9 @@ function sagaAction(s: GameState, bot: RngHolder): void {
     if (co) issueBonds(s, co.id, Math.max(usd(500_000), Math.round(bondCapacity(s, co) / 2)), [3, 5, 10][randInt(bot, 0, 2)]);
     if (co) goPublic(s, co.id, 0.2);
     if (co?.listed) buyBackShares(s, co, 0.05);
-  } else if (k < 0.55) {
+  } else if (k < 0.6) {
     if (s.saga.exec?.hired) dismissExecTeam(s);
     else hireExecTeam(s);
-  } else if (k < 0.6) {
-    // 1.6: sucursales en otras ciudades (y a veces cerrar una).
-    const co = pickOne(bot, mine.filter((c) => c.sector !== 'holding'));
-    const b = co ? pickOne(bot, co.branches ?? []) : undefined;
-    if (co && b && nextRandom(bot) < 0.3) closeBranch(s, co.id, b.id);
-    else if (co) openBranch(s, co.id, CITY_ORDER[randInt(bot, 0, CITY_ORDER.length - 1)]);
   } else if (k < 0.7) {
     const p = pickOne(bot, possibleDeals(s));
     if (p) signDeal(s, p.kind, p.supplier.id, p.buyer.id);
@@ -282,6 +339,9 @@ describe('Auditoría integral de todos los sistemas (bots aleatorios)', () => {
       const bot = { rng: seedFromString(`bot|${seed}`) };
       let monthStart = s.day + 1;
       let nw0 = balanceSheet(s).netWorth;
+      tally.month = 0;
+      tally.branches = 0;
+      tally.projects = 0;
       let actions = 0;
       while (s.day < CHAOS_YEARS * 365) {
         advanceDay(s);
@@ -293,7 +353,8 @@ describe('Auditoría integral de todos los sistemas (bots aleatorios)', () => {
           expectConsistent(s);
           const is = incomeStatement(s, monthStart, s.day);
           const nw1 = balanceSheet(s).netWorth;
-          expect(nw1 - nw0).toBe(is.netResult);
+          expect(nw1 - nw0 - tally.month).toBe(is.netResult);
+          tally.month = 0;
           const cf = cashFlowStatement(s, monthStart, s.day);
           if (cf.opening + cf.totalOperating + cf.totalInvesting + cf.totalFinancing !== cf.closing) {
             const bad = s.ledger.entries.filter((e) => e.day >= monthStart && e.cf === 'internal' && CASH_ACCOUNTS.reduce((a, acc) => a + entryDelta(e, acc), 0) !== 0);
@@ -304,7 +365,7 @@ describe('Auditoría integral de todos los sistemas (bots aleatorios)', () => {
           nw0 = nw1;
         }
       }
-      if (process.env.URT_CHAOS_STATS) console.log(seed, JSON.stringify({ fusiones: s.formerCompanies.filter((f) => f.outcome === 'fusionada').length, bonos: s.companies.reduce((a, c) => a + c.loans.filter((l) => l.bullet).length, 0), cotizadas: s.companies.filter((c) => c.listed).length, guerras: s.saga.rivalry?.warsSurvived ?? 0, generacion: s.saga.life?.generation, decisiones: s.saga.stats.decisions, equipo: !!s.saga.exec?.hired, acuerdos: s.saga.deals?.length ?? 0, empresas: s.companies.length, etapa: s.progression.stage, sucursales: s.companies.reduce((a, c) => a + (c.branches?.length ?? 0), 0), obras: s.log.filter((l) => l.text.startsWith('Terminó la obra')).length, elenco: s.saga.cast?.length ?? 0, crisisPropias: s.saga.stats.exposureLast !== undefined }));
+      if (process.env.URT_CHAOS_STATS) console.log(seed, JSON.stringify({ fusiones: s.formerCompanies.filter((f) => f.outcome === 'fusionada').length, bonos: s.companies.reduce((a, c) => a + c.loans.filter((l) => l.bullet).length, 0), cotizadas: s.companies.filter((c) => c.listed).length, guerras: s.saga.rivalry?.warsSurvived ?? 0, generacion: s.saga.life?.generation, decisiones: s.saga.stats.decisions, equipo: !!s.saga.exec?.hired, acuerdos: s.saga.deals?.length ?? 0, empresas: s.companies.length, etapa: s.progression.stage, sucursalesAbiertas: tally.branches, obrasIniciadas: tally.projects, elenco: s.saga.cast?.length ?? 0, crisisPropias: s.saga.stats.exposureLast !== undefined }));
       expect(actions).toBeGreaterThan(100 * CHAOS_YEARS);
       expect(s.stocks.trades.length).toBeGreaterThan(10);
       expect(s.possessions.spent).toBeGreaterThan(0);

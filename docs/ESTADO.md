@@ -1,6 +1,29 @@
 # Estado del proyecto — versión 1.5
 
-## Fase 1 de la auditoría maestra (rama `fase1`, en curso)
+## Fase 2 de la auditoría maestra (rama `fase2`, sobre `fase1`)
+
+| Ítem | Qué cambió | Verificación |
+|---|---|---|
+| E2 · sucursales y ciudades | Cada empresa puede abrir hasta 8 locales (3 por ciudad) en Valdoria, Distrito Real (80 % del mercado de la capital), Puerto Nuevo (65 %) y Costa Esmeralda (30 %). Cada local paga alquiler y servicios; abrir exige gerente, 3 meses de historia y caja (`business/locations.ts`, `business/branches.ts`). | `tests/branches.test.ts`. Un año con 3 sucursales: vende más de 1,5 veces y la contabilidad cierra todos los meses. |
+| E1 · fortuna estimada | Las listas valúan tus empresas a lo que valen (valoración × participación − valor contable); el balance no cambia. El puesto estimado queda registrado cada mes (`saga/ranking.ts`). | `tests/stages_scale.test.ts`. |
+| E3 · etapas 8–12 | Umbrales de $2 M, $5 M, $20 M, $80 M y $400 M (saltos de 2,5–5 veces, antes 20) y, además del dinero, ciudades, locales, empleados, inmuebles, sectores o lista de fortunas, con caminos alternativos. | Bot que se expande, 30 años, 4 semillas: etapa 8 en 5,0–6,8 años, 9 en 8,2–11,0 y 10 en 11,5–18,4 (dos semillas tardan más de 6 años de la 9 a la 10). |
+| F5 · crisis según tu exposición | Al empezar una recesión (o, menos probable, una desaceleración), si más del 40 % del patrimonio depende de un sector, una ciudad o un sector de la bolsa (y hay $500 mil o más), puede llegar con anticipación una crisis propia de 6–12 meses (−20 % de demanda, o de demanda e inmuebles en la ciudad, o caída en bolsa). Diversificado, solo la recesión general (`saga/exposure.ts`). | `tests/exposure.test.ts`. En bots de 15 años: 0–2 crisis propias por partida. |
+| F3 · personas que vuelven | Elenco de hasta 15 personas con vínculo y memoria; los dilemas eligen primero a alguien conocido; con vínculo de ±30 vuelven a devolver un favor o a cobrarse una (`saga/cast.ts`, dilemas de reencuentro). Tarjeta en Tu vida y persona visible en cada decisión. | `tests/cast.test.ts`. En bots pasivos de 15 años: 1–4 regresos. |
+| E10/F1 · estilos y grandes proyectos | Carreras de ingeniería, industria y administración con gerencia y dirección; 10 puestos de dirección en empresas que cotizan pagan acciones de la empleadora. Proyectos inmobiliarios por etapas con sobrecostos, obra parada sin fondos, aceleración, préstamo de obra y división en unidades. | `tests/styles.test.ts`. Dominancia (15 años, 3 semillas): ejecutivo ×0,66 → ×0,95, inversionista ×1,52 → ×1,06, inmobiliario ×0,66 → ×0,69, emprendedor ×2,32 → ×1,76. |
+| Inicio avanzado | Escena resumida, invitación a metas corta, dos renglones de actividad desde la etapa 6; una holding vacía da una sola alerta; sin consejo de fondo de emergencia con liquidez de sobra. | Partida real de 97 años: 281 → 245 palabras en Inicio. |
+| Guardado v7 | Migración 6 → 7 con prueba (sucursales, elenco, fortuna estimada). | `tests/stages_scale.test.ts`; la partida real de 97 años migra, simula un año (≈ 4 s) y cumple los invariantes todos los meses. |
+
+### Verificación fase 2 (resultados reales en este entorno)
+
+- `tsc`, ESLint y 464 pruebas unitarias e integrales: correctas (5 omitidas, las mismas de antes).
+- e2e con Playwright sobre `build:play` (Pixel 7): 3 de 3 (Inicio el día 0, ausencia de 8 horas, primer mes y recarga).
+- Auditoría de caos 50 semillas × 20 años, ahora también con sucursales (351 abiertas), proyectos por etapas (479 iniciados, con aceleraciones y préstamos de obra), elenco (13–15 personas por partida) y crisis propias (39 de 50 partidas): invariantes contables, resultado mensual y flujo de caja conciliados todos los meses. Encontró y se corrigieron dos casos: la comisión mínima del corredor podía superar lo vendido (vender acciones de centavos dejaba la cuenta en negativo) y un fondo sectorial «explotaba» (10^27) cuando una acción se desplomaba a centavos pero seguía pagando su dividendo fijo; ahora la comisión no supera la operación, el fondo solo mira acciones que cotizan y con retornos acotados, y el dividendo trimestral no supera el 5 % del precio (`tests/chaos_regressions.test.ts`).
+- Partida real de 97 años: migra de v6 a v7, simula un año en ≈ 4 s y cumple los invariantes todos los meses.
+- Balance largo (60 años, origen técnico, `docs/BALANCE_LARGO.md`): el emprendedor que abre sucursales llega a la etapa 8 a los 5,9 años, 9 a los 9,8, 10 a los 13,0 y 11 a los 52,9; los estilos que no se expanden se quedan en la etapa 8 (a los 24–33 años).
+
+Pendiente de la fase 2: el criterio de dominancia (todos los estilos entre ×0,75 y ×1,4) no se cumple todavía: el inmobiliario (×0,69) casi nunca junta el capital para desarrollar porque su patrimonio está en alquileres hipotecados, y el emprendedor sigue en ×1,76. Los rivales no se separan por ciudad (el mismo grupo de competidores en todas). Sin expandirse, de la etapa 8 no se pasa: la 9 pide estar entre las 100 fortunas de tu ciudad y tener 3 empresas, 6 locales o 10 inmuebles. La versión sigue en 1.5.0 y el guardado pasó a v7: una partida guardada con esta rama no se abre con una versión anterior.
+
+## Fase 1 de la auditoría maestra (rama `fase1`)
 
 | Ítem | Qué cambió | Verificación |
 |---|---|---|

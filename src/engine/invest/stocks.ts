@@ -225,7 +225,9 @@ function processEarnings(state: GameState): void {
     news(s, state.day, `Resultados trimestrales: beneficio por acción de ${fmtMoney(actual)} (${pct >= 0 ? '+' : ''}${pct} % frente a lo esperado).`, jump);
     if (holdingsOf(state, 'stocks')[s.id]) addLog(state, jump >= 0 ? 'info' : 'warning', '📊', `${s.name} (${s.id}) presentó resultados ${pct >= 0 ? 'mejores' : 'peores'} de lo esperado: la acción ${jump >= 0 ? 'subió' : 'cayó'} ${fmtPct(Math.abs(jump), 1)}.`);
     if (s.payout > 0 && s.eps > 0) {
-      s.dividend = Math.max(1, Math.round((s.eps / 4) * s.payout));
+      // Tope del 5 % del precio por trimestre: una acción que se desplomó a centavos no
+      // puede pagar más que lo que vale (la caja de prueba 50 × 20 lo encontró).
+      s.dividend = Math.max(1, Math.min(Math.round((s.eps / 4) * s.payout), Math.round(s.price * 0.05)));
       s.exDay = state.day + 14;
     } else s.dividend = 0;
     s.nextEarnings += 91;

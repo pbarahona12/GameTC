@@ -2,7 +2,7 @@ import { mandatesOnDistribution } from './managed';
 import type { GameState } from '../state';
 import type { FundState } from './types';
 import { FUND_DEFS, FUND_BY_ID, FundDef } from '../../content/funds';
-import { roundCents, usd } from '../money';
+import { clamp, roundCents, usd } from '../money';
 import { dateOf } from '../time/calendar';
 import { isTradingDay } from './stocks';
 import { ActionResult, FAIL, OK } from '../result';
@@ -56,7 +56,9 @@ function refValue(state: GameState, d: FundDef): number {
 
 /** Retorno total del día de un conjunto de acciones (precio + dividendo), pesos iguales. */
 function basketReturn(state: GameState, ids: string[] | null): { price: number; income: number } {
-  const stocks = state.stocks.stocks.filter((s) => (ids ? ids.includes(s.id) : true) && s.prevClose > 0);
+  // Solo las que cotizan: una acción suspendida o quebrada con un cierre previo ínfimo
+  // daba «retornos» absurdos (la caja de prueba 50 × 20 vio un fondo de 10^27).
+  const stocks = state.stocks.stocks.filter((s) => (ids ? ids.includes(s.id) : true) && s.prevClose > 0 && s.status === 'activa');
   if (!stocks.length) return { price: 0, income: 0 };
   if (!ids) {
     // Índice: ponderado por capitalización.
@@ -74,8 +76,9 @@ function basketReturn(state: GameState, ids: string[] | null): { price: number; 
   let inc = 0;
   for (const s of stocks) {
     const div = s.exDay === state.day ? s.dividend : 0;
-    pr += (s.price + div) / s.prevClose - 1 - div / s.prevClose;
-    inc += div / s.prevClose;
+    pr += clamp((s.price + div) / s.prevClose - 1 - div / s.prevClose, -0.6, 1);
+    // Un dividendo fijo sobre una acción que se desplomó a centavos no es un 300 % de renta.
+    inc += Math.min(0.1, div / s.prevClose);
   }
   return { price: pr / stocks.length, income: inc / stocks.length };
 }

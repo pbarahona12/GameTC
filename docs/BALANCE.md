@@ -8,10 +8,10 @@ Días de juego (mediana) hasta alcanzar cada etapa. "—" = no la alcanzó en el
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | ejecutivo | egresado | 30 | 364 | 850 | 1703 | 3376 | 5233 | $885,686 | 0 | 0 | 0 |
 | ejecutivo | tecnico | 30 | 150 | 484 | 1003 | 2403 | 5112 | $990,796 | 0 | 0 | 0 |
-| ejecutivo | autodidacta | 30 | 58 | 729 | 942 | 2311 | 5325 | $917,162 | 0 | 0 | 0 |
-| ejecutivo | herencia | 30 | 58 | 58 | 1519 | 3711 | — | $792,826 | 0 | 0 | 6 |
-| inversionista | egresado | 30 | 119 | 850 | 1733 | 3194 | — | $754,005 | 0 | 0 | 0 |
-| inversionista | tecnico | 30 | 58 | 364 | 1399 | 3011 | — | $997,143 | 0 | 0 | 0 |
+| ejecutivo | autodidacta | 30 | 58 | 729 | 942 | 2311 | 5325 | $916,856 | 0 | 0 | 0 |
+| ejecutivo | herencia | 30 | 58 | 58 | 1519 | 3711 | — | $790,951 | 0 | 0 | 6 |
+| inversionista | egresado | 30 | 119 | 850 | 1733 | 3194 | — | $753,973 | 0 | 0 | 0 |
+| inversionista | tecnico | 30 | 58 | 364 | 1399 | 3011 | — | $997,137 | 0 | 0 | 0 |
 | inversionista | autodidacta | 30 | 58 | 454 | 1246 | 1856 | 4472 | $978,906 | 0 | 0 | 0 |
 | inversionista | herencia | 58 | 58 | 58 | 1550 | 2403 | 4867 | $926,944 | 0 | 0 | 0 |
 | inmobiliario | egresado | 30 | 150 | 820 | 1884 | 3406 | — | $652,267 | 0 | 0 | 0 |
@@ -20,16 +20,16 @@ Días de juego (mediana) hasta alcanzar cada etapa. "—" = no la alcanzó en el
 | inmobiliario | herencia | 30 | 58 | 119 | 1460 | 2952 | — | $816,056 | 0 | 0 | 0 |
 | emprendedor | egresado | 30 | 180 | 1611 | 1764 | 2403 | 4229 | $1,148,516 | 0 | 0 | 0 |
 | emprendedor | tecnico | 30 | 58 | 911 | 1126 | 1794 | 3803 | $1,708,865 | 0 | 0 | 0 |
-| emprendedor | autodidacta | 30 | 58 | 850 | 1064 | 1794 | 4472 | $1,334,134 | 0 | 1 | 0 |
+| emprendedor | autodidacta | 30 | 58 | 850 | 1064 | 1794 | 4260 | $1,254,271 | 0 | 1 | 0 |
 | emprendedor | herencia | 30 | 58 | 881 | 1185 | 1915 | 3864 | $1,623,019 | 0 | 0 | 0 |
 
 ## Dominancia entre estilos
 
 | Estilo | Patrimonio mediano | Frente a la mediana de los demás |
 |---|---|---|
-| ejecutivo | $917,162 | ×0.95 |
-| inversionista | $969,999 | ×1.06 |
-| inmobiliario | $664,091 | ×0.68 |
+| ejecutivo | $916,856 | ×0.95 |
+| inversionista | $969,025 | ×1.06 |
+| inmobiliario | $664,091 | ×0.69 |
 | emprendedor | $1,612,664 | ×1.76 |
 
 Por qué emprendedor supera 1.5 veces a los demás (×1.76): el bot funda con capital para 6 meses de costos y delega en el mejor gerente que encuentra (así no quebró ninguna vez). El riesgo es real para quien funda sin colchón: medido aparte, fundando solo con el costo de apertura quebraron todas (33 de 33, en los 5 rubros). Con una sola empresa tampoco paga un equipo directivo (hace falta desde la quinta) ni enfrenta una posición dominante: esos costos aparecen al crecer.
@@ -41,7 +41,7 @@ Por qué emprendedor supera 1.5 veces a los demás (×1.76): el bot funda con ca
 | Origen | Patrimonio final (mediana, 4 estilos) | Estilos donde supera al egresado | Sueldo medio 3 primeros años | Cursos a la vez (promedio) | Atrasos |
 |---|---|---|---|---|---|
 | egresado | $885,686 | — | $1,519 | 1.38 | 0 |
-| tecnico | $997,143 | 4 de 4 | $1,784 | 1.47 | 0 |
+| tecnico | $997,137 | 4 de 4 | $1,784 | 1.47 | 0 |
 | autodidacta | $978,906 | 3 de 4 | $2,068 | 1.36 | 0 |
 | herencia | $926,944 | 3 de 4 | $1,614 | 1.47 | 6 |
 

@@ -193,7 +193,11 @@ export function investmentsValue(state: GameState): Cents {
   return v;
 }
 
-/** Comisión estándar del corredor: 0,2 % con mínimo de $1 (ajustado por inflación). */
+/**
+ * Comisión estándar del corredor: 0,2 % con mínimo de $1 (ajustado por inflación).
+ * Nunca supera el monto de la operación: vender acciones que casi no valen nada no
+ * puede costar más de lo que se cobra (la caja de prueba de 50 × 20 lo encontró).
+ */
 export function brokerFee(state: GameState, gross: Cents, rate = 0.002): Cents {
-  return Math.max(roundCents(100 * state.macro.priceIndex), roundCents(gross * rate));
+  return Math.min(Math.max(0, gross), Math.max(roundCents(100 * state.macro.priceIndex), roundCents(gross * rate)));
 }
