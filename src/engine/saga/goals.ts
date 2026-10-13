@@ -5,7 +5,7 @@ import { usd, clamp } from '../money';
 import { ActionResult, FAIL, OK } from '../result';
 import { addLog } from '../log';
 import { chronicle, celebrate } from './chronicle';
-import { RIVAL_HEADS, magnateWealth, cityName, playerCity, CITY_SIZE } from './ranking';
+import { RIVAL_HEADS, magnateWealth, cityName, playerCity, CITY_SIZE, listedFortune } from './ranking';
 import { professionalLevel } from '../progression/progression';
 import type { PlayStyle } from '../../content/backgrounds';
 
@@ -54,7 +54,8 @@ function rankGoal(t: number): GoalDef['check'] {
     const best = s.saga.ranking.player.bestCity;
     const done = best !== null && best <= t;
     const floor = s.saga.ranking.magnates.filter((x) => x.city === playerCity(s)).map((x) => magnateWealth(s, x)).sort((a, b) => b - a)[Math.min(t, CITY_SIZE) - 1] ?? 0;
-    return { progress: done ? 1 : logPct(m.netWorth, floor), done, label: done ? `Lo lograste (mejor puesto: ${best})` : `Te faltan ${fmtShort(Math.max(0, floor - m.netWorth))} para el puesto ${t} de ${cityName(playerCity(s))}` };
+    const f = listedFortune(s, m.netWorth);
+    return { progress: done ? 1 : logPct(f, floor), done, label: done ? `Lo lograste (mejor puesto: ${best})` : `Te faltan ${fmtShort(Math.max(0, floor - f))} para el puesto ${t} de ${cityName(playerCity(s))}` };
   };
 }
 
@@ -70,7 +71,7 @@ const RIVAL_GOALS: GoalDef[] = Object.entries(RIVAL_HEADS).map(([rivalId, h]) =>
     const done = s.saga.ranking.overtaken.includes(rivalId);
     const mag = s.saga.ranking.magnates.find((x) => x.rivalId === rivalId);
     const w = mag ? magnateWealth(s, mag) : 0;
-    return { progress: done ? 1 : logPct(m.netWorth, w), done, label: done ? 'Lo superaste' : `Su fortuna: ${fmtShort(w)}` };
+    return { progress: done ? 1 : logPct(listedFortune(s, m.netWorth), w), done, label: done ? 'Lo superaste' : `Su fortuna: ${fmtShort(w)}` };
   },
 }));
 
@@ -144,7 +145,7 @@ export const GOALS: GoalDef[] = [
       const best = s.saga.ranking.player.bestGlobal;
       const top = s.saga.ranking.magnates.reduce((a, x) => Math.max(a, magnateWealth(s, x)), 0);
       const done = best === 1;
-      return { progress: done ? 1 : logPct(m.netWorth, top), done, label: done ? 'Lo lograste' : `El número 1 tiene ${fmtShort(top)}` };
+      return { progress: done ? 1 : logPct(listedFortune(s, m.netWorth), top), done, label: done ? 'Lo lograste' : `El número 1 tiene ${fmtShort(top)}` };
     },
   },
   ...RIVAL_GOALS,

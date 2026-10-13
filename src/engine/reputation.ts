@@ -5,6 +5,7 @@ import { LIFESTYLE_BY_ID } from '../content/lifestyle';
 import { imageScore } from './lifestyle/effects';
 import { foundationReputation } from './saga/life';
 import { isOpen } from './business/common';
+import { locales } from './business/locations';
 
 /**
  * DE DÓNDE SALE TU REPUTACIÓN (fase 1 · E4, auditoría D4).
@@ -15,8 +16,9 @@ import { isOpen } from './business/common';
  * (que pide 60). Ahora tu imperio es una fuente más:
  *  - Carrera: nivel del puesto × 12 (como antes).
  *  - Empresas: por cada empresa abierta, 16 + 8 × su reputación (0–1); las que
- *    pierden plata en los últimos 3 meses cuentan 40 %. Tope 60: tres empresas
- *    rentables pesan como el puesto más alto (nivel 5 × 12).
+ *    pierden plata en los últimos 3 meses cuentan 40 %. Una cadena pesa más: × raíz
+ *    de sus locales (1.6, hasta × 2,5). Tope 60: tres empresas rentables pesan como el
+ *    puesto más alto (nivel 5 × 12).
  *  - Empleados: 4 × log10(1 + empleados de todas tus empresas). Tope 10.
  *  - Listas de fortunas: top 100 de tu ciudad +5, top 10 +10, número 1 +15; top 100
  *    mundial +5 más.
@@ -50,7 +52,8 @@ export function reputationSources(state: GameState): ReputationSources {
   const job = state.career.job ? JOB_BY_ID[state.career.job.jobId] : null;
   const career = job ? job.level * 12 : 0;
   const open = state.companies.filter((c) => isOpen(c) && !c.npc);
-  const companies = Math.min(60, open.reduce((sum, c) => sum + (16 + 8 * clamp(c.reputation, 0, 100) / 100) * (profitable(c.history.map((h) => h.netIncome)) ? 1 : 0.4), 0));
+  const chain = (c: (typeof open)[number]) => Math.min(2.5, Math.sqrt(Object.values(locales(c, state.day)).reduce((a, k) => a + (k ?? 0), 0) || 1));
+  const companies = Math.min(60, open.reduce((sum, c) => sum + (16 + 8 * clamp(c.reputation, 0, 100) / 100) * (profitable(c.history.map((h) => h.netIncome)) ? 1 : 0.4) * (c.sector === 'holding' ? 1 : chain(c)), 0));
   const staff = open.reduce((n, c) => n + c.employees.length, 0);
   const employees = Math.min(10, 4 * Math.log10(1 + staff));
   const rk = state.saga?.ranking?.player;

@@ -151,7 +151,12 @@ export function StandingCard() {
   const city = cityName(p.city);
   let next: string;
   if (nw <= 0) next = 'Con patrimonio negativo no figurás en ninguna lista: primero, salir de las deudas.';
-  else if (!p.exact) next = p.ahead ? `El puesto 100 tiene ${fmtMoneyFit(p.floor, { decimals: false })}.` : '';
+  else if (!p.exact) {
+    // 1.6: el puesto estimado se mueve aunque estés lejos de la lista; se muestra cuánto subiste en un año.
+    const year = [...rk.history].reverse().find((h) => h.day <= s.day - 330 && h.est);
+    const moved = year?.est ? year.est - p.rank : 0;
+    next = moved >= 10 ? `Subiste ${fmtNumber(moved)} puestos en un año. El puesto 100 tiene ${fmtMoneyFit(p.floor, { decimals: false })}.` : moved <= -10 ? `Bajaste ${fmtNumber(-moved)} puestos en un año.` : `El puesto 100 tiene ${fmtMoneyFit(p.floor, { decimals: false })}.`;
+  }
   else if (p.rank === 1) next = rk.reignMonths ? `Llevás ${rk.reignMonths} mes${rk.reignMonths > 1 ? 'es' : ''} en el primer puesto.${p.behind ? ` ${p.behind.name} te sigue con ${fmtMoneyFit(p.behind.wealth, { decimals: false })}.` : ''}` : 'Sos la persona más rica de la ciudad.';
   else next = p.ahead ? `Para subir: superar a ${p.ahead.name} (${fmtMoneyFit(p.ahead.wealth, { decimals: false })}).` : '';
   return (

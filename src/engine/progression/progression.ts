@@ -6,6 +6,8 @@ import { computeMetrics, Metrics } from '../reports/metrics';
 import { rewardMissions } from './tutorial';
 import { sectionsFromStage } from './unlocks';
 import { onStage, onAchievement, sagaProgress } from '../saga/index';
+import { listedFortune } from '../saga/ranking';
+import { locales } from '../business/locations';
 
 /**
  * Etapas de magnate. Ninguna exige una ruta concreta: cada criterio puede
@@ -42,6 +44,31 @@ const nw = (s: GameState, m: Metrics, v: number): Criterion => {
   return { label: `Patrimonio neto ≥ ${fmtMoney(t, { decimals: false })}${(s.macro?.priceIndex ?? 1) > 1.01 ? ' (a precios de hoy)' : ''}`, met: m.netWorth >= t };
 };
 
+/**
+ * Fortuna para las etapas altas (1.6): la de las listas (tus empresas a lo que valen,
+ * ver listedFortune), o tu patrimonio si es mayor.
+ */
+const fortune = (s: GameState, m: Metrics, v: number): Criterion => {
+  const t = stageThreshold(s, v);
+  const f = Math.max(m.netWorth, listedFortune(s, m.netWorth));
+  return { label: `Fortuna estimada ≥ ${fmtMoney(t, { decimals: false })}${(s.macro?.priceIndex ?? 1) > 1.01 ? ' (a precios de hoy)' : ''}`, met: f >= t };
+};
+
+const activeCos = (s: GameState) => s.companies.filter((c) => !c.npc && (c.status === 'active' || c.status === 'insolvent'));
+/** Empleados de todas tus empresas. */
+export const staffOf = (s: GameState) => activeCos(s).reduce((n, c) => n + c.employees.length, 0);
+/** Inmuebles tuyos o de tus empresas. */
+export const propertiesOf = (s: GameState) => (s.realEstate?.properties ?? []).filter((p) => p.owner.kind === 'personal' || p.owner.kind === 'company').length;
+/** Locales abiertos de todas tus empresas (sin holdings). */
+export const localesOf = (s: GameState) => activeCos(s).filter((c) => c.sector !== 'holding').reduce((n, c) => n + Object.values(locales(c, s.day)).reduce((a, k) => a + (k ?? 0), 0), 0);
+/** Ciudades donde tenés presencia: locales de tus empresas o inmuebles. */
+export function citiesPresent(s: GameState): number {
+  const set = new Set<string>();
+  for (const c of activeCos(s)) if (c.sector !== 'holding') for (const city of Object.keys(locales(c, s.day))) set.add(city);
+  for (const p of s.realEstate?.properties ?? []) if (p.owner.kind === 'personal' || p.owner.kind === 'company') set.add(p.jurisdiction);
+  return set.size;
+}
+
 export const STAGES: StageDef[] = [
   { n: 1, name: 'Supervivencia financiera', description: 'Recursos limitados. El objetivo es no quedarte sin efectivo.', criteria: () => [] },
   {
@@ -76,11 +103,35 @@ export const STAGES: StageDef[] = [
     label: 'Una empresa propia con ganancias en los últimos 3 meses, o ingresos pasivos que cubran todos tus gastos',
     met: s.companies.some((c) => c.status === 'active' && c.history.length >= 3 && c.history.slice(-3).reduce((a, h) => a + h.netIncome, 0) > 0) || (m.recurringMonthly > 0 && m.passiveMonthly >= m.recurringMonthly),
   }] },
-  { n: 8, name: 'Empresario nacional', description: 'Tu nombre se conoce en todo el país.', criteria: (s, m) => [nw(s, m, 10_000_000), { label: 'Reputación ≥ 60', met: s.player.attributes.reputation >= 60 }] },
-  { n: 9, name: 'Grupo empresarial', description: 'Varias empresas bajo tu control.', criteria: (s, m) => [nw(s, m, 50_000_000), { label: '3 empresas activas o más', met: s.companies.filter((c) => c.status === 'active').length >= 3 }] },
-  { n: 10, name: 'Corporación internacional', description: 'Operaciones en varias jurisdicciones.', criteria: (s, m) => [nw(s, m, 250_000_000), { label: 'Empresas o inmuebles en 2 jurisdicciones', met: jurisdictionsPresent(s) >= 2 }] },
-  { n: 11, name: 'Conglomerado global', description: 'Diversificado en múltiples sectores.', criteria: (s, m) => [nw(s, m, 1_000_000_000), { label: 'Empresas en 5 sectores distintos', met: new Set(s.companies.filter((c) => c.status === 'active').map((c) => c.sector)).size >= 5 }] },
-  { n: 12, name: 'Imperio económico', description: 'La cima: una de las fortunas más grandes del mundo.', criteria: (s, m) => [nw(s, m, 10_000_000_000), { label: 'Top 10 del ranking global de fortunas', met: (s.saga?.ranking.player.bestGlobal ?? 999) <= 10 }] },
+  // 1.6 (auditoría E3, D2): antes, de $500 mil se saltaba a $10 M (20 veces) y casi solo con dinero:
+  // los bots pasaban 18 años sin etapa nueva. Ahora los saltos son de unas 4 veces, cuenta la
+  // fortuna estimada (tus empresas a lo que valen) y cada etapa pide algo de juego, con caminos
+  // alternativos (empresas, inmuebles o inversiones) para que ningún estilo quede afuera.
+  { n: 8, name: 'Empresario nacional', description: 'Tu nombre se conoce en todo el país.', criteria: (s, m) => [
+    fortune(s, m, 2_000_000),
+    { label: 'Reputación ≥ 60', met: s.player.attributes.reputation >= 60 },
+    { label: 'Presencia en 2 ciudades, 25 empleados o rentas que cubran el doble de tus gastos', met: citiesPresent(s) >= 2 || staffOf(s) >= 25 || (m.recurringMonthly > 0 && m.passiveMonthly >= m.recurringMonthly * 2) },
+  ] },
+  { n: 9, name: 'Grupo empresarial', description: 'Varios negocios bajo tu control y un lugar en la lista.', criteria: (s, m) => [
+    fortune(s, m, 5_000_000),
+    { label: 'Entrar en la lista de fortunas de tu ciudad (top 100)', met: s.saga?.ranking.player.bestCity !== null && s.saga?.ranking.player.bestCity !== undefined },
+    { label: '3 empresas, 6 locales o 10 inmuebles', met: activeCos(s).length >= 3 || localesOf(s) >= 6 || propertiesOf(s) >= 10 },
+  ] },
+  { n: 10, name: 'Corporación internacional', description: 'Operaciones en varias ciudades.', criteria: (s, m) => [
+    fortune(s, m, 20_000_000),
+    { label: 'Presencia en 3 ciudades (locales o inmuebles)', met: citiesPresent(s) >= 3 },
+    { label: '12 locales, 50 empleados o 25 inmuebles', met: localesOf(s) >= 12 || staffOf(s) >= 50 || propertiesOf(s) >= 25 },
+  ] },
+  { n: 11, name: 'Conglomerado', description: 'Diversificado y entre los más ricos de tu ciudad.', criteria: (s, m) => [
+    fortune(s, m, 80_000_000),
+    { label: 'Top 10 de la lista de tu ciudad', met: (s.saga?.ranking.player.bestCity ?? 999) <= 10 },
+    { label: 'Negocios en 4 rubros o presencia en las 4 ciudades', met: new Set(activeCos(s).filter((c) => c.sector !== 'holding').map((c) => c.sector)).size >= 4 || citiesPresent(s) >= 4 },
+  ] },
+  { n: 12, name: 'Imperio económico', description: 'La cima: una de las fortunas más grandes del mundo, y un legado preparado.', criteria: (s, m) => [
+    fortune(s, m, 400_000_000),
+    { label: 'Top 10 del ranking global de fortunas', met: (s.saga?.ranking.player.bestGlobal ?? 999) <= 10 },
+    { label: 'Sucesión preparada: heredero elegido o fundación creada', met: (s.saga?.life?.heirId !== undefined && s.saga?.life?.heirId !== null) || !!s.saga?.life?.foundation },
+  ] },
 ];
 
 /** Jurisdicciones donde tenés empresas activas o inmuebles (propios o de tus empresas). */

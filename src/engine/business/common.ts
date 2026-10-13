@@ -202,11 +202,13 @@ export function monthlyPayroll(_state: GameState, co: Company): Cents {
  * Oficina y servicios (USD base). Una holding (1.2) solo necesita un domicilio legal
  * mientras no tenga subsidiarias; cada subsidiaria suma espacio y servicios de gestión.
  */
-export function premisesBase(state: GameState, co: Company): { rent: number; utilities: number } {
+export function premisesBase(state: GameState, co: Company): { rent: number; utilities: number; branchRent: number } {
   const sec = sectorOf(co);
-  if (co.sector !== 'holding') return { rent: sec.rent, utilities: sec.utilities };
+  // 1.6: cada sucursal paga su alquiler y sus servicios (rent es solo el local principal).
+  const branches = co.branches?.length ?? 0;
+  if (co.sector !== 'holding') return { rent: sec.rent, utilities: sec.utilities * (1 + branches), branchRent: sec.rent * branches };
   const subs = state.companies.filter((c) => c.parentId === co.id && isOpen(c)).length;
-  return { rent: 80 + 150 * subs, utilities: 20 + 30 * subs };
+  return { rent: 80 + 150 * subs, utilities: 20 + 30 * subs, branchRent: 0 };
 }
 
 /** Administración legal y contable del mes (con el descuento de un proveedor propio y el recargo por estar en otro país). */
@@ -220,7 +222,7 @@ export function adminFee(state: GameState, co: Company): number {
 export function monthlyFixed(state: GameState, co: Company): Cents {
   const pb = premisesBase(state, co);
   const ownPremises = (state.realEstate?.properties ?? []).some((p) => p.usedBy === co.id);
-  let t = (ownPremises ? 0 : px(state, pb.rent)) + px(state, pb.utilities) + adminFee(state, co);
+  let t = (ownPremises ? 0 : px(state, pb.rent)) + px(state, pb.branchRent) + px(state, pb.utilities) + adminFee(state, co);
   t += maintenanceCost(state, co);
   for (const l of co.loans) if (l.balance > 0) t += l.payment;
   return t;

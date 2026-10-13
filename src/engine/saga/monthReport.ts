@@ -4,7 +4,7 @@ import { startOfMonth, formatMonthLong, formatDate, isLastDayOfMonth } from '../
 import { fmtMoney, fmtPct } from '../format';
 import { incomeStatement, balanceSheet } from '../reports/statements';
 import { agenda, type AgendaItem } from './agenda';
-import { playerPosition, cityName } from './ranking';
+import { playerPosition, cityName, listedFortune } from './ranking';
 import { rivalById } from '../world/rivals';
 import { isOpen } from '../business/common';
 
@@ -67,7 +67,7 @@ function pickHeadline(s: GameState, from: number, change: Cents, income: Cents, 
 
 function rankLine(s: GameState, nw: Cents): string | null {
   const hist = s.saga?.ranking?.history ?? [];
-  const pos = playerPosition(s, nw);
+  const pos = playerPosition(s, listedFortune(s, nw));
   const city = cityName(pos.city);
   const prev = [...hist].reverse().find((h) => h.day < startOfMonth(s.day));
   if (pos.exact) {

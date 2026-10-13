@@ -1,4 +1,6 @@
 import type { GameState } from '../state';
+import { locales, presence, citiesOf, CITY_MARKET } from './locations';
+import type { JurisdictionId } from '../../content/jurisdictions';
 import type { Company, DayStats } from './types';
 import { sectorOf, px, coLog, coPay, capacity, computeQuality, countRole, workingAssets, equipDef, isOpen, premisesBase } from './common';
 import { coPost } from './companyLedger';
@@ -40,24 +42,42 @@ export function companyAttraction(state: GameState, co: Company, p: ProductDef, 
   return attractiveness(ratio, co.quality, co.reputation, co.awareness, p.elasticity, salesBonus(state, co));
 }
 
-/** Cuota esperada del producto (0–1) frente a rivales IA y a tus otras empresas del sector. */
-export function expectedShare(state: GameState, co: Company, p: ProductDef, price: Cents): number {
+/**
+ * Cuota esperada del producto (0–1) en UNA ciudad, frente a rivales IA y a tus otras
+ * empresas del rubro que tengan locales ahí (1.6, ver locations.ts).
+ */
+export function cityShare(state: GameState, co: Company, p: ProductDef, price: Cents, city: JurisdictionId, day = state.day): number {
+  const n = locales(co, day)[city] ?? 0;
+  if (!n) return 0;
   const market = state.markets[co.sector];
   const { rivals, outside } = rivalsAttraction(market, p.elasticity);
   let own = 0;
   for (const other of state.companies) {
     if (other.id === co.id || other.sector !== co.sector || !isOpen(other)) continue;
+    const m = locales(other, day)[city] ?? 0;
+    if (!m) continue;
     const op = other.products.find((x) => x.id === p.id);
-    if (op?.active) own += companyAttraction(state, other, p, effectivePrice(state, other, p.id));
+    if (op?.active) own += companyAttraction(state, other, p, effectivePrice(state, other, p.id)) * presence(m);
   }
-  const a = companyAttraction(state, co, p, price);
+  const a = companyAttraction(state, co, p, price) * presence(n);
   return a / (a + rivals + outside + own);
+}
+
+/**
+ * Cuota esperada ponderada por el mercado de cada ciudad donde vende la empresa
+ * (multiplica la demanda de la capital). Con solo el local principal es la cuota de
+ * siempre (0–1); con sucursales puede superar 1 (vende en más de un mercado).
+ */
+export function expectedShare(state: GameState, co: Company, p: ProductDef, price: Cents, day = state.day): number {
+  let s = 0;
+  for (const city of citiesOf(co, day)) s += CITY_MARKET[city] * cityShare(state, co, p, price, city, day);
+  return s;
 }
 
 /** Demanda esperada (sin ruido) para un producto en un día. */
 export function expectedDemand(state: GameState, co: Company, p: ProductDef, price: Cents, day = state.day): number {
   const sec = sectorOf(co);
-  return p.marketDaily * demandFactor(state, sec, day) * expectedShare(state, co, p, price);
+  return p.marketDaily * demandFactor(state, sec, day) * expectedShare(state, co, p, price, day);
 }
 
 function recordStats(co: Company, s: DayStats): void {
@@ -307,6 +327,7 @@ export function monthStartCosts(state: GameState, co: Company, _sec: SectorDef, 
   const ownPremises = (state.realEstate?.properties ?? []).some((p) => p.usedBy === co.id);
   const pb = premisesBase(state, co);
   if (!ownPremises) coPay(state, co, 'rent', px(state, pb.rent), { memo: co.sector === 'holding' ? 'Oficina y domicilio legal' : 'Alquiler del local', tag: 'rent', kind: 'alquiler' });
+  if (pb.branchRent > 0) coPay(state, co, 'rent', px(state, pb.branchRent), { memo: `Alquiler de ${co.branches!.length === 1 ? 'la sucursal' : `${co.branches!.length} sucursales`}`, tag: 'rent', kind: 'alquiler' });
   coPay(state, co, 'utilities', px(state, pb.utilities), { memo: 'Servicios (energía, agua, internet)', tag: 'utilities', kind: 'otros' });
   if (adminFee > 0) coPay(state, co, 'admin', adminFee, { memo: 'Administración legal y contable de la sociedad', tag: 'admin', kind: 'otros' });
   if (maintenance > 0) coPay(state, co, 'maintenance', maintenance, { memo: 'Mantenimiento de equipos', tag: 'maintenance', kind: 'otros' });

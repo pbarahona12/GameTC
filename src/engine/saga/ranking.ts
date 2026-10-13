@@ -5,6 +5,7 @@ import { CITIES, CITY_BY_ID, FIRST_NAMES, LAST_NAMES, BIOS, SOURCE_INFO } from '
 import { chance, nextRandom, randInt, randNormal, randRange, RngHolder, seedFromString } from '../rng';
 import { clamp, Cents, roundCents, usd } from '../money';
 import { balanceSheet } from '../reports/statements';
+import { valuation } from '../business/reports';
 import { publish } from '../world/news';
 import { addLog } from '../log';
 import { fmtMoney } from '../format';
@@ -242,6 +243,26 @@ export interface RankRow {
 }
 
 /** Ciudad del jugador: la de su residencia fiscal. */
+/**
+ * FORTUNA ESTIMADA (1.6, auditoría E1 y D3): las listas valúan tus empresas por lo
+ * que valdrían (valuation(): ganancias × múltiplo, activos o ingresos recurrentes,
+ * por tu participación), no por su valor contable. Tu balance no cambia: esto es solo
+ * cómo te mide la revista. Se recalcula al cierre de cada mes.
+ */
+export function fortuneAdjustment(state: GameState): Cents {
+  let adj = 0;
+  for (const co of state.companies) {
+    if (co.npc || co.parentId !== null || !(co.status === 'active' || co.status === 'insolvent')) continue;
+    adj += roundCents(valuation(state, co).value * co.ownership) - co.carrying;
+  }
+  return adj;
+}
+
+/** Fortuna con la que figurás en las listas: patrimonio + ajuste del último cierre. */
+export function listedFortune(state: GameState, netWorth: Cents): Cents {
+  return netWorth + (state.saga?.ranking?.fortuneAdj ?? 0);
+}
+
 export function playerCity(state: GameState): JurisdictionId {
   return state.tax.jurisdiction;
 }
@@ -335,7 +356,8 @@ export function rankingMonth(state: GameState): void {
   const g = srng(state);
   const mm = marketMonth(state);
   const pi = state.macro.priceIndex;
-  const nw = balanceSheet(state).netWorth;
+  rk.fortuneAdj = fortuneAdjustment(state);
+  const nw = listedFortune(state, balanceSheet(state).netWorth);
   const city = playerCity(state);
   const prevPlayerCity = rk.player.city;
   const cityChanged = rk.lastCity !== undefined && rk.lastCity !== city;
@@ -501,7 +523,7 @@ export function rankingMonth(state: GameState): void {
   p.global = newGlobal;
   if (newCity !== null) p.bestCity = p.bestCity === null ? newCity : Math.min(p.bestCity, newCity);
   if (newGlobal !== null) p.bestGlobal = p.bestGlobal === null ? newGlobal : Math.min(p.bestGlobal, newGlobal);
-  rk.history.push({ day: state.day, city: newCity, global: newGlobal });
+  rk.history.push({ day: state.day, city: newCity, global: newGlobal, est: newCity ?? (nw > 0 ? playerPosition(state, nw).rank : undefined) });
   if (rk.history.length > 120) rk.history.splice(0, rk.history.length - 120);
   rk.lastPrices = currentPrices(state);
   rk.lastZones = currentZones(state);

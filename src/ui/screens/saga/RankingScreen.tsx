@@ -47,6 +47,7 @@ export function RankingScreen() {
           <strong className="num">{balanceSheetNw(s) <= 0 ? '—' : pos.exact ? pos.rank : `~${fmtNumber(pos.rank)}`}</strong>
           <span className="small muted">{balanceSheetNw(s) <= 0 ? 'Sin puesto todavía: tu patrimonio no es positivo' : pos.exact ? `de las ${CITY_SIZE} fortunas más grandes` : `de ${fmtNumber(CITY_BY_ID[pos.city].adults)} adultos (estimado)`}</span>
         </div>
+        {(rk.fortuneAdj ?? 0) !== 0 && <p className="tiny muted">Las listas te miden por tu fortuna estimada: tu patrimonio, pero con tus empresas a lo que valdrían si las vendieras ({(rk.fortuneAdj ?? 0) > 0 ? '+' : '−'}{fmtMoneyFit(Math.abs(rk.fortuneAdj ?? 0), { decimals: false })} frente a su valor en libros). Se actualiza al cerrar cada mes.</p>}
         {!pos.exact && <p className="small">Para entrar en la lista hacen falta <strong>{fmtMoneyFit(pos.floor, { decimals: false })}</strong> (el puesto 100 de hoy). Las fortunas también crecen: es una carrera.</p>}
         {pos.exact && pos.ahead && <p className="small">Adelante: <strong>{pos.ahead.name}</strong> con {fmtMoneyFit(pos.ahead.wealth, { decimals: false })}.{pos.behind ? <> Atrás: {pos.behind.name} con {fmtMoneyFit(pos.behind.wealth, { decimals: false })}.</> : null}</p>}
         {pos.exact && pos.rank === 1 && <p className="small">Sos el número 1{rk.reignMonths ? ` desde hace ${rk.reignMonths} mes${rk.reignMonths > 1 ? 'es' : ''}` : ''}. Quien está segundo puede lanzar una ofensiva: si es un grupo rival, se va a notar en tus negocios.</p>}
@@ -86,7 +87,7 @@ function RankLine({ r, n, open, onToggle, view }: { r: RankRow; n: number; open:
     return (
       <div className="row rank-row me">
         <span className="rank-n num">{n}</span>
-        <div className="grow"><div className="title small">{s.player.name} (vos)</div><div className="meta">{Math.floor(ageOf(s))} años · {view === 'global' ? cityName(s.tax.jurisdiction) : 'tu patrimonio neto'}</div></div>
+        <div className="grow"><div className="title small">{s.player.name} (vos)</div><div className="meta">{Math.floor(ageOf(s))} años · {view === 'global' ? cityName(s.tax.jurisdiction) : 'tu fortuna estimada'}</div></div>
         <span className="amt small"><Money c={r.wealth} fit /></span>
       </div>
     );

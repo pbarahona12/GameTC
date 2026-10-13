@@ -112,14 +112,16 @@ describe('Balance · jugador nuevo que explora antes de postularse (1.4)', () =>
  */
 describe.runIf(!!process.env.URT_LONG)('Balance largo · etapas altas y patrimonio real', () => {
   const rows: string[] = [];
-  for (const style of STYLES) {
-    it(`${style} · 60 años`, () => {
+  // 1.6: además de los cuatro estilos prudentes, un emprendedor que abre sucursales (E2).
+  const cases: Array<{ style: typeof STYLES[number]; label: string; expand: boolean }> = [...STYLES.map((style) => ({ style, label: style, expand: false })), { style: 'emprendedor', label: 'emprendedor + sucursales', expand: true }];
+  for (const c of cases) {
+    it(`${c.label} · años largos`, () => {
       const years = Number(process.env.URT_LONG_YEARS ?? 60);
-      const r = runBot(style, 'tecnico', `long-${style}`, years) as ReturnType<typeof runBot> & { realNetWorth?: number };
+      const r = runBot(c.style, 'tecnico', `long-${c.style}`, years, { expand: c.expand }) as ReturnType<typeof runBot> & { realNetWorth?: number };
       const cells = [7, 8, 9, 10, 11, 12].map((n) => (r.stageDays[n] !== undefined ? (r.stageDays[n] / 365).toFixed(1) : '—'));
-      rows.push(`| ${style} | ${years} | ${cells.join(' | ')} | $${Math.round(r.finalNetWorth / 100).toLocaleString('en-US')} | E${r.finalStage} |`);
+      rows.push(`| ${c.label} | ${years} | ${cells.join(' | ')} | $${Math.round(r.finalNetWorth / 100).toLocaleString('en-US')} | E${r.finalStage} |`);
       expect(r.finalNetWorth).toBeGreaterThan(0);
-    }, 900_000);
+    }, 1_800_000);
   }
   afterAll(() => {
     writeFileSync('docs/BALANCE_LARGO.md', ['# Balance largo (bots, origen técnico)', '', 'Años de juego hasta cada etapa (umbrales a precios de hoy). "—" = no la alcanzó.', '', '| Estilo | Años simulados | E7 | E8 | E9 | E10 | E11 | E12 | Patrimonio final (nominal) | Etapa final |', '|---|---|---|---|---|---|---|---|---|---|', ...rows, ''].join('\n'));

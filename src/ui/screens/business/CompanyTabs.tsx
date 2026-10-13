@@ -8,7 +8,8 @@ import { coIncomeStatement, coBalanceSheet, coMetrics, valuation } from '../../.
 import { BIZ_BANKS, quoteCoLoan, takeCoLoan, prepayCoLoan, payCoArrearsNow, coTaxRateLabel } from '../../../engine/business/finance';
 import { injectCapital, distribute, maxDistribution, companyTaxRates, requestSaleOffer, acceptSale, liquidate, raiseEquity, SALE_FEE } from '../../../engine/business/ownership';
 import { rivalsAttraction } from '../../../engine/business/market';
-import { expectedShare, refPrice, companyAttraction, effectivePrice } from '../../../engine/business/operations';
+import { cityShare, refPrice, companyAttraction, effectivePrice } from '../../../engine/business/operations';
+import { BranchesCard } from './Branches';
 import { distributableProfit, isOpen } from '../../../engine/business/common';
 import { fmtMoney, fmtPct, fmtNumber } from '../../../engine/format';
 import { spendable } from '../../../engine/finance/payments';
@@ -100,8 +101,9 @@ export function MarketTab({ co }: { co: Company }) {
   const fuzz = (v: number, key: number) => (exact ? v : Math.round(v / 10) * 10 + ((key * 7) % 5) - 2);
   return (
     <>
+      <BranchesCard co={co} />
       <div className="card">
-        <CardHead title="Competencia" term="cuota_mercado" />
+        <CardHead title="Competencia (capital)" term="cuota_mercado" />
         <p className="small muted">{exact ? 'Datos exactos del estudio de mercado.' : 'Sin estudio de mercado, los datos de los rivales son aproximados (unos ±7 puntos). Contratá uno en Marketing.'}</p>
         <div className="hscroll">
           <table className="table">
@@ -138,7 +140,7 @@ export function MarketTab({ co }: { co: Company }) {
           {exact && sec.products.map((x) => (
             <Fragment key={x.id}>
               <dt>{x.name}: mercado diario · elasticidad</dt><dd>{x.marketDaily} · {x.elasticity}</dd>
-              <dt>Tu cuota esperada a tu precio</dt><dd>{fmtPct(expectedShare(s, co, x, effectivePrice(s, co, x.id)))}</dd>
+              <dt>Tu cuota esperada a tu precio (capital)</dt><dd>{fmtPct(cityShare(s, co, x, effectivePrice(s, co, x.id), 'valdoria'))}</dd>
             </Fragment>
           ))}
         </div>

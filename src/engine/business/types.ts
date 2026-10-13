@@ -256,6 +256,8 @@ export interface Company {
   jurisdiction: JurisdictionId;
   /** Empresa matriz (holding) si es subsidiaria. */
   parentId: number | null;
+  /** Sucursales (1.6): locales además del principal, en la capital o en otras ciudades. */
+  branches?: import('./locations').Branch[];
   /** Políticas de grupo (solo holdings). */
   group: GroupPolicy | null;
   /** Licencia suspendida por sanción judicial: no opera hasta ese día. */

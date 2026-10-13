@@ -17,6 +17,8 @@ import { SECTOR_BY_ID, BizSectorId } from '../../src/content/sectors';
 import { usd, Cents } from '../../src/engine/money';
 import { isLastDayOfMonth, dateOf } from '../../src/engine/time/calendar';
 import type { BackgroundId, PlayStyle } from '../../src/content/backgrounds';
+import { branchCosts, branchBlocker, openBranch } from '../../src/engine/business/branches';
+import { locales, CITY_ORDER } from '../../src/engine/business/locations';
 import { MORTGAGE_BANKS } from '../../src/content/realestate';
 
 /**
@@ -126,7 +128,24 @@ function propertyStep(s: GameState, free: Cents): void {
   }
 }
 
-function businessStep(s: GameState, free: Cents): void {
+/**
+ * Expansión prudente (1.6): con una empresa que ganó plata los últimos 6 meses y caja
+ * para dos aperturas, abre un local en la próxima ciudad (primero ciudades nuevas).
+ */
+function expandStep(s: GameState): void {
+  for (const co of s.companies) {
+    if (co.status !== 'active' || co.sector === 'holding' || co.history.length < 6) continue;
+    if (co.history.slice(-6).reduce((a, h) => a + h.netIncome, 0) <= 0) continue;
+    if ((co.branches ?? []).some((b) => b.openDay > s.day)) continue;
+    const c = branchCosts(s, co);
+    if (co.ledger.balances.cash < c.total + (c.monthly + c.payroll) * 3) continue;
+    const here = locales(co, s.day);
+    const city = CITY_ORDER.find((x) => !here[x]) ?? CITY_ORDER[(co.branches?.length ?? 0) % CITY_ORDER.length];
+    if (!branchBlocker(s, co, city)) openBranch(s, co.id, city);
+  }
+}
+
+function businessStep(s: GameState, free: Cents, expand = false): void {
   if (s.companies.some((c) => c.status === 'active' || c.status === 'insolvent')) {
     for (const co of s.companies) {
       if (co.status !== 'active' || co.employees.some((e) => e.role === 'gerente')) continue;
@@ -134,7 +153,11 @@ function businessStep(s: GameState, free: Cents): void {
       const c = generateCandidates(s, co, 'gerente').sort((a, b) => b.skill - a.skill)[0];
       if (c && hire(s, co, c.id, true).ok) co.delegation = { ...co.delegation, autoReorder: true, autoPricing: true, autoStaffing: true };
     }
-    return;
+    if (!expand) return;
+    expandStep(s);
+    // Con la primera empresa ya en varias ciudades y capital de sobra, funda otra en otro rubro.
+    const open = s.companies.filter((c) => c.status === 'active' || c.status === 'insolvent');
+    if (open.length >= 3 || !open.every((c) => (c.branches?.length ?? 0) >= 3)) return;
   }
   if (s.formerCompanies.length >= 3) return;
   const sectors: BizSectorId[] = ['consultora', 'cafeteria', 'minimarket', 'saas', 'muebles'];
@@ -142,6 +165,7 @@ function businessStep(s: GameState, free: Cents): void {
     const sec = SECTOR_BY_ID[id];
     const req = sectorRequirement(s, sec);
     if (req && !req.met) continue;
+    if (s.companies.some((c) => c.sector === id && (c.status === 'active' || c.status === 'insolvent'))) continue;
     const costs = setupCosts(s, id, 'srl');
     const capital = Math.max(costs.total + (costs.firstMonthFixed + costs.firstMonthPayroll) * 6, costs.recommended);
     if (free >= capital) {
@@ -159,6 +183,8 @@ export interface BotOptions {
   earlyWindow?: number;
   /** Se llama en cada cierre de mes (para medir). */
   onMonth?: (s: GameState) => void;
+  /** 1.6: el emprendedor abre sucursales cuando su empresa gana (estrategia de expansión). */
+  expand?: boolean;
 }
 
 export function runBot(style: BotStyle, background: BackgroundId, seed: string, years: number, opts: BotOptions = {}): BotResult & { earlyArrears: number } {
@@ -209,7 +235,7 @@ export function runBot(style: BotStyle, background: BackgroundId, seed: string, 
     } else {
       studyStep(s, 0.1);
       const free = savingsStep(s, 3);
-      businessStep(s, free);
+      businessStep(s, free, opts.expand);
     }
   }
   const m = computeMetrics(s);

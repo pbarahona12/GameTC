@@ -45,6 +45,8 @@ export interface PlayerRankMark {
   day: number;
   city: number | null;
   global: number | null;
+  /** 1.6: puesto estimado en tu ciudad aunque estés fuera del top 100. */
+  est?: number;
 }
 
 export interface RankingState {
@@ -67,6 +69,12 @@ export interface RankingState {
   overtaken: string[];
   /** Ciudad del jugador en el cierre anterior (para detectar mudanzas). */
   lastCity?: JurisdictionId;
+  /**
+   * 1.6 (auditoría E1): diferencia entre el valor estimado de tus empresas (como lo
+   * calculan las revistas de fortunas: valuation() × tu participación) y su valor
+   * contable. Se actualiza en cada cierre de mes; la lista usa patrimonio + esto.
+   */
+  fortuneAdj?: Cents;
 }
 
 // ------------------------------------------------------------------ crónica

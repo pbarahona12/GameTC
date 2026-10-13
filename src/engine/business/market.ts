@@ -6,6 +6,7 @@ import { clamp } from '../money';
 import { randRange, chance, randInt } from '../rng';
 import { addLog } from '../log';
 import { dateOf } from '../time/calendar';
+import { citiesOf, addressableWeight, CITY_MARKET } from './locations';
 
 /**
  * Mercado por sector: demanda total + competidores controlados por IA.
@@ -71,7 +72,10 @@ export function playerShare(state: GameState, sector: BizSectorId): number {
     }
   }
   const sec = SECTOR_BY_ID[sector];
-  for (const p of sec.products) demand += p.marketDaily * 30;
+  // 1.6: el mercado al que llegás suma las ciudades donde alguna de tus empresas tiene locales.
+  const cities = new Set(cos.flatMap((c) => citiesOf(c, state.day)));
+  const weight = [...cities].reduce((s, c) => s + CITY_MARKET[c], 0);
+  for (const p of sec.products) demand += p.marketDaily * 30 * weight;
   return demand > 0 ? sold / demand : 0;
 }
 
@@ -130,6 +134,7 @@ export function companyShareEstimate(co: Company): number {
   let demand = 0;
   const recent = co.stats.slice(-30);
   for (const d of recent) for (const k of Object.keys(d.sold)) sold += d.sold[k];
-  for (const p of sec.products) demand += p.marketDaily * recent.length;
+  const weight = addressableWeight(co, recent[recent.length - 1]?.day ?? 0);
+  for (const p of sec.products) demand += p.marketDaily * recent.length * weight;
   return demand > 0 ? sold / demand : 0;
 }

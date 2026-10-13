@@ -12,7 +12,7 @@ import { consolidateGroup, groupRisks } from '../engine/business/groups';
 import { projectCurrentYear } from '../engine/tax/taxEngine';
 import { quoteAll } from '../engine/finance/loans';
 import { agenda } from '../engine/saga/agenda';
-import { playerPosition, cityTable, globalTable } from '../engine/saga/ranking';
+import { playerPosition, cityTable, globalTable, listedFortune } from '../engine/saga/ranking';
 import { suggestedGoals, GOAL_BY_ID } from '../engine/saga/goals';
 import type { JurisdictionId } from '../content/jurisdictions';
 
@@ -73,10 +73,10 @@ export const coCashFlowOf = (s: GameState, id: number, from: number) => coCashFl
 export const agendaOf = (s: GameState) => agenda(s);
 
 /** Tu puesto en tu ciudad (exacto o estimado) y en el mundo, con el patrimonio de hoy. */
-export const positionOf = (s: GameState) => playerPosition(s, store.derive(metricsOf, []).netWorth);
+export const positionOf = (s: GameState) => playerPosition(s, listedFortune(s, store.derive(metricsOf, []).netWorth));
 
 export const cityTableOf = (s: GameState, city: JurisdictionId | 'global') => {
-  const nw = store.derive(metricsOf, []).netWorth;
+  const nw = listedFortune(s, store.derive(metricsOf, []).netWorth);
   return city === 'global' ? globalTable(s, nw) : cityTable(s, city, nw);
 };
 
